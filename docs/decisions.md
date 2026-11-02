@@ -47,3 +47,7 @@ cost over `claude-opus-5-5`.
 
 **Revisit:** if root-cause analysis falls short on real traces. The model is an environment
 variable, so changing it needs no code change.
+
+**References:**
+[Anthropic model pricing](https://platform.claude.com/docs/en/about-claude/pricing), checked
+2026-11-02.

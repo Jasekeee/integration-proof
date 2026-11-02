@@ -16,24 +16,34 @@ PASS/FAIL per scenario, and uses Claude to explain the root cause and propose a 
 
 ```
 app/
-  (marketing)/page.tsx          landing
-  proof/...                      runs, results grid, scenario reports
-  store/[mode]/...               reference store, mode = "naive" | "hardened" (both live)
-  api/store/[mode]/orders/...    create / capture (Orders v2)
-  api/store/webhooks-router      single registered webhook; dispatches by order.mode
-  api/store/[mode]/state         read-only state contract used by the runner
-  api/proxy/[runId]/[...path]    fault-injection proxy -> api-m.sandbox.paypal.com
-  api/runs/...                   start run, poll status, fetch report
+  layout.tsx, globals.css                              root layout, global styles
+  (marketing)/page.tsx                                 landing
+  proof/page.tsx                                       start a run, browse previous runs
+  proof/[runId]/page.tsx                               results grid for one run
+  proof/[runId]/[scenarioId]/page.tsx                  report for one scenario
+  store/[mode]/page.tsx                                reference store, mode = "naive" | "hardened" (both live)
+  api/store/[mode]/orders/route.ts                     create order (Orders v2)
+  api/store/[mode]/orders/[orderId]/capture/route.ts   capture order (Orders v2)
+  api/store/[mode]/state/route.ts                      read-only state contract used by the runner
+  api/store/webhooks-router/route.ts                   single registered webhook; dispatches by order.mode
+  api/proxy/[runId]/[...path]/route.ts                 fault-injection proxy -> api-m.sandbox.paypal.com
+  api/runs/route.ts                                    start run
+  api/runs/[runId]/route.ts                            poll status
+  api/runs/[runId]/report/route.ts                     fetch report
 lib/
-  paypal/                        token cache, fetch client (injectable base URL), webhook verification
-  store/naive.ts, hardened.ts    two implementations of the same store logic
-  proof/scenarios/               scenario definitions (S1..S6)
-  proof/assertions/              pure functions: (trace, state) -> { verdict, reason }
-  proof/runner.ts                executes a scenario step by step and writes the trace
-  ai/analyst.ts                  Claude call + zod output schema
-  db/                            Drizzle schema, migrations, client
-scripts/                         one-off tooling (e.g. sandbox capability checks)
-docs/                            architecture.md, decisions.md, sandbox-findings.md
+  paypal/token.ts                                      OAuth token cache
+  paypal/client.ts                                     fetch client (injectable base URL)
+  paypal/webhooks.ts                                   webhook verification
+  store/naive.ts, store/hardened.ts                    two implementations of the same store logic
+  proof/scenarios/index.ts                             scenario definitions (S1..S6)
+  proof/assertions/index.ts                            pure functions: (trace, state) -> { verdict, reason }
+  proof/runner.ts                                      executes a scenario step by step and writes the trace
+  ai/analyst.ts                                        Claude call + zod output schema
+  db/schema.ts, db/client.ts                           Drizzle schema, database client
+  db/migrations/                                       Drizzle migrations
+scripts/                                               one-off tooling (e.g. sandbox capability checks)
+docs/decisions.md                                      engineering decisions and their reasoning
+docs/sandbox-findings.md                               observed PayPal sandbox behavior
 ```
 
 Design rules:

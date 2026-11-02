@@ -1,0 +1,2 @@
+// Drizzle schema.
+export {};

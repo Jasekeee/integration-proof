@@ -148,5 +148,14 @@ vite.config.ts.timestamp-*
 # Turbo Repo
 .turbo
 
+# Next.js (the rest is covered above; a bare .env* rule would ignore .env.example)
+/.pnp
+/build
+.DS_Store
+*.pem
+.pnpm-debug.log*
+.vercel
+next-env.d.ts
+
 .private/
 .env*.local

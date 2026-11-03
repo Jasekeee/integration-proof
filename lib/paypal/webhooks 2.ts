@@ -1,2 +1,0 @@
-// Webhook signature verification.
-export {};

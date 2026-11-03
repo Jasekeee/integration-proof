@@ -38,6 +38,7 @@ lib/
   paypal/orders.ts                                     Orders v2 calls and the order slice the stores read
   paypal/webhooks.ts                                   webhook parsing and verification
   paypal/test-cards.ts                                 the published sandbox test card the runner uses
+  paypal/payments.ts                                   Payments v2 refund the runner makes as the merchant (S5)
   store/naive.ts, store/hardened.ts                    two implementations of the same store logic
   store/shared.ts, store/repository.ts                 pure decisions shared by both stores; their DB access
   proof/scenarios/index.ts                             scenario definitions (S1..S6)

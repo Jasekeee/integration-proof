@@ -231,10 +231,11 @@ simulates an event.
 - S4: the runner waits for the real `PAYMENT.CAPTURE.COMPLETED`, then replays it. The naive store
   records a second fulfilment; the hardened store answers `duplicate`.
 - S5: PayPal decides the order of its own deliveries, so the runner cannot make a later event arrive
-  first. It replays the earlier event after the later one has been applied: the store has the later
-  state when the stale event arrives. The naive store applies the stale status. In the hardened store
-  the replay stops at the event-id dedupe. Asking PayPal on every event is what keeps the hardened
-  store right when PayPal's own deliveries arrive out of order, and no scenario can force that order.
+  first. It refunds the capture right after it, then replays the earlier event once the later one
+  has been applied: the store has the later state when the stale event arrives. The naive store
+  applies the stale status. In the hardened store the replay stops at the event-id dedupe, but
+  PayPal's own `PAYMENT.CAPTURE.COMPLETED` already arrived after the refund, and the hardened store
+  read the order on it, found the capture refunded and shipped nothing.
 - The runner replays as soon as the original is recorded. A replay 48 seconds after transmission
   verified; an older one was not tried.
 
@@ -341,3 +342,29 @@ migrations. Each environment then gets its own Neon branch.
 
 **References:** [Drizzle migrations](https://orm.drizzle.team/docs/migrations),
 [Neon branching](https://neon.com/docs/introduction/branching).
+
+## Proof runs use a shorter store timeout
+
+**Decision:** during a run the store's PayPal calls time out after `storeTimeoutMs`, 8 seconds by
+default, instead of the 15 seconds of normal checkout. In S3 the proxy holds PayPal's answer for
+`proxyHoldMs`, 10 seconds by default and always longer than the store timeout. Both are stored on
+the run and can be set per run in `POST /api/runs`.
+
+**Why:**
+
+- S3 needs the store to give up before PayPal's answer arrives. With the normal timeout every S3
+  capture would cost at least 15 seconds, and the naive store's second checkout adds the same again.
+- One timeout for every call of the run keeps all scenarios on the configuration a store would
+  really use. 8 seconds is well above the longest call seen through the proxy, 3.3 seconds, so other
+  scenarios do not time out by accident.
+- The proxy writes the held capture to the trace as soon as PayPal answers. The evidence does not
+  depend on how long the store waits.
+
+**Consequence:** a store under test sees a short timeout only inside a run. Normal checkout keeps
+`PAYPAL_CALL_TIMEOUT_MS`.
+
+**Revisit:** with the latency measured on the deployed service. A lower timeout makes S3 faster;
+one close to real call latency makes other scenarios fail for the wrong reason.
+
+**References:** [webhook waits in full proofs](sandbox-findings.md#webhook-waits-in-full-proofs),
+[timeouts wait for a measurement](#timeouts-wait-for-a-measurement-from-the-hosting-region).

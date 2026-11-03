@@ -210,3 +210,59 @@ before 24 reaches end of life on 2028-04-30.
 [Next.js 16 upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16#nodejs-runtime-and-browser-support),
 [Render: setting your Node.js version](https://render.com/docs/node-version),
 [Node.js release schedule](https://github.com/nodejs/Release#release-schedule), checked 2026-11-03.
+
+## S4 and S5 replay real deliveries
+
+**Decision:** S4 and S5 deliver real PayPal events by replaying a recorded delivery: its original
+body and transmission headers, posted to the webhook router again. Neither scenario forges or
+simulates an event.
+
+**Why:**
+
+- A replay passes `verify-webhook-signature` just as the original did, so the stores receive a
+  delivery that is genuine in every respect except that it has been seen before. Webhooks Simulator
+  events cannot be verified by postback, so they would not reach the hardened store's state logic.
+- Verification cannot catch a replay. A store that verifies signatures but does not dedupe by event
+  id ships a replayed event again. S4 therefore tests the event-id dedupe and S6 tests verification,
+  and neither depends on the other.
+
+**Consequence:**
+
+- S4: the runner waits for the real `PAYMENT.CAPTURE.COMPLETED`, then replays it. The naive store
+  records a second fulfilment; the hardened store answers `duplicate`.
+- S5: PayPal decides the order of its own deliveries, so the runner cannot make a later event arrive
+  first. It replays the earlier event after the later one has been applied: the store has the later
+  state when the stale event arrives. The naive store applies the stale status. In the hardened store
+  the replay stops at the event-id dedupe. Asking PayPal on every event is what keeps the hardened
+  store right when PayPal's own deliveries arrive out of order, and no scenario can force that order.
+- The runner replays as soon as the original is recorded. A replay 48 seconds after transmission
+  verified; an older one was not tried.
+
+**Revisit:** if a replay fails verification, for example because of its transmission age.
+
+**References:** [replay of a recorded delivery](sandbox-findings.md#replay-of-a-recorded-delivery),
+[a real delivery on the deployed service](sandbox-findings.md#a-real-delivery-on-the-deployed-service).
+
+## Scenarios run in parallel and wait for webhooks with a deadline
+
+**Decision:** the scenarios of a run execute concurrently. After its last action, a scenario waits
+until the store has acknowledged a `PAYMENT.CAPTURE.COMPLETED` for every capture PayPal reports for
+the cart, so the assertion sees the state the webhook leaves behind. While it waits, its status reads
+"waiting for PayPal webhook". The wait ends after 90 seconds; a missed webhook is recorded in the
+trace and does not crash the run.
+
+**Why:**
+
+- The one measured delivery reached the store 49 seconds after its capture. Waiting for each
+  scenario in turn would add that delay once per scenario that captures, and S5 waits for two
+  deliveries. In parallel, a run takes about as long as its slowest scenario.
+- Scenarios cannot interfere with each other. Each one has its own cart and orders, and the proxy
+  faults only the requests of the scenario they belong to.
+- 90 seconds is almost twice the measured delay and keeps a full proof within two minutes.
+
+**Consequence:** run time is set by webhook delivery, not by the number of scenarios. Every wait is a
+trace step with its duration, so each run adds a latency measurement.
+
+**Revisit:** when recorded waits show the 90-second deadline is too short or far too long.
+
+**References:** [delivery latency](sandbox-findings.md#delivery-latency).

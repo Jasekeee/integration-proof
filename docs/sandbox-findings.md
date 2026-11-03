@@ -158,13 +158,58 @@ from an unknown webhook id.
 Documentation: [Webhooks API](https://developer.paypal.com/docs/api/webhooks/v1/), request and
 response schema in [schema.json](https://developer.paypal.com/api/webhooks/v1/schema.json).
 
+### A real delivery on the deployed service
+
+One hardened checkout on `https://integration-proof.onrender.com` through the headless buyer path.
+Reproduce with `npx tsx scripts/checkout.ts --store https://integration-proof.onrender.com --mode hardened`.
+PayPal order `9RX69635KJ645230G`, capture `0MM28060KS143004L`:
+
+| Step | Result |
+|---|---|
+| Store creates the order | `CREATED` |
+| Buyer sends the test card to `confirm-payment-source` | `APPROVED` |
+| Store captures | `COMPLETED`, order `PAID` |
+| `PAYMENT.CAPTURE.COMPLETED` reaches the webhook router | `verification_status` `SUCCESS`, outcome `applied`, HTTP 200 |
+| Store state afterwards | order `PAID`, 1 fulfilment |
+
+The event has `resource_type` `capture` and `resource_version` `2.0`. The capture carries the store's
+order id in `custom_id` and the PayPal order id in `supplementary_data.related_ids.order_id`, and both
+point at the same order row.
+
+### Replay of a recorded delivery
+
+The recorded delivery sent to the router again with its original body and transmission headers.
+Reproduce with `npx tsx scripts/webhook-replay.ts --post https://integration-proof.onrender.com`.
+
+| Delivery | Recorded (UTC) | `verification_status` | Router outcome |
+|---|---|---|---|
+| Original, from PayPal | 11:09:23.212 | `SUCCESS` | `applied`, 200 |
+| Replay: same body, same transmission id and signature | 11:09:31.063 | `SUCCESS` | `duplicate`, 200 |
+
+`verify-webhook-signature` accepts the replay just as it accepted the original. A valid signature
+shows that PayPal produced these bytes, not that they arrive for the first time, so only the
+event-id dedupe kept the hardened store from shipping the order twice. The replay was sent 48 seconds
+after the original transmission time, so this does not show whether PayPal rejects an older
+transmission.
+
+### Delivery latency
+
+| Time (UTC) | What | Source |
+|---|---|---|
+| 11:08:30.414 | Store created the order | `orders.created_at` |
+| 11:08:34 | Capture created | capture `create_time` |
+| 11:08:39.183 | Event created | event `create_time` |
+| 11:08:43 | Delivery transmitted | `paypal-transmission-time` header |
+| 11:09:23.212 | Delivery recorded | `webhook_deliveries.received_at` |
+
+40 seconds from transmission to the recorded delivery, 49 seconds from the capture. The router writes
+the row after the verification postback and the hardened store's `GET` order, so the network delivery
+itself took somewhat less than 40 seconds. This is one delivery, not a distribution.
+
+Documentation: [Webhooks API](https://developer.paypal.com/docs/api/webhooks/v1/),
+[webhook event names](https://developer.paypal.com/api/rest/webhooks/event-names/).
+
 ### Documented, not yet observed on a real delivery
 
 - The event names page lists `PAYMENT.CAPTURE.DECLINED` for Payments v2, not
   `PAYMENT.CAPTURE.DENIED`. Source: [event names](https://developer.paypal.com/api/rest/webhooks/event-names/).
-- A Payments v2 capture carries `custom_id` and `supplementary_data.related_ids.order_id`. The webhook
-  router finds the order by either. Source:
-  [Payments v2 schema](https://developer.paypal.com/api/payments/v2/schema.json).
-- Whether a recorded delivery still passes verification when it is sent again. This decides how S4
-  and S5 deliver real events; check it with `npx tsx scripts/webhook-replay.ts` after the first real
-  delivery.

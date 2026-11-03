@@ -185,3 +185,28 @@ of truth, so the result no longer depends on delivery order.
 
 **Consequence:** one extra GET per new event. If PayPal cannot be read, the router answers 503 and
 PayPal delivers the event again later.
+
+## Node.js 24 everywhere
+
+**Decision:** `.node-version` pins Node.js `24.22.2` and `engines.node` in `package.json` is `24.x`.
+Render reads `.node-version` before `engines`, so every build and the running service use that
+exact version. A `NODE_VERSION` variable in the Render dashboard would override both, so the service
+sets none.
+
+**Why:**
+
+- Next.js 16 requires Node.js 20.9 or later, but the 20 line reached end of life on 2026-04-30 and
+  gets no security fixes. Vitest's Vite also needs 20.19 or later on that line.
+- 24 is an LTS line with security fixes until 2028-04-30, and the line the app is developed and
+  tested on.
+- An exact pin keeps a build from moving to a new release on its own. Render resolves an open range
+  such as `>=20.9` to the latest Node.js, which can change the major version.
+- `24.x` in `engines` has the upper bound Render asks for and makes npm warn on any other major.
+
+**Revisit:** when moving to Node.js 26, the active LTS line since 2026-10-28, and in any case
+before 24 reaches end of life on 2028-04-30.
+
+**References:**
+[Next.js 16 upgrade guide](https://nextjs.org/docs/app/guides/upgrading/version-16#nodejs-runtime-and-browser-support),
+[Render: setting your Node.js version](https://render.com/docs/node-version),
+[Node.js release schedule](https://github.com/nodejs/Release#release-schedule), checked 2026-11-03.

@@ -266,3 +266,24 @@ trace step with its duration, so each run adds a latency measurement.
 **Revisit:** when recorded waits show the 90-second deadline is too short or far too long.
 
 **References:** [delivery latency](sandbox-findings.md#delivery-latency).
+
+## Each scenario has a secret key to the proxy
+
+**Decision:** every scenario of a run gets a random 256-bit run key. The runner sends it with the
+store's create order request, and the store then sends that order's PayPal calls to
+`/api/proxy/{runId}/{runKey}`. The proxy finds the scenario by the key. The key is stored only in
+`run_scenarios`, never returned by the runs API, and redacted from traces.
+
+**Why:**
+
+- Run ids are public: they appear in the run's URL. With only a run id and a scenario id in the proxy
+  URL, anyone could send requests into a running scenario. One early capture through the proxy would
+  use up S2's mocked first attempt and turn the naive store's FAIL into a PASS.
+- A cart id is not a secret either, because the trace shows the requests that carry it. The store
+  therefore accepts a run's proxy for a new order only with the matching key. The runner reads store
+  state for its cart and its run, so an order someone else creates for the same cart is not counted.
+- The proxy needs to know the scenario before an order exists. Create order is the first call, and
+  the store records its order only after PayPal answers, so the URL has to carry it.
+
+**Consequence:** the proxy forwards only the Orders v2 create, get and capture calls, and only while
+the scenario is running. Anything else returns 404 before a request reaches PayPal.

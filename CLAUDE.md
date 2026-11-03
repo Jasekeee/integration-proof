@@ -26,12 +26,13 @@ app/
   api/store/[mode]/orders/[orderId]/capture/route.ts   capture order (Orders v2)
   api/store/[mode]/state/route.ts                      read-only state contract used by the runner
   api/store/webhooks-router/route.ts                   single registered webhook; dispatches by order.mode
-  api/proxy/[runId]/[...path]/route.ts                 fault-injection proxy -> api-m.sandbox.paypal.com
+  api/proxy/[runId]/[runKey]/[...path]/route.ts        fault-injection proxy -> api-m.sandbox.paypal.com
   api/runs/route.ts                                    start run
   api/runs/[runId]/route.ts                            poll status
   api/runs/[runId]/report/route.ts                     fetch report
   api/health/route.ts                                  liveness check and deployed commit, no DB call
 lib/
+  origin.ts                                            the app's own address inside its process (PORT)
   paypal/token.ts                                      OAuth token cache
   paypal/client.ts                                     fetch client (injectable base URL)
   paypal/orders.ts                                     Orders v2 calls and the order slice the stores read
@@ -41,7 +42,10 @@ lib/
   store/shared.ts, store/repository.ts                 pure decisions shared by both stores; their DB access
   proof/scenarios/index.ts                             scenario definitions (S1..S6)
   proof/assertions/index.ts                            pure functions: (trace, state) -> { verdict, reason }
-  proof/runner.ts                                      executes a scenario step by step and writes the trace
+  proof/runner.ts                                      runs a run's scenarios in parallel and writes the trace
+  proof/proxy.ts, proof/context.ts                     what the proxy forwards; which base URL a store uses
+  proof/repository.ts, proof/views.ts                  runs, scenarios and trace steps in the DB; API JSON
+  proof/redact.ts, proof/types.ts                      redaction before a body is traced; shared shapes
   ai/analyst.ts                                        Claude call + zod output schema
   db/schema.ts, db/client.ts                           Drizzle schema, database client
   db/migrations/                                       Drizzle migrations
@@ -55,7 +59,8 @@ Design rules:
   row stores its `mode`; the webhook router dispatches to the matching implementation.
 - **Injectable base URL.** The store's PayPal client receives `baseUrl` per call. Normal checkout uses
   `https://api-m.sandbox.paypal.com`; during a run the runner routes the store through
-  `/api/proxy/{runId}`. The override is honoured only in sandbox and only from the runner.
+  `/api/proxy/{runId}/{runKey}`. The override is honoured only in sandbox and only from the runner:
+  each scenario has a secret run key that only the runner and the store see.
 - **Two buyer paths.** Human: PayPal button via JS SDK v6 (`@paypal/react-paypal-js`, sdk-v6 entry).
   Headless runner: the store creates the order with no payment source, the runner sends one of
   PayPal's published sandbox test cards to `confirm-payment-source` (order becomes `APPROVED`), and

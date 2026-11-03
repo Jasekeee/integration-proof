@@ -122,3 +122,44 @@ path. One local request also lost its connection before PayPal captured anything
 **Consequence:** the runner and proxy treat a missing response as a normal trace entry.
 
 **References:** [sandbox findings](sandbox-findings.md#latency-and-connection-failures).
+
+## Postgres through node-postgres, not Neon's HTTP driver
+
+**Decision:** the app talks to Neon with `pg` and `drizzle-orm/node-postgres`, one pool per process.
+
+**Why:**
+
+- The service is a long-running Node process on Render, so a TCP pool stays warm across requests.
+- The hardened store claims an event id and applies its effect in one transaction that branches on
+  the result of the claim. The HTTP driver runs single statements or fixed batches, which cannot
+  express that.
+
+**References:** [Drizzle with PostgreSQL](https://orm.drizzle.team/docs/get-started-postgresql).
+
+## Webhooks drive fulfilment in both stores
+
+**Decision:** an order ships when its `PAYMENT.CAPTURE.COMPLETED` webhook is applied. The capture
+response only decides what the buyer is told.
+
+**Why:**
+
+- One trigger in both stores keeps S4 about event dedupe alone. If the capture response also shipped,
+  the naive store would ship twice on every ordinary checkout and the scenario would prove nothing.
+- Shipping on the webhook also covers a capture whose response never arrived.
+
+**Consequence:** `fulfilments` has no unique constraint, so a duplicate event in the naive store
+produces a second row. The hardened store prevents it with the primary key on
+`webhook_events.event_id`, inside the same transaction as the shipment.
+
+## The hardened store asks PayPal on every event
+
+**Decision:** after a verified, unseen event, the hardened store reads the order with
+`GET /v2/checkout/orders/{id}` and takes the order status from the latest capture. The event type only
+decides whether to ship. The naive store applies the status each event type suggests, in arrival
+order.
+
+**Why:** deliveries can arrive out of order (S5). The current capture status at PayPal is the source
+of truth, so the result no longer depends on delivery order.
+
+**Consequence:** one extra GET per new event. If PayPal cannot be read, the router answers 503 and
+PayPal delivers the event again later.

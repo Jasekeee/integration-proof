@@ -139,3 +139,32 @@ HTTP status. The underlying cause was not recorded; the script now reports it. A
 - A response lost after a successful capture. The replay above is the mechanism that scenario relies
   on, but the scenario itself needs the fault-injection proxy.
 - Latency from the hosting region.
+
+## Webhooks, 2026-11-03
+
+### Verification of a forged signature
+
+`POST /v1/notifications/verify-webhook-signature` with well-formed transmission fields, a signature
+PayPal did not produce, and a webhook id that is not registered on the app:
+
+| Call | Status | `debug_id` |
+|---|---|---|
+| `POST /v1/notifications/verify-webhook-signature` | 200, `verification_status` `FAILURE` | `ca54a3b743e56` |
+
+A rejected signature is a 200 answer, so the hardened store decides on `verification_status`, not on
+the HTTP status. Because two inputs were wrong in this call, it does not tell a bad signature apart
+from an unknown webhook id.
+
+Documentation: [Webhooks API](https://developer.paypal.com/docs/api/webhooks/v1/), request and
+response schema in [schema.json](https://developer.paypal.com/api/webhooks/v1/schema.json).
+
+### Documented, not yet observed on a real delivery
+
+- The event names page lists `PAYMENT.CAPTURE.DECLINED` for Payments v2, not
+  `PAYMENT.CAPTURE.DENIED`. Source: [event names](https://developer.paypal.com/api/rest/webhooks/event-names/).
+- A Payments v2 capture carries `custom_id` and `supplementary_data.related_ids.order_id`. The webhook
+  router finds the order by either. Source:
+  [Payments v2 schema](https://developer.paypal.com/api/payments/v2/schema.json).
+- Whether a recorded delivery still passes verification when it is sent again. This decides how S4
+  and S5 deliver real events; check it with `npx tsx scripts/webhook-replay.ts` after the first real
+  delivery.

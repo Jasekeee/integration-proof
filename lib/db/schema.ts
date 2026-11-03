@@ -5,6 +5,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -19,6 +20,15 @@ export const ORDER_STATUSES = ["CREATED", "PENDING", "PAID", "DECLINED", "FAILED
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const RUN_STATUSES = ["QUEUED", "RUNNING", "COMPLETED", "ERROR"] as const;
+export type RunStatus = (typeof RUN_STATUSES)[number];
+
+/** WAITING_FOR_WEBHOOK: the scenario's actions are done and the store has not yet heard from PayPal. */
+export const SCENARIO_STATUSES = ["QUEUED", "RUNNING", "WAITING_FOR_WEBHOOK", "COMPLETED", "ERROR"] as const;
+export type ScenarioStatus = (typeof SCENARIO_STATUSES)[number];
+
+/** Decided by deterministic assertions, never by the model. */
+export const VERDICTS = ["PASS", "FAIL"] as const;
+export type Verdict = (typeof VERDICTS)[number];
 
 /** Result of checking a delivery's signature. NOT_CHECKED is what the naive store records. */
 export const VERIFICATION_RESULTS = [
@@ -33,6 +43,8 @@ export type VerificationResult = (typeof VERIFICATION_RESULTS)[number];
 export const storeMode = pgEnum("store_mode", STORE_MODES);
 export const orderStatus = pgEnum("order_status", ORDER_STATUSES);
 export const runStatus = pgEnum("run_status", RUN_STATUSES);
+export const scenarioStatus = pgEnum("scenario_status", SCENARIO_STATUSES);
+export const verdict = pgEnum("verdict", VERDICTS);
 export const verificationResult = pgEnum("verification_result", VERIFICATION_RESULTS);
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -47,6 +59,38 @@ export const runs = pgTable("runs", {
   startedAt: timestamp("started_at", { withTimezone: true }),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 });
+
+/** One scenario of a run, with its own cart and its own key to the fault-injection proxy. */
+export const runScenarios = pgTable(
+  "run_scenarios",
+  {
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => runs.id, { onDelete: "cascade" }),
+    scenarioId: text("scenario_id").notNull(),
+    cartId: text("cart_id").notNull(),
+    /**
+     * Secret that only the runner and the store see. The store accepts a run's proxy only with it,
+     * and the proxy URL carries it, so nobody outside the process can add requests to a scenario.
+     * It never leaves the server: the runs API omits it and traces redact it.
+     */
+    runKey: text("run_key").notNull(),
+    status: scenarioStatus("status").notNull().default("QUEUED"),
+    verdict: verdict("verdict"),
+    reason: text("reason"),
+    error: text("error"),
+    /** Last trace step number handed out. Steps take a number when they start, so nesting reads in order. */
+    lastSeq: integer("last_seq").notNull().default(0),
+    /** Capture requests the proxy has seen, so a fault can target the first attempt only. */
+    captureAttempts: integer("capture_attempts").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.scenarioId] }),
+    uniqueIndex("run_scenarios_cart_id_key").on(table.cartId),
+  ],
+);
 
 export const orders = pgTable(
   "orders",
@@ -140,6 +184,8 @@ export const traceSteps = pgTable(
     path: text("path"),
     httpStatus: integer("http_status"),
     debugId: text("debug_id"),
+    /** The PayPal-Request-Id the request carried, or null when it had none. */
+    paypalRequestId: text("paypal_request_id"),
     fault: text("fault"),
     requestBody: jsonb("request_body"),
     responseBody: jsonb("response_body"),
@@ -149,3 +195,6 @@ export const traceSteps = pgTable(
 );
 
 export type OrderRow = typeof orders.$inferSelect;
+export type RunRow = typeof runs.$inferSelect;
+export type RunScenarioRow = typeof runScenarios.$inferSelect;
+export type TraceStepRow = typeof traceSteps.$inferSelect;

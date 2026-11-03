@@ -1,13 +1,28 @@
-// PayPal fetch client. Receives baseUrl per call; only api-m.sandbox.paypal.com is allowed.
+// PayPal fetch client. Receives baseUrl per call: the PayPal sandbox, or the app's own
+// fault-injection proxy, which forwards to the sandbox only.
 import { z } from "zod";
+import { internalOrigin } from "../origin";
 
-export const SANDBOX_API_BASE = "https://api-m.sandbox.paypal.com";
+export const SANDBOX_HOST = "api-m.sandbox.paypal.com";
+export const SANDBOX_API_BASE = `https://${SANDBOX_HOST}`;
 
-/** Hosts a PayPal call may reach. Anything else throws before a request leaves the process. */
-const ALLOWED_BASE_URLS = new Set([SANDBOX_API_BASE]);
+const PROXY_PATH = /^\/api\/proxy\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[0-9a-f]{64}$/;
 
+/** Where the store sends its PayPal calls during one scenario of a run. */
+export function proxyBaseUrl(runId: string, runKey: string): string {
+  const baseUrl = `${internalOrigin()}/api/proxy/${runId}/${runKey}`;
+  assertAllowedBaseUrl(baseUrl);
+  return baseUrl;
+}
+
+function isProxyBaseUrl(baseUrl: string): boolean {
+  const origin = internalOrigin();
+  return baseUrl.startsWith(`${origin}/`) && PROXY_PATH.test(baseUrl.slice(origin.length));
+}
+
+/** The sandbox or the run's proxy. Anything else throws before a request leaves the process. */
 export function assertAllowedBaseUrl(baseUrl: string): void {
-  if (!ALLOWED_BASE_URLS.has(baseUrl)) {
+  if (baseUrl !== SANDBOX_API_BASE && !isProxyBaseUrl(baseUrl)) {
     throw new Error(`PayPal base URL is not allowed: ${baseUrl}`);
   }
 }

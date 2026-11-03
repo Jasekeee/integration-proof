@@ -287,3 +287,57 @@ store's create order request, and the store then sends that order's PayPal calls
 
 **Consequence:** the proxy forwards only the Orders v2 create, get and capture calls, and only while
 the scenario is running. Anything else returns 404 before a request reaches PayPal.
+
+## One Neon database for the deployed service and local development
+
+**Decision:** the deployed service and local development share one Neon database. This is a
+deliberate trade-off. Render builds with `npm ci && npm run db:migrate && npm run build`, so a deploy
+applies pending migrations before it builds.
+
+**Why:**
+
+- PayPal delivers webhooks only to the URL registered on the sandbox app, which is the deployed
+  router. A local run sees a webhook only because the deployed router writes it to the same database.
+  A separate local database would need its own sandbox app and a public tunnel for every session.
+- One database holds one record of sandbox orders, deliveries and traces, so a local run and the
+  deployed service never disagree about what happened.
+
+**Cost:** the deployed code and the code on a local branch use one schema at the same time, and test
+data written locally shows up on the deployed service.
+
+**Rules:**
+
+- **Migrations only add:** new tables, new enum types, new indexes, and new columns that are
+  nullable or have a default. No drops, renames or type changes, because the deployed code must keep
+  working against a schema a newer branch has already migrated. Removing something is a separate
+  decision, taken once no running code uses it.
+- **An applied migration is never rewritten.** `drizzle-kit migrate` stores each file's hash in
+  `drizzle.__drizzle_migrations` but never compares it. An edited file would not run again, and the
+  schema would silently differ from the files. A change is a new migration.
+- **Migrations apply in merge order.** Only migrations newer than the newest recorded one run, so a
+  migration generated earlier but applied later is skipped without an error. Generate a migration
+  on a branch that is up to date with `main`, and apply it to the shared database from that branch
+  only, just before it merges.
+- **Test data is cleared with `npm run db:reset`.** It prints the row count of every table and
+  deletes only with `--yes`, keeping the schema and the migration history. The database is shared,
+  so a reset also clears the runs the deployed service shows.
+
+**Consequence:** all pending migrations run in one transaction. A migration that fails leaves the
+schema as it was, and the `&&` chain stops the build before `next build`, so the previous deploy
+keeps serving.
+
+**Verified on 2026-11-03** with `sslmode=verify-full`:
+
+- `npm run db:migrate` ran twice on the shared database and twice on a temporary empty database,
+  which was dropped afterwards. Every run exited 0, and the second run recorded nothing new.
+- Both databases ended with the same tables and enums, and the recorded timestamps and hashes match
+  the files.
+- The output shows neither credentials nor node-postgres's SSL warning.
+- A connection that trusted only an unrelated root CA was refused with
+  `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`, so the server certificate is verified.
+
+**Revisit:** when the service stores anything beyond sandbox data or a second developer runs
+migrations. Each environment then gets its own Neon branch.
+
+**References:** [Drizzle migrations](https://orm.drizzle.team/docs/migrations),
+[Neon branching](https://neon.com/docs/introduction/branching).

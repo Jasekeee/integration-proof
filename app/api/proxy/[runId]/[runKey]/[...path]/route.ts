@@ -3,7 +3,7 @@
 // The URL carries the scenario's secret run key, so only the store, told by the runner, gets in.
 import { z } from "zod";
 import { jsonError } from "@/lib/http";
-import { classifyProxiedRequest, mockResponseHeader, sandboxUrl } from "@/lib/proof/proxy";
+import { classifyProxiedRequest, describeFault, mockResponseHeader, sandboxUrl } from "@/lib/proof/proxy";
 import { traceBody } from "@/lib/proof/redact";
 import { claimProxyStep, writeStep } from "@/lib/proof/repository";
 import { SCENARIOS, ScenarioIdSchema } from "@/lib/proof/scenarios";
@@ -41,7 +41,7 @@ async function proxy(request: Request, context: Context): Promise<Response> {
     const value = request.headers.get(name);
     if (value !== null) headers.set(name, value);
   }
-  if (fault) headers.set("PayPal-Mock-Response", mockResponseHeader(fault));
+  if (fault?.kind === "mock") headers.set("PayPal-Mock-Response", mockResponseHeader(fault.code));
   const requestBody = request.method === "POST" ? await request.text() : null;
 
   const startedAt = new Date();
@@ -62,6 +62,10 @@ async function proxy(request: Request, context: Context): Promise<Response> {
   } catch (error) {
     note = `PayPal did not answer the proxied request: ${error instanceof Error ? error.message : String(error)}`;
   }
+  const holding = fault?.kind === "hold_response" && upstream !== null;
+  if (holding) {
+    note = `PayPal answered; the proxy holds the answer for ${claim.proxyHoldMs} ms before passing it on.`;
+  }
 
   try {
     await writeStep(runId.data, scenarioId, claim.seq, {
@@ -73,7 +77,7 @@ async function proxy(request: Request, context: Context): Promise<Response> {
       httpStatus: upstream?.status ?? null,
       debugId: upstream?.headers.get("paypal-debug-id") ?? null,
       paypalRequestId: request.headers.get("paypal-request-id"),
-      fault: fault ? `PayPal-Mock-Response ${fault}` : null,
+      fault: fault ? describeFault(fault, claim.proxyHoldMs) : null,
       requestBody: traceBody(requestBody),
       responseBody: traceBody(responseText),
       note,
@@ -84,6 +88,8 @@ async function proxy(request: Request, context: Context): Promise<Response> {
   }
 
   if (!upstream) return jsonError(502, "upstream_unreachable", "PayPal did not answer the proxied request.");
+  // The step is already in the trace, so the evidence does not depend on the store still waiting.
+  if (holding) await new Promise((resolve) => setTimeout(resolve, claim.proxyHoldMs));
   const responseHeaders = new Headers({ "Cache-Control": "no-store" });
   for (const name of ["content-type", "paypal-debug-id"]) {
     const value = upstream.headers.get(name);

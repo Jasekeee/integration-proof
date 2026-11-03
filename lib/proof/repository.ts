@@ -1,11 +1,12 @@
 // Database reads and writes for proof runs. Orchestration lives in runner.ts.
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, lt, sql } from "drizzle-orm";
 import { getDb } from "../db/client";
 import {
   runs,
   runScenarios,
   traceSteps,
+  webhookDeliveries,
   type RunRow,
   type RunScenarioRow,
   type StoreMode,
@@ -29,8 +30,17 @@ export type CreateRunResult =
   | { kind: "busy"; runId: string }
   | { kind: "rate_limited"; retryAfterSeconds: number };
 
+export interface RunConfig {
+  storeTimeoutMs: number;
+  proxyHoldMs: number;
+}
+
 /** Creates a run and one row per scenario, each with its own cart, unless the limits say no. */
-export async function createRun(mode: StoreMode, scenarioIds: readonly ScenarioId[]): Promise<CreateRunResult> {
+export async function createRun(
+  mode: StoreMode,
+  scenarioIds: readonly ScenarioId[],
+  config: RunConfig,
+): Promise<CreateRunResult> {
   return getDb().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(${RUN_LOCK_KEY})`);
 
@@ -69,7 +79,7 @@ export async function createRun(mode: StoreMode, scenarioIds: readonly ScenarioI
       return { kind: "rate_limited", retryAfterSeconds: Math.max(1, Math.ceil((freesAt - Date.now()) / 1000)) };
     }
 
-    const [run] = await tx.insert(runs).values({ mode, scenarioIds: [...scenarioIds] }).returning();
+    const [run] = await tx.insert(runs).values({ mode, scenarioIds: [...scenarioIds], ...config }).returning();
     const scenarios = await tx
       .insert(runScenarios)
       .values(
@@ -115,14 +125,15 @@ export async function updateScenario(
     .where(and(eq(runScenarios.runId, runId), eq(runScenarios.scenarioId, scenarioId)));
 }
 
-/** The scenario a cart belongs to, with its key, while that scenario is running. */
+/** The scenario a cart belongs to, with its key and the run's store timeout, while it is running. */
 export async function findActiveScenario(
   runId: string,
   cartId: string,
-): Promise<{ scenarioId: string; runKey: string } | undefined> {
+): Promise<{ scenarioId: string; runKey: string; storeTimeoutMs: number } | undefined> {
   const [row] = await getDb()
-    .select({ scenarioId: runScenarios.scenarioId, runKey: runScenarios.runKey })
+    .select({ scenarioId: runScenarios.scenarioId, runKey: runScenarios.runKey, storeTimeoutMs: runs.storeTimeoutMs })
     .from(runScenarios)
+    .innerJoin(runs, eq(runs.id, runScenarios.runId))
     .where(
       and(
         eq(runScenarios.runId, runId),
@@ -152,15 +163,17 @@ export async function claimProxyStep(
   runId: string,
   runKey: string,
   isCapture: boolean,
-): Promise<{ scenarioId: string; seq: number; captureAttempt: number } | null> {
+): Promise<{ scenarioId: string; seq: number; captureAttempt: number; proxyHoldMs: number } | null> {
   const [row] = await getDb()
     .update(runScenarios)
     .set({
       lastSeq: sql`${runScenarios.lastSeq} + 1`,
       captureAttempts: sql`${runScenarios.captureAttempts} + ${isCapture ? 1 : 0}`,
     })
+    .from(runs)
     .where(
       and(
+        eq(runs.id, runScenarios.runId),
         eq(runScenarios.runId, runId),
         eq(runScenarios.runKey, runKey),
         inArray(runScenarios.status, ACTIVE_SCENARIO),
@@ -170,8 +183,35 @@ export async function claimProxyStep(
       scenarioId: runScenarios.scenarioId,
       seq: runScenarios.lastSeq,
       captureAttempt: runScenarios.captureAttempts,
+      proxyHoldMs: runs.proxyHoldMs,
     });
   return row ?? null;
+}
+
+/** The first delivery of an event type the store acknowledged for an order, byte for byte. */
+export async function findAcknowledgedDelivery(
+  orderId: string,
+  eventType: string,
+): Promise<{ eventId: string | null; headers: Record<string, string>; body: string; receivedAt: Date } | undefined> {
+  const [row] = await getDb()
+    .select({
+      eventId: webhookDeliveries.eventId,
+      headers: webhookDeliveries.headers,
+      body: webhookDeliveries.body,
+      receivedAt: webhookDeliveries.receivedAt,
+    })
+    .from(webhookDeliveries)
+    .where(
+      and(
+        eq(webhookDeliveries.orderId, orderId),
+        eq(webhookDeliveries.eventType, eventType),
+        gte(webhookDeliveries.responseStatus, 200),
+        lt(webhookDeliveries.responseStatus, 300),
+      ),
+    )
+    .orderBy(asc(webhookDeliveries.receivedAt))
+    .limit(1);
+  return row;
 }
 
 export interface StepRecord {

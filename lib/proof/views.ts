@@ -16,11 +16,19 @@ function durationMs(startedAt: Date | null, finishedAt: Date | null): number | n
 }
 
 export function runView(run: RunRow, scenarios: RunScenarioRow[]) {
+  const count = (verdict: "PASS" | "FAIL") => scenarios.filter((row) => row.verdict === verdict).length;
   return {
     id: run.id,
     mode: run.mode,
     status: run.status,
     error: run.error,
+    summary: {
+      total: scenarios.length,
+      passed: count("PASS"),
+      failed: count("FAIL"),
+      errors: scenarios.filter((row) => row.status === "ERROR").length,
+    },
+    config: { storeTimeoutMs: run.storeTimeoutMs, proxyHoldMs: run.proxyHoldMs },
     createdAt: run.createdAt,
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,

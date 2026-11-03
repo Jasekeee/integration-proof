@@ -15,6 +15,13 @@
       "when": 1793706087009,
       "tag": "0001_proof_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793709020202,
+      "tag": "0002_run_timeouts",
+      "breakpoints": true
     }
   ]
 }

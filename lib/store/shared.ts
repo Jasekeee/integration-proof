@@ -19,6 +19,8 @@ export const PAYPAL_CALL_TIMEOUT_MS = 15_000;
 export interface StoreContext {
   /** PayPal sandbox, or the run's fault-injection proxy. */
   baseUrl: string;
+  /** Per-call timeout; PAYPAL_CALL_TIMEOUT_MS unless a proof run sets its own. */
+  timeoutMs?: number;
 }
 
 export const DEFAULT_CONTEXT: StoreContext = { baseUrl: SANDBOX_API_BASE };

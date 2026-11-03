@@ -6,23 +6,38 @@ import { createRun, listRuns } from "@/lib/proof/repository";
 import { executeRun } from "@/lib/proof/runner";
 import { SCENARIO_IDS, ScenarioIdSchema } from "@/lib/proof/scenarios";
 import { runView } from "@/lib/proof/views";
+import { DEFAULT_PROXY_HOLD_MS, DEFAULT_STORE_TIMEOUT_MS } from "@/lib/db/schema";
 import { StoreModeSchema } from "@/lib/store";
 
-const BodySchema = z.object({
-  mode: StoreModeSchema,
-  scenarioIds: z
-    .array(ScenarioIdSchema)
-    .min(1)
-    .transform((ids) => SCENARIO_IDS.filter((id) => ids.includes(id)))
-    .default([...SCENARIO_IDS]),
-});
+/** The proxy must hold S3's answer past the store timeout, so the store gives up first. */
+const HOLD_MARGIN_MS = DEFAULT_PROXY_HOLD_MS - DEFAULT_STORE_TIMEOUT_MS;
+
+const BodySchema = z
+  .object({
+    mode: StoreModeSchema,
+    scenarioIds: z
+      .array(ScenarioIdSchema)
+      .min(1)
+      .transform((ids) => SCENARIO_IDS.filter((id) => ids.includes(id)))
+      .default([...SCENARIO_IDS]),
+    /** Timeout of the store's PayPal calls during the run. */
+    storeTimeoutMs: z.number().int().min(1000).max(15_000).default(DEFAULT_STORE_TIMEOUT_MS),
+    /** How long the proxy holds PayPal's answer in S3; the store timeout plus 2 s unless given. */
+    proxyHoldMs: z.number().int().min(1000).max(30_000).optional(),
+  })
+  .transform((body) => ({ ...body, proxyHoldMs: body.proxyHoldMs ?? body.storeTimeoutMs + HOLD_MARGIN_MS }))
+  .refine((body) => body.proxyHoldMs > body.storeTimeoutMs, {
+    path: ["proxyHoldMs"],
+    message: "proxyHoldMs must be longer than storeTimeoutMs, or S3 loses no response.",
+  });
 
 export async function POST(request: Request) {
   const body = BodySchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return invalidRequest(body.error.issues);
 
   try {
-    const result = await createRun(body.data.mode, body.data.scenarioIds);
+    const { mode, scenarioIds, storeTimeoutMs, proxyHoldMs } = body.data;
+    const result = await createRun(mode, scenarioIds, { storeTimeoutMs, proxyHoldMs });
     if (result.kind === "busy") {
       return jsonError(429, "run_in_progress", "Another proof run is in progress. Try again when it finishes.", {
         runId: result.runId,

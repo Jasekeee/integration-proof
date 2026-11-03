@@ -47,6 +47,10 @@ export const scenarioStatus = pgEnum("scenario_status", SCENARIO_STATUSES);
 export const verdict = pgEnum("verdict", VERDICTS);
 export const verificationResult = pgEnum("verification_result", VERIFICATION_RESULTS);
 
+/** Run defaults: well above the store's observed PayPal latency, and well below its 15 s timeout. */
+export const DEFAULT_STORE_TIMEOUT_MS = 8000;
+export const DEFAULT_PROXY_HOLD_MS = 10_000;
+
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
 export const runs = pgTable("runs", {
@@ -54,6 +58,10 @@ export const runs = pgTable("runs", {
   mode: storeMode("mode").notNull(),
   status: runStatus("status").notNull().default("QUEUED"),
   scenarioIds: text("scenario_ids").array().notNull(),
+  /** Timeout of every PayPal call the store makes during the run. Kept short so S3 is quick. */
+  storeTimeoutMs: integer("store_timeout_ms").notNull().default(DEFAULT_STORE_TIMEOUT_MS),
+  /** How long the proxy holds PayPal's answer in S3. Longer than the store timeout. */
+  proxyHoldMs: integer("proxy_hold_ms").notNull().default(DEFAULT_PROXY_HOLD_MS),
   error: text("error"),
   createdAt: createdAt(),
   startedAt: timestamp("started_at", { withTimezone: true }),

@@ -30,6 +30,7 @@ app/
   api/runs/route.ts                                    start run
   api/runs/[runId]/route.ts                            poll status
   api/runs/[runId]/report/route.ts                     fetch report
+  api/health/route.ts                                  liveness check and deployed commit, no DB call
 lib/
   paypal/token.ts                                      OAuth token cache
   paypal/client.ts                                     fetch client (injectable base URL)

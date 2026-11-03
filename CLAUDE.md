@@ -33,8 +33,11 @@ app/
 lib/
   paypal/token.ts                                      OAuth token cache
   paypal/client.ts                                     fetch client (injectable base URL)
-  paypal/webhooks.ts                                   webhook verification
+  paypal/orders.ts                                     Orders v2 calls and the order slice the stores read
+  paypal/webhooks.ts                                   webhook parsing and verification
+  paypal/test-cards.ts                                 the published sandbox test card the runner uses
   store/naive.ts, store/hardened.ts                    two implementations of the same store logic
+  store/shared.ts, store/repository.ts                 pure decisions shared by both stores; their DB access
   proof/scenarios/index.ts                             scenario definitions (S1..S6)
   proof/assertions/index.ts                            pure functions: (trace, state) -> { verdict, reason }
   proof/runner.ts                                      executes a scenario step by step and writes the trace

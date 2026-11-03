@@ -13,7 +13,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:reset": "tsx scripts/db-reset.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",

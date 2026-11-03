@@ -53,25 +53,49 @@ Design rules:
   `https://api-m.sandbox.paypal.com`; during a run the runner routes the store through
   `/api/proxy/{runId}`. The override is honoured only in sandbox and only from the runner.
 - **Two buyer paths.** Human: PayPal button via JS SDK v6 (`@paypal/react-paypal-js`, sdk-v6 entry).
-  Headless runner: Orders v2 with `payment_source.card` using PayPal's published sandbox test cards,
-  multi-step (create -> confirm payment source if required -> capture) so the capture step can be
-  faulted. Fallback: vaulted PayPal wallet (`payment_source.paypal.vault_id`). The chosen path is
-  recorded in `docs/decisions.md` after validation in `docs/sandbox-findings.md`.
+  Headless runner: the store creates the order with no payment source, the runner sends one of
+  PayPal's published sandbox test cards to `confirm-payment-source` (order becomes `APPROVED`), and
+  the store captures in a separate request, which is the request the proxy faults. A card on create
+  order completes in one call and leaves no capture to fault, so it is not used. The vaulted wallet
+  fallback is not built. See `docs/decisions.md`.
 
 ## Scenarios
 
+PayPal allows one capture per `intent: CAPTURE` order: a second capture returns 422
+`ORDER_ALREADY_CAPTURED` with a new `PayPal-Request-Id` or with none
+(`docs/sandbox-findings.md`). No store can charge the same order twice, so harm is counted per buyer
+cart. `chargesPerCart` is the number of completed captures across every order created for one cart,
+read back from PayPal with `GET /v2/checkout/orders/{id}`, never from the store's own rows. Every
+order row stores its `cartId`. All scenarios use the headless buyer above.
+
 | ID | Scenario | Produced by | PASS when |
 |---|---|---|---|
-| S1 | Capture declined | Proxy adds `PayPal-Mock-Response` `INSTRUMENT_DECLINED` to capture | Order not marked paid; buyer sees a decline, not a crash |
-| S2 | 5xx on capture, then retry | Proxy adds `INTERNAL_SERVER_ERROR` once | Retry reuses the same `PayPal-Request-Id`; exactly one capture at PayPal |
-| S3 | Timeout after successful capture | Proxy forwards, then holds the response past the store timeout | Store reconciles via GET order or webhook; final PAID, one capture |
+| S1 | Capture declined | Proxy adds `PayPal-Mock-Response` `INSTRUMENT_DECLINED` to capture | Order not marked PAID; buyer sees a decline, not a crash; `chargesPerCart == 0` |
+| S2 | Transient 5xx on capture | Proxy adds `PayPal-Mock-Response` `INTERNAL_SERVER_ERROR` to the first capture attempt only | Order PAID with exactly one charge |
+| S3 | Lost response after successful capture | Proxy forwards the capture to PayPal, then holds the response past the store timeout | `chargesPerCart == 1` and order PAID |
 | S4 | Duplicate webhook | Same real `PAYMENT.CAPTURE.COMPLETED` delivered twice | Fulfilled once |
 | S5 | Out-of-order webhooks | Later-state event delivered first | Final state equals PayPal source of truth |
 | S6 | Forged webhook | Tampered body / invalid signature | Rejected with 4xx, state unchanged |
 
-The naive store deliberately contains common mistakes: no `PayPal-Request-Id`, blind retries, timeout
-treated as failure, no event-id dedupe, events applied in arrival order, no signature verification.
-The hardened store fixes each one. Keep the diff between them small and readable.
+**S2.** The naive store treats the 500 as final and marks the order FAILED: a lost sale from a buyer
+who was ready to pay. The hardened store retries with backoff and the same `PayPal-Request-Id`. The
+mocked 500 captured nothing and is not stored against the key, so the retry captures.
+
+**S3, the flagship scenario.** PayPal captures, but the store's request times out before the response
+arrives. The naive store marks the order FAILED and tells the buyer the payment failed. The runner,
+acting as the buyer, checks out the same cart again: a new order, a second capture,
+`chargesPerCart == 2`. The hardened store answers the timeout with `GET /v2/checkout/orders/{id}`,
+sees `COMPLETED`, marks the order PAID, and the buyer has no reason to check out again.
+
+The naive store deliberately contains common mistakes: a transient 5xx treated as a final failure, a
+timeout treated as a failed payment without asking PayPal, no `PayPal-Request-Id`, no event-id
+dedupe, events applied in arrival order, no signature verification. The hardened store fixes each
+one. Keep the diff between them small and readable.
+
+**Product copy claims only what PayPal allows.** README, UI text, scenario descriptions and analyst
+explanations never say that a retried capture charges the same order twice: PayPal refuses it. The
+harms the product shows are a lost sale (S2) and a second charge on a new order for the same cart
+(S3).
 
 ## Stack
 

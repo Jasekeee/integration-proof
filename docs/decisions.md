@@ -89,25 +89,47 @@ smaller dependency.
 
 **References:** [sandbox findings](sandbox-findings.md#custom-base-url-in-the-server-sdk).
 
-## S2 is judged on the request trace, not the capture count
+## Harm is counted per cart, not per order
 
-**Decision:** the S2 assertion checks that both capture attempts carry the same `PayPal-Request-Id`.
-"Exactly one capture at PayPal" stays a sanity check and never separates the two stores.
+**Decision:** assertions count charges per buyer cart. `chargesPerCart` is the number of completed
+captures across every order a run created for one cart, read from PayPal with
+`GET /v2/checkout/orders/{id}`. S2 passes when the order ends PAID with exactly one charge. S3 passes
+when `chargesPerCart` is 1 and the order is PAID. This replaces judging S2 by the
+`PayPal-Request-Id` on the retry.
 
 **Why:**
 
-- PayPal allows one capture per `intent: CAPTURE` order. A second attempt with a new key or no key
-  returns 422 `ORDER_ALREADY_CAPTURED`, so a blind retry cannot charge the same order twice. The
-  capture count is 1 for both stores.
-- The mocked 500 never reaches a real capture, so the retry captures once whatever key it sends.
-- The harm of a missing key shows up after a real capture whose response was lost. With the same key
-  the retry gets 200 and the original capture id. Without it the retry gets a 422, which a store can
-  misread as a failed payment after the buyer has paid.
+- PayPal allows one capture per `intent: CAPTURE` order. A second capture with a new key or no key
+  returns 422 `ORDER_ALREADY_CAPTURED`, so a per-order count is 1 for both stores and separates
+  nothing.
+- A buyer's double charge comes from a second order. A store that records a paid capture as failed
+  sends the buyer back to checkout, and PayPal captures the new order like any other.
+- The key on the S2 retry does not separate the stores either. The mocked 500 never reaches a real
+  capture, so the retry captures once whatever key it sends. What separates them is whether the store
+  retries at all: a store that gives up loses a sale the buyer was ready to pay for.
+- PayPal is the source of truth. After S3 the naive store's own rows say FAILED, so a count taken
+  from them would hide the second charge.
 
-**Consequence:** S3 is the scenario that shows the customer-facing failure. Product copy must not
-claim that a retry double-charges an order; the verified risk is a paid order recorded as failed.
+**Consequence:**
 
-**References:** [sandbox findings](sandbox-findings.md#capture-replay-and-repeated-capture).
+- Every order row stores a `cartId`, and the runner keeps the id of every order it creates for a
+  cart.
+- In S3 the runner, acting as the buyer, checks out the same cart again when the store reports a
+  failed payment. The hardened store reconciles the timeout with `GET /v2/checkout/orders/{id}`, so
+  it reports PAID and no second checkout happens.
+- The hardened store still sends a stable `PayPal-Request-Id` on capture. If an attempt did capture,
+  a retry with the same key returns 200 and the original capture id instead of a 422 that reads like
+  a failed payment.
+- Product copy, including analyst explanations, never claims that a retry charges the same order
+  twice. The harms shown are a lost sale (S2) and a second charge on a new order for the same cart
+  (S3).
+
+**Revisit:** when the fault-injection proxy runs S3 end to end. A lost response after a successful
+capture has not been observed yet; record the real sequence in sandbox findings.
+
+**References:** [capture replay and repeated capture](sandbox-findings.md#capture-replay-and-repeated-capture),
+[retry after a mocked 500](sandbox-findings.md#retry-after-a-mocked-500),
+[Orders v2 errors](https://developer.paypal.com/api/rest/reference/orders/v2/errors/).
 
 ## Timeouts wait for a measurement from the hosting region
 

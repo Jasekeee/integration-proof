@@ -1,6 +1,7 @@
 // Capture an order (Orders v2) in the given store mode.
 import { z } from "zod";
 import { errorResponse, jsonError } from "@/lib/http";
+import { orderRunContext } from "@/lib/proof/context";
 import { stores, StoreModeSchema } from "@/lib/store";
 import { findOrder } from "@/lib/store/repository";
 import { BUYER_MESSAGES, DEFAULT_CONTEXT } from "@/lib/store/shared";
@@ -21,7 +22,9 @@ export async function POST(
     const order = await findOrder(mode.data, orderId.data);
     if (!order) return jsonError(404, "unknown_order", "No such order in this store.");
 
-    const result = await stores[mode.data].captureOrder(order, DEFAULT_CONTEXT);
+    // An order the runner created keeps using its scenario's proxy while the scenario is running.
+    const context = (await orderRunContext(order)) ?? DEFAULT_CONTEXT;
+    const result = await stores[mode.data].captureOrder(order, context);
     return Response.json({
       orderId: order.paypalOrderId,
       status: result.status,

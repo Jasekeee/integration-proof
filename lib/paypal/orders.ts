@@ -45,7 +45,7 @@ export interface Money {
   value: string;
 }
 
-interface CallContext {
+export interface CallContext {
   baseUrl: string;
   token: string;
   timeoutMs: number;

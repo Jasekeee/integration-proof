@@ -1,2 +1,344 @@
-// Executes a scenario step by step and writes the trace.
-export {};
+// Executes the scenarios of a run side by side and writes every step to the trace.
+import { z } from "zod";
+import { ORDER_STATUSES, type RunRow, type RunScenarioRow, type StoreMode, type TraceStepRow } from "../db/schema";
+import { internalOrigin } from "../origin";
+import { SANDBOX_API_BASE, type PayPalResponse } from "../paypal/client";
+import {
+  capturesOf,
+  confirmPaymentSource,
+  getOrder,
+  ORDERS_PATH,
+  PayPalOrderSchema,
+  type CallContext,
+} from "../paypal/orders";
+import { SANDBOX_TEST_CARD } from "../paypal/test-cards";
+import { getAccessToken } from "../paypal/token";
+import { redact } from "./redact";
+import {
+  markRunFinished,
+  markRunStarted,
+  nextSeq,
+  readTrace,
+  updateScenario,
+  writeStep,
+  type StepRecord,
+} from "./repository";
+import { SCENARIOS, ScenarioIdSchema } from "./scenarios";
+import type { Actor, PayPalOrderTruth, StoreOrderState, TraceEntry } from "./types";
+
+/** The hardened store may spend three 15-second attempts, backoff and a GET on one capture. */
+const STORE_TIMEOUT_MS = 90_000;
+const PAYPAL_TIMEOUT_MS = 30_000;
+/** docs/decisions.md, "Scenarios run in parallel and wait for webhooks with a deadline". */
+export const WEBHOOK_DEADLINE_MS = 90_000;
+const WEBHOOK_POLL_MS = 3_000;
+const CAPTURE_COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
+
+interface ScenarioContext {
+  runId: string;
+  scenarioId: string;
+  mode: StoreMode;
+  cartId: string;
+  runKey: string;
+}
+
+/** A scenario that cannot reach a verdict, for example because PayPal could not be read. */
+class ScenarioAbort extends Error {}
+
+/** Runs every scenario of a queued run and records the outcome. Never throws. */
+export async function executeRun(runId: string): Promise<void> {
+  try {
+    const { run, scenarios } = await markRunStarted(runId);
+    // Each scenario has its own cart, so they cannot interfere and the run lasts as long as the
+    // slowest one, which is usually the one waiting for a webhook.
+    await Promise.all(scenarios.map((row) => runScenario(run, row)));
+    await markRunFinished(runId, null);
+  } catch (error) {
+    console.error(`Run ${runId} failed`, error);
+    await markRunFinished(runId, describe(error)).catch((cause: unknown) => console.error(cause));
+  }
+}
+
+async function runScenario(run: RunRow, row: RunScenarioRow): Promise<void> {
+  const ctx: ScenarioContext = {
+    runId: run.id,
+    scenarioId: row.scenarioId,
+    mode: run.mode,
+    cartId: row.cartId,
+    runKey: row.runKey,
+  };
+  try {
+    const scenario = SCENARIOS[ScenarioIdSchema.parse(row.scenarioId)];
+    await updateScenario(ctx.runId, ctx.scenarioId, { status: "RUNNING", startedAt: new Date() });
+
+    const orderIds = [await checkout(ctx)];
+    const paypal = await readPayPal(ctx, orderIds);
+    await waitForWebhooks(ctx, paypal);
+    const store = await readStoreState(ctx);
+    const trace = (await readTrace(ctx.runId, ctx.scenarioId)).map(toEntry);
+
+    const result = scenario.assert(trace, { store, paypal });
+    await updateScenario(ctx.runId, ctx.scenarioId, {
+      status: "COMPLETED",
+      verdict: result.verdict,
+      reason: result.reason,
+      finishedAt: new Date(),
+    });
+  } catch (error) {
+    if (!(error instanceof ScenarioAbort)) console.error(`Scenario ${ctx.scenarioId} of run ${ctx.runId} failed`, error);
+    await updateScenario(ctx.runId, ctx.scenarioId, {
+      status: "ERROR",
+      error: describe(error),
+      finishedAt: new Date(),
+    }).catch((cause: unknown) => console.error(cause));
+  }
+}
+
+const CreatedSchema = z.object({ orderId: z.string().regex(/^[A-Z0-9]{1,36}$/) });
+
+/** The headless buyer: the store creates the order, the buyer approves it, the store captures. */
+async function checkout(ctx: ScenarioContext): Promise<string> {
+  // The run key makes the store send this order's PayPal calls through the scenario's proxy.
+  const created = await callStore(ctx, "buyer", "POST", `/api/store/${ctx.mode}/orders`, {
+    cartId: ctx.cartId,
+    run: { runId: ctx.runId, runKey: ctx.runKey },
+  });
+  const order = CreatedSchema.safeParse(created.body);
+  if (created.status !== 201 || !order.success) {
+    throw new ScenarioAbort(`The store did not create an order (${describeStatus(created.status)}).`);
+  }
+  const orderId = order.data.orderId;
+
+  const confirmed = await callPayPal(
+    ctx,
+    "buyer",
+    { method: "POST", path: `${ORDERS_PATH}/${orderId}/confirm-payment-source`, body: { payment_source: { card: SANDBOX_TEST_CARD } } },
+    (call) => confirmPaymentSource(call, { orderId, card: SANDBOX_TEST_CARD }),
+  );
+  const approved = confirmed.kind === "response" && PayPalOrderSchema.safeParse(confirmed.body).data?.status === "APPROVED";
+  if (!approved) throw new ScenarioAbort(`PayPal did not approve the test card on order ${orderId}.`);
+
+  // The store's answer is evidence for the assertion, whatever it is, so nothing is checked here.
+  await callStore(ctx, "buyer", "POST", `/api/store/${ctx.mode}/orders/${orderId}/capture`);
+  return orderId;
+}
+
+/** PayPal's view of every order created for the cart. This is what the verdict trusts. */
+async function readPayPal(ctx: ScenarioContext, orderIds: string[]): Promise<PayPalOrderTruth[]> {
+  const truth: PayPalOrderTruth[] = [];
+  for (const orderId of orderIds) {
+    const response = await callPayPal(ctx, "runner", { method: "GET", path: `${ORDERS_PATH}/${orderId}` }, (call) =>
+      getOrder(call, orderId),
+    );
+    const order = response.kind === "response" && response.status === 200 ? PayPalOrderSchema.safeParse(response.body).data : undefined;
+    if (!order) throw new ScenarioAbort(`PayPal could not be read for order ${orderId}.`);
+    truth.push({
+      id: order.id,
+      status: order.status,
+      captures: capturesOf(order).map(({ id, status }) => ({ id, status })),
+    });
+  }
+  return truth;
+}
+
+const StateSchema = z.object({
+  orders: z.array(
+    z.object({
+      id: z.string(),
+      paypalOrderId: z.string(),
+      status: z.enum(ORDER_STATUSES),
+      fulfilments: z.number(),
+    }),
+  ),
+  deliveries: z.array(
+    z.object({
+      orderId: z.string().nullable(),
+      eventType: z.string().nullable(),
+      verification: z.string(),
+      outcome: z.string(),
+      responseStatus: z.number(),
+    }),
+  ),
+});
+type StoreState = z.infer<typeof StateSchema>;
+
+/**
+ * Waits until the store has acknowledged PAYMENT.CAPTURE.COMPLETED for every order PayPal shows as
+ * captured, so the assertion sees the state the webhook leaves behind. Ends at the deadline.
+ */
+async function waitForWebhooks(ctx: ScenarioContext, paypal: PayPalOrderTruth[]): Promise<void> {
+  const expected = paypal.filter((order) => order.captures.some((capture) => capture.status === "COMPLETED"));
+  if (expected.length === 0) return;
+
+  await updateScenario(ctx.runId, ctx.scenarioId, { status: "WAITING_FOR_WEBHOOK" });
+  const span = await openStep(ctx);
+  const deadline = Date.now() + WEBHOOK_DEADLINE_MS;
+  let state: StoreState | null = null;
+  let pending = expected.map((order) => order.id);
+  while (pending.length > 0 && Date.now() < deadline) {
+    await sleep(Math.min(WEBHOOK_POLL_MS, deadline - Date.now()));
+    state = (await fetchState(ctx)) ?? state;
+    if (state) pending = pending.filter((orderId) => !acknowledgement(state!, orderId));
+  }
+
+  const waited = ((Date.now() - span.startedAt.getTime()) / 1000).toFixed(1);
+  const notes = expected.map((order) => {
+    const delivery = state ? acknowledgement(state, order.id) : undefined;
+    return delivery
+      ? `${CAPTURE_COMPLETED} for order ${order.id} acknowledged: verification ${delivery.verification}, outcome ${delivery.outcome}.`
+      : `No acknowledged ${CAPTURE_COMPLETED} for order ${order.id} within ${WEBHOOK_DEADLINE_MS / 1000} s.`;
+  });
+  await closeStep(ctx, span, {
+    actor: "runner",
+    note: `Waited ${waited} s for PayPal webhooks. ${notes.join(" ")}`,
+    responseBody: state ? { deliveries: state.deliveries } : null,
+  });
+  await updateScenario(ctx.runId, ctx.scenarioId, { status: "RUNNING" });
+}
+
+/** The 2xx delivery of PAYMENT.CAPTURE.COMPLETED the store recorded for a PayPal order, if any. */
+function acknowledgement(state: StoreState, paypalOrderId: string) {
+  const order = state.orders.find((row) => row.paypalOrderId === paypalOrderId);
+  if (!order) return undefined;
+  return state.deliveries.find(
+    (delivery) =>
+      delivery.orderId === order.id &&
+      delivery.eventType === CAPTURE_COMPLETED &&
+      delivery.responseStatus >= 200 &&
+      delivery.responseStatus < 300,
+  );
+}
+
+/** Only the orders this run created for the cart, so an order placed by anyone else cannot count. */
+function statePath(ctx: ScenarioContext): string {
+  return `/api/store/${ctx.mode}/state?cartId=${encodeURIComponent(ctx.cartId)}&runId=${ctx.runId}`;
+}
+
+/** One untraced poll of the store's state; null when the store could not be read this time. */
+async function fetchState(ctx: ScenarioContext): Promise<StoreState | null> {
+  try {
+    const response = await fetch(`${internalOrigin()}${statePath(ctx)}`, {
+      signal: AbortSignal.timeout(WEBHOOK_POLL_MS * 3),
+      cache: "no-store",
+    });
+    return StateSchema.safeParse(await response.json()).data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** What the store believes once the scenario has settled. */
+async function readStoreState(ctx: ScenarioContext): Promise<StoreOrderState[]> {
+  const read = await callStore(ctx, "runner", "GET", statePath(ctx));
+  const state = StateSchema.safeParse(read.body);
+  if (read.status !== 200 || !state.success) {
+    throw new ScenarioAbort(`The store's state could not be read (${describeStatus(read.status)}).`);
+  }
+  return state.data.orders.map(({ paypalOrderId, status, fulfilments }) => ({ paypalOrderId, status, fulfilments }));
+}
+
+interface StepSpan {
+  seq: number;
+  startedAt: Date;
+  startedMs: number;
+}
+
+async function openStep(ctx: ScenarioContext): Promise<StepSpan> {
+  const seq = await nextSeq(ctx.runId, ctx.scenarioId);
+  return { seq, startedAt: new Date(), startedMs: performance.now() };
+}
+
+async function closeStep(
+  ctx: ScenarioContext,
+  span: StepSpan,
+  step: Omit<StepRecord, "startedAt" | "durationMs">,
+): Promise<void> {
+  const durationMs = Math.round(performance.now() - span.startedMs);
+  await writeStep(ctx.runId, ctx.scenarioId, span.seq, { ...step, startedAt: span.startedAt, durationMs });
+}
+
+const StoreErrorBodySchema = z.object({ debugId: z.string() });
+
+async function callStore(
+  ctx: ScenarioContext,
+  actor: Actor,
+  method: "GET" | "POST",
+  path: string,
+  body?: unknown,
+): Promise<{ status: number | null; body: unknown }> {
+  const span = await openStep(ctx);
+  let status: number | null = null;
+  let responseBody: unknown = null;
+  let note: string | null = null;
+  try {
+    const response = await fetch(`${internalOrigin()}${path}`, {
+      method,
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(STORE_TIMEOUT_MS),
+      cache: "no-store",
+    });
+    status = response.status;
+    responseBody = await response.json().catch(() => null);
+  } catch (error) {
+    note = `The store did not answer: ${describe(error)}`;
+  }
+  await closeStep(ctx, span, {
+    actor,
+    method,
+    path,
+    httpStatus: status,
+    debugId: StoreErrorBodySchema.safeParse(responseBody).data?.debugId ?? null,
+    requestBody: body === undefined ? null : redact(body),
+    responseBody: redact(responseBody),
+    note,
+  });
+  return { status, body: responseBody };
+}
+
+async function callPayPal(
+  ctx: ScenarioContext,
+  actor: Actor,
+  request: { method: "GET" | "POST"; path: string; body?: unknown },
+  send: (call: CallContext) => Promise<PayPalResponse>,
+): Promise<PayPalResponse> {
+  const call = { baseUrl: SANDBOX_API_BASE, token: await getAccessToken(), timeoutMs: PAYPAL_TIMEOUT_MS };
+  const span = await openStep(ctx);
+  const response = await send(call);
+  await closeStep(ctx, span, {
+    actor,
+    method: request.method,
+    path: request.path,
+    httpStatus: response.kind === "response" ? response.status : null,
+    debugId: response.kind === "response" ? response.debugId : null,
+    requestBody: request.body === undefined ? null : redact(request.body),
+    responseBody: response.kind === "response" ? redact(response.body) : null,
+    note: response.kind === "no_response" ? `No response from PayPal (${response.reason}): ${response.message}` : null,
+  });
+  return response;
+}
+
+const ActorSchema = z.enum(["buyer", "store", "runner"]);
+
+function toEntry(row: TraceStepRow): TraceEntry {
+  return {
+    seq: row.seq,
+    actor: ActorSchema.parse(row.actor),
+    method: row.method,
+    path: row.path,
+    httpStatus: row.httpStatus,
+    responseBody: row.responseBody,
+  };
+}
+
+function describeStatus(status: number | null): string {
+  return status === null ? "no response" : `HTTP ${status}`;
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}

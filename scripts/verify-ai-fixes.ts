@@ -121,10 +121,11 @@ async function bench(root: string, mode: "naive" | "hardened", work: string, lab
   return result;
 }
 
-/** A checkout of app/ and lib/ in a temporary folder, sharing node_modules with the repository. */
+/** A checkout of the app's source in a temporary folder, sharing node_modules with the repository. */
 function checkout(work: string, name: string): string {
   const root = path.join(work, name);
-  for (const entry of ["app", "lib"]) cpSync(path.join(REPO, entry), path.join(root, entry), { recursive: true });
+  // public/ holds ai-fixes.json, which lib/ai/fix-check.ts imports.
+  for (const entry of ["app", "lib", "public"]) cpSync(path.join(REPO, entry), path.join(root, entry), { recursive: true });
   for (const file of ["tsconfig.json", "package.json"]) cpSync(path.join(REPO, file), path.join(root, file));
   symlinkSync(path.join(REPO, "node_modules"), path.join(root, "node_modules"), "dir");
   writeFileSync(

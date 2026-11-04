@@ -86,24 +86,37 @@ function describeDelivery(step: TraceEntry): string {
   return `${describeStatus(step.httpStatus)}${outcome ? `, outcome ${outcome}` : ""}`;
 }
 
-function pass(reason: string): AssertionResult {
-  return { verdict: "PASS", reason };
+function pass(reason: string, headline: string): AssertionResult {
+  return { verdict: "PASS", reason, headline };
 }
 
-function fail(problems: string[], context = ""): AssertionResult {
+function fail(problems: string[], context: string, headline: string): AssertionResult {
   const sentence = problems.join("; ");
-  return { verdict: "FAIL", reason: `${sentence[0].toUpperCase()}${sentence.slice(1)}.${context}` };
+  return { verdict: "FAIL", reason: `${sentence[0].toUpperCase()}${sentence.slice(1)}.${context}`, headline };
 }
+
+/** "Buyer charged twice", "Buyer charged 3 times". */
+function chargedTimes(count: number): string {
+  return `Buyer charged ${count === 2 ? "twice" : `${count} times`}`;
+}
+
+/** The INCONCLUSIVE headline: the store was never tested, so nothing is said about it. */
+export const INCONCLUSIVE_HEADLINE = "PayPal did not deliver in time";
 
 /** Why the buyer's last answer is not a decline, or null when it is one. */
-function declineProblem(answer: TraceEntry | undefined): string | null {
-  if (!answer) return "the buyer's capture request is missing from the trace";
-  if (answer.httpStatus === null) return "the buyer's capture request got no response";
-  if (answer.httpStatus >= 500) return `the buyer got HTTP ${answer.httpStatus} instead of a decline`;
+function declineProblem(answer: TraceEntry | undefined): { problem: string; crash: boolean } | null {
+  if (!answer) return { problem: "the buyer's capture request is missing from the trace", crash: true };
+  if (answer.httpStatus === null) return { problem: "the buyer's capture request got no response", crash: true };
+  if (answer.httpStatus >= 500) {
+    return { problem: `the buyer got HTTP ${answer.httpStatus} instead of a decline`, crash: true };
+  }
   const body = BuyerAnswerSchema.safeParse(answer.responseBody);
-  if (!body.success) return `the buyer got HTTP ${answer.httpStatus} with no payment status`;
+  if (!body.success) return { problem: `the buyer got HTTP ${answer.httpStatus} with no payment status`, crash: true };
   if (body.data.status !== "DECLINED") {
-    return `the buyer was told "${body.data.message}" (${body.data.status}) instead of a decline`;
+    return {
+      problem: `the buyer was told "${body.data.message}" (${body.data.status}) instead of a decline`,
+      crash: false,
+    };
   }
   return null;
 }
@@ -133,12 +146,25 @@ export const assertS1: Assertion = (trace, state) => {
   const paid = state.store.find((order) => order.status === "PAID");
   if (paid) problems.push(`the store marked order ${paid.paypalOrderId} PAID`);
   const decline = declineProblem(buyerCaptures(trace).at(-1));
-  if (decline) problems.push(decline);
+  if (decline) problems.push(decline.problem);
   const charges = chargesPerCart(state.paypal);
   if (charges !== 0) problems.push(`PayPal shows ${plural(charges, "charge")} for the cart`);
 
-  if (problems.length > 0) return fail(problems);
-  return pass("The order stayed unpaid, the buyer was told the card was declined, and PayPal shows no charge for the cart.");
+  if (problems.length > 0) {
+    const headline =
+      charges > 0
+        ? "Buyer charged on a declined card"
+        : paid
+          ? "Declined payment marked paid"
+          : decline?.crash
+            ? "Buyer saw an error instead of a decline"
+            : "Buyer not told the card was declined";
+    return fail(problems, "", headline);
+  }
+  return pass(
+    "The order stayed unpaid, the buyer was told the card was declined, and PayPal shows no charge for the cart.",
+    "Decline shown, nothing charged",
+  );
 };
 
 /** S2, transient 5xx on capture: the order ends PAID with exactly one charge. */
@@ -152,8 +178,12 @@ export const assertS2: Assertion = (trace, state) => {
   }
 
   const context = ` The store sent ${describeRequests(storeCaptures(trace))}.`;
-  if (problems.length > 0) return fail(problems, context);
-  return pass(`The order is PAID with exactly 1 charge at PayPal.${context}`);
+  if (problems.length > 0) {
+    const headline =
+      charges === 0 ? "Sale lost on a transient error" : charges > 1 ? chargedTimes(charges) : "Paid order shown as unpaid";
+    return fail(problems, context, headline);
+  }
+  return pass(`The order is PAID with exactly 1 charge at PayPal.${context}`, "Retried and charged once");
 };
 
 /** S3, lost response after a successful capture: one charge for the cart, and the order PAID. */
@@ -175,14 +205,18 @@ export const assertS3: Assertion = (trace, state) => {
   problems.push(...unpaidCharges(state.store, state.paypal));
 
   const context = ` The buyer checked out ${plural(buyerCheckouts(trace), "time")}.`;
-  if (problems.length > 0) return fail(problems, context);
-  return pass(`The order is PAID with exactly 1 charge at PayPal.${context}`);
+  if (problems.length > 0) {
+    const headline =
+      charges === 0 ? "Capture never went through" : charges > 1 ? chargedTimes(charges) : "Paid order shown as failed";
+    return fail(problems, context, headline);
+  }
+  return pass(`The order is PAID with exactly 1 charge at PayPal.${context}`, "Charged once, no second checkout");
 };
 
 /** S4, duplicate webhook: the same real PAYMENT.CAPTURE.COMPLETED twice, the order fulfilled once. */
 export const assertS4: Assertion = (trace, state) => {
   const replay = runnerDeliveries(trace, REPLAYED_DELIVERY).at(-1);
-  if (!replay) return fail(["the replayed delivery is missing from the trace"]);
+  if (!replay) return fail(["the replayed delivery is missing from the trace"], "", "Replay never delivered");
   const problems: string[] = [];
   if (state.store.length === 0) problems.push("the store has no order for the cart");
   for (const order of state.store) {
@@ -190,8 +224,13 @@ export const assertS4: Assertion = (trace, state) => {
   }
 
   const context = ` The replayed PAYMENT.CAPTURE.COMPLETED got ${describeDelivery(replay)}.`;
-  if (problems.length > 0) return fail(problems, context);
-  return pass(`The order was fulfilled once although PAYMENT.CAPTURE.COMPLETED arrived twice.${context}`);
+  if (problems.length > 0) {
+    const most = Math.max(0, ...state.store.map((order) => order.fulfilments));
+    const headline =
+      most > 1 ? `Order shipped ${most === 2 ? "twice" : `${most} times`}` : most === 0 ? "Paid order never shipped" : "Order not shipped once";
+    return fail(problems, context, headline);
+  }
+  return pass(`The order was fulfilled once although PAYMENT.CAPTURE.COMPLETED arrived twice.${context}`, "Shipped once");
 };
 
 /** S5, out-of-order webhooks: the store's final state equals PayPal's, after a stale event arrives last. */
@@ -212,9 +251,23 @@ export const assertS5: Assertion = (trace, state) => {
     }
   }
 
-  if (problems.length > 0) return fail(problems);
+  if (problems.length > 0) {
+    const paidButRefunded = refunded.some(
+      (truth) => state.store.find((row) => row.paypalOrderId === truth.id)?.status === "PAID",
+    );
+    const headline =
+      refunded.length === 0
+        ? "Refund never happened"
+        : paidButRefunded
+          ? "Refunded order shown as paid"
+          : runnerDeliveries(trace, REPLAYED_DELIVERY).length === 0
+            ? "Late event never delivered"
+            : "Order state differs from PayPal";
+    return fail(problems, "", headline);
+  }
   return pass(
     "The store reports the order REFUNDED, as PayPal does, although a PAYMENT.CAPTURE.COMPLETED arrived after the refund.",
+    "Shows refunded, as PayPal does",
   );
 };
 
@@ -225,8 +278,10 @@ function describeOrder(order: StoreOrderState): string {
 /** S6, forged webhook: rejected with a 4xx, and the store's state is unchanged. */
 export const assertS6: Assertion = (trace, state) => {
   const forged = runnerDeliveries(trace, FORGED_DELIVERY).at(-1);
-  if (!forged) return fail(["the forged delivery is missing from the trace"]);
-  if (!state.storeBefore) return fail(["the store's state before the forged delivery is missing"]);
+  if (!forged) return fail(["the forged delivery is missing from the trace"], "", "Forgery never delivered");
+  if (!state.storeBefore) {
+    return fail(["the store's state before the forged delivery is missing"], "", "Forgery never delivered");
+  }
   const problems: string[] = [];
   const status = forged.httpStatus;
   if (status === null || status < 400 || status >= 500) {
@@ -240,6 +295,20 @@ export const assertS6: Assertion = (trace, state) => {
     }
   }
 
-  if (problems.length > 0) return fail(problems);
-  return pass(`The store rejected the forged event with ${describeDelivery(forged)}, and the order did not change.`);
+  if (problems.length > 0) {
+    const accepted = status !== null && status >= 200 && status < 300;
+    const changed = problems.some((problem) => problem.includes(" changed from ") || problem.includes(" appeared "));
+    const headline = accepted
+      ? changed
+        ? "Forged refund accepted"
+        : "Forged event accepted"
+      : changed
+        ? "Forged event changed the order"
+        : "Forged event not rejected";
+    return fail(problems, "", headline);
+  }
+  return pass(
+    `The store rejected the forged event with ${describeDelivery(forged)}, and the order did not change.`,
+    "Forged event rejected",
+  );
 };

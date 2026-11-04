@@ -23,7 +23,7 @@ import { CAPTURES_PATH, refundCapture } from "../paypal/payments";
 import { SANDBOX_TEST_CARD } from "../paypal/test-cards";
 import { getAccessToken } from "../paypal/token";
 import { analyzeScenario } from "../ai/jobs";
-import { inconclusiveReason } from "./assertions";
+import { INCONCLUSIVE_HEADLINE, inconclusiveReason } from "./assertions";
 import { redact, traceBody } from "./redact";
 import {
   findAcknowledgedDelivery,
@@ -116,6 +116,7 @@ async function runScenario(run: RunRow, row: RunScenarioRow, analyses: Promise<v
         status: "COMPLETED",
         verdict: "INCONCLUSIVE",
         reason: inconclusiveReason(settled.missing, WEBHOOK_DEADLINE_MS),
+        headline: INCONCLUSIVE_HEADLINE,
         finishedAt: new Date(),
       });
       analyses.push(analyzeScenario(ctx.runId, ctx.scenarioId));
@@ -130,6 +131,7 @@ async function runScenario(run: RunRow, row: RunScenarioRow, analyses: Promise<v
       status: "COMPLETED",
       verdict: result.verdict,
       reason: result.reason,
+      headline: result.headline,
       finishedAt: new Date(),
     });
     // Claude explains a failure after the verdict is recorded; the scenario does not wait for it.
@@ -269,7 +271,10 @@ async function waitForWebhooks(
   let pending = expected;
   while (pending.length > 0 && Date.now() < deadline) {
     await sleep(Math.min(WEBHOOK_POLL_MS, deadline - Date.now()));
-    state = (await fetchState(ctx)) ?? state;
+    // A poll never runs past the deadline, even when the store is slow to answer.
+    const remaining = Math.max(0, deadline - Date.now());
+    const polled = await Promise.race([fetchState(ctx), sleep(remaining).then(() => null)]);
+    state = polled ?? state;
     if (state) pending = pending.filter((event) => !acknowledgement(state!, event));
   }
 

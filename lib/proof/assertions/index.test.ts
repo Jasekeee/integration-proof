@@ -71,7 +71,7 @@ describe("chargesPerCart", () => {
 describe("assertS1", () => {
   it("passes when the order stays unpaid, the buyer sees a decline and nothing is charged", () => {
     const result = assertS1([storeCapture(422, 2), buyerCapture(200, DECLINED_ANSWER)], state([storeOrder("DECLINED")], [paypalOrder([])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "PASS",
       reason: "The order stayed unpaid, the buyer was told the card was declined, and PayPal shows no charge for the cart.",
     });
@@ -80,7 +80,7 @@ describe("assertS1", () => {
   it("fails when the store marks the order PAID and PayPal shows a charge", () => {
     const paid = { status: "PAID", message: "Payment received. Thank you for your order." };
     const result = assertS1([buyerCapture(200, paid)], state([storeOrder("PAID")], [paypalOrder(["COMPLETED"])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "FAIL",
       reason:
         `The store marked order ${ORDER} PAID; the buyer was told "Payment received. Thank you for your order." ` +
@@ -91,7 +91,7 @@ describe("assertS1", () => {
   it("fails when the buyer gets a server error instead of a decline", () => {
     const crash = { error: "internal_error", message: "Something went wrong on our side." };
     const result = assertS1([buyerCapture(500, crash)], state([storeOrder("CREATED")], [paypalOrder([])]));
-    expect(result).toEqual({ verdict: "FAIL", reason: "The buyer got HTTP 500 instead of a decline." });
+    expect(result).toMatchObject({ verdict: "FAIL", reason: "The buyer got HTTP 500 instead of a decline." });
   });
 
   it("fails when the buyer is told the payment failed rather than declined", () => {
@@ -103,12 +103,12 @@ describe("assertS1", () => {
 
   it("fails when the capture request got no response", () => {
     const result = assertS1([buyerCapture(null, null)], state([storeOrder("CREATED")], [paypalOrder([])]));
-    expect(result).toEqual({ verdict: "FAIL", reason: "The buyer's capture request got no response." });
+    expect(result).toMatchObject({ verdict: "FAIL", reason: "The buyer's capture request got no response." });
   });
 
   it("fails when the trace has no capture request at all", () => {
     const result = assertS1([], state([storeOrder("CREATED")], [paypalOrder([])]));
-    expect(result).toEqual({ verdict: "FAIL", reason: "The buyer's capture request is missing from the trace." });
+    expect(result).toMatchObject({ verdict: "FAIL", reason: "The buyer's capture request is missing from the trace." });
   });
 
   it("judges the buyer's last answer", () => {
@@ -122,7 +122,7 @@ describe("assertS2", () => {
   it("passes when the store retries the 500 and the order ends PAID with one charge", () => {
     const trace = [storeCapture(500, 2), storeCapture(201, 3), buyerCapture(200, { status: "PAID", message: "ok" }, 4)];
     const result = assertS2(trace, state([storeOrder("PAID")], [paypalOrder(["COMPLETED"])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "PASS",
       reason:
         "The order is PAID with exactly 1 charge at PayPal. The store sent 2 capture requests to PayPal: " +
@@ -133,7 +133,7 @@ describe("assertS2", () => {
   it("fails when the store treats the 500 as final and loses the sale", () => {
     const trace = [storeCapture(500, 2), buyerCapture(200, { status: "FAILED", message: "Payment failed." }, 3)];
     const result = assertS2(trace, state([storeOrder("FAILED")], [paypalOrder([])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "FAIL",
       reason:
         `PayPal shows 0 charges for the cart, not 1; the store marked order ${ORDER} FAILED. ` +
@@ -155,7 +155,7 @@ describe("assertS2", () => {
 
   it("fails when PayPal charged the cart but the store does not say PAID", () => {
     const result = assertS2([storeCapture(null, 2)], state([storeOrder("PENDING")], [paypalOrder(["COMPLETED"])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "FAIL",
       reason: `The store marked order ${ORDER} PENDING. The store sent 1 capture request to PayPal: no response.`,
     });
@@ -176,7 +176,7 @@ describe("assertS3", () => {
   it("passes when the store asks PayPal after the timeout and the buyer checks out once", () => {
     const trace = [buyerCreate(1), storeCapture(201, 4), buyerCapture(200, PAID_ANSWER, 3)];
     const result = assertS3(trace, state([storeOrder("PAID", ORDER, 1)], [paypalOrder(["COMPLETED"])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "PASS",
       reason: "The order is PAID with exactly 1 charge at PayPal. The buyer checked out 1 time.",
     });
@@ -197,7 +197,7 @@ describe("assertS3", () => {
         [paypalOrder(["COMPLETED"]), paypalOrder(["COMPLETED"], SECOND_ORDER)],
       ),
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "FAIL",
       reason:
         "PayPal shows 2 charges for the cart, not 1; the store told the buyer \"Payment failed. Please try again.\" " +
@@ -223,7 +223,7 @@ describe("assertS4", () => {
   it("passes when the replayed delivery does not ship the order again", () => {
     const trace = [routerDelivery(REPLAYED_DELIVERY, 200, "duplicate")];
     const result = assertS4(trace, state([storeOrder("PAID", ORDER, 1)], [paypalOrder(["COMPLETED"])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "PASS",
       reason:
         "The order was fulfilled once although PAYMENT.CAPTURE.COMPLETED arrived twice. " +
@@ -234,7 +234,7 @@ describe("assertS4", () => {
   it("fails when the replayed delivery ships the order a second time", () => {
     const trace = [routerDelivery(REPLAYED_DELIVERY, 200, "applied")];
     const result = assertS4(trace, state([storeOrder("PAID", ORDER, 2)], [paypalOrder(["COMPLETED"])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "FAIL",
       reason: `Order ${ORDER} was fulfilled 2 times. The replayed PAYMENT.CAPTURE.COMPLETED got HTTP 200, outcome applied.`,
     });
@@ -249,7 +249,7 @@ describe("assertS4", () => {
 
   it("fails when there is no replay to judge", () => {
     const result = assertS4([], state([storeOrder("PAID", ORDER, 1)], [paypalOrder(["COMPLETED"])]));
-    expect(result).toEqual({ verdict: "FAIL", reason: "The replayed delivery is missing from the trace." });
+    expect(result).toMatchObject({ verdict: "FAIL", reason: "The replayed delivery is missing from the trace." });
   });
 });
 
@@ -258,7 +258,7 @@ describe("assertS5", () => {
 
   it("passes when the store ends REFUNDED, as PayPal reports", () => {
     const result = assertS5(replayed, state([storeOrder("REFUNDED")], [paypalOrder(["REFUNDED"])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "PASS",
       reason:
         "The store reports the order REFUNDED, as PayPal does, although a PAYMENT.CAPTURE.COMPLETED arrived after the refund.",
@@ -268,7 +268,7 @@ describe("assertS5", () => {
   it("fails when the store applies the late COMPLETED and ends PAID", () => {
     const trace = [routerDelivery(REPLAYED_DELIVERY, 200, "applied")];
     const result = assertS5(trace, state([storeOrder("PAID", ORDER, 2)], [paypalOrder(["REFUNDED"])]));
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "FAIL",
       reason: `The store reports order ${ORDER} PAID, but PayPal reports its capture REFUNDED.`,
     });
@@ -293,7 +293,7 @@ describe("assertS6", () => {
   it("passes when the forged event is rejected with a 4xx and nothing changes", () => {
     const trace = [routerDelivery(FORGED_DELIVERY, 400, "rejected")];
     const result = assertS6(trace, { ...state([storeOrder("PAID", ORDER, 1)], [paypalOrder(["COMPLETED"])]), storeBefore: before });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "PASS",
       reason: "The store rejected the forged event with HTTP 400, outcome rejected, and the order did not change.",
     });
@@ -302,7 +302,7 @@ describe("assertS6", () => {
   it("fails when the store accepts the forged event and changes the order", () => {
     const trace = [routerDelivery(FORGED_DELIVERY, 200, "applied")];
     const result = assertS6(trace, { ...state([storeOrder("REFUNDED", ORDER, 1)], [paypalOrder(["COMPLETED"])]), storeBefore: before });
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       verdict: "FAIL",
       reason:
         "The store answered the forged event with HTTP 200, outcome applied instead of a 4xx; " +
@@ -343,5 +343,65 @@ describe("inconclusiveReason", () => {
     expect(inconclusiveReason(missing, 150_000)).toBe(
       "PayPal did not deliver PAYMENT.CAPTURE.COMPLETED or PAYMENT.CAPTURE.REFUNDED within 150 s.",
     );
+  });
+});
+
+describe("headlines", () => {
+  const paidOnce = state([storeOrder("PAID", ORDER, 1)], [paypalOrder(["COMPLETED"])]);
+
+  it("S1 names the protection, or how the decline went wrong", () => {
+    expect(assertS1([buyerCapture(200, DECLINED_ANSWER)], state([storeOrder("DECLINED")], [paypalOrder([])])).headline).toBe(
+      "Decline shown, nothing charged",
+    );
+    expect(assertS1([buyerCapture(200, PAID_ANSWER)], state([storeOrder("PAID")], [paypalOrder([])])).headline).toBe(
+      "Declined payment marked paid",
+    );
+    expect(assertS1([buyerCapture(500, null)], state([storeOrder("CREATED")], [paypalOrder([])])).headline).toBe(
+      "Buyer saw an error instead of a decline",
+    );
+  });
+
+  it("S2 says a sale was lost only when nothing was charged", () => {
+    expect(assertS2([storeCapture(500, 2)], state([storeOrder("FAILED")], [paypalOrder([])])).headline).toBe(
+      "Sale lost on a transient error",
+    );
+    expect(assertS2([storeCapture(500, 2), storeCapture(201, 3)], paidOnce).headline).toBe("Retried and charged once");
+  });
+
+  it("S3 says the buyer was charged twice only when PayPal shows two charges", () => {
+    const twice = state(
+      [storeOrder("PAID", ORDER, 1), storeOrder("PAID", SECOND_ORDER, 1)],
+      [paypalOrder(["COMPLETED"]), paypalOrder(["COMPLETED"], SECOND_ORDER)],
+    );
+    expect(assertS3([buyerCreate(1), buyerCreate(5)], twice).headline).toBe("Buyer charged twice");
+    expect(assertS3([buyerCreate(1), buyerCapture(200, FAILED_ANSWER, 3)], state([storeOrder("FAILED")], [paypalOrder(["COMPLETED"])])).headline).toBe(
+      "Paid order shown as failed",
+    );
+    expect(assertS3([buyerCreate(1)], paidOnce).headline).toBe("Charged once, no second checkout");
+  });
+
+  it("S4 counts the shipments", () => {
+    const replay = [routerDelivery(REPLAYED_DELIVERY, 200, "applied")];
+    expect(assertS4(replay, state([storeOrder("PAID", ORDER, 2)], [paypalOrder(["COMPLETED"])])).headline).toBe("Order shipped twice");
+    expect(assertS4(replay, state([storeOrder("PAID", ORDER, 0)], [paypalOrder(["COMPLETED"])])).headline).toBe("Paid order never shipped");
+    expect(assertS4(replay, paidOnce).headline).toBe("Shipped once");
+  });
+
+  it("S5 calls out a refunded order shown as paid", () => {
+    const replay = [routerDelivery(REPLAYED_DELIVERY, 200, "applied")];
+    expect(assertS5(replay, state([storeOrder("PAID", ORDER, 2)], [paypalOrder(["REFUNDED"])])).headline).toBe(
+      "Refunded order shown as paid",
+    );
+    expect(assertS5(replay, state([storeOrder("REFUNDED")], [paypalOrder(["REFUNDED"])])).headline).toBe("Shows refunded, as PayPal does");
+  });
+
+  it("S6 tells an accepted forgery from a rejected one", () => {
+    const before = [storeOrder("PAID", ORDER, 1)];
+    const accepted = [routerDelivery(FORGED_DELIVERY, 200, "applied")];
+    expect(assertS6(accepted, { ...state([storeOrder("REFUNDED", ORDER, 1)], []), storeBefore: before }).headline).toBe(
+      "Forged refund accepted",
+    );
+    const rejected = [routerDelivery(FORGED_DELIVERY, 400, "rejected")];
+    expect(assertS6(rejected, { ...state(before, []), storeBefore: before }).headline).toBe("Forged event rejected");
   });
 });

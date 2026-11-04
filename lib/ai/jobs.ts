@@ -70,6 +70,7 @@ export async function analyzeScenario(runId: string, scenarioId: string, client:
       client: client(),
       model,
       cache,
+      fresh: found.run.freshAnalysis,
       // The row exists once claimed; linking it before the call makes the page show "Analyzing…".
       onClaim: async (claim) => {
         if (claim === "claimed") claimed = { key, cache };

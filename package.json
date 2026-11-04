@@ -14,10 +14,13 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:reset": "tsx scripts/db-reset.ts"
+    "db:reset": "tsx scripts/db-reset.ts",
+    "analyst:context": "tsx scripts/analyst-context.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
+    "ag-grid-community": "^36.2.0",
+    "ag-grid-react": "^36.2.0",
     "diff": "^9.0.0",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.3",

@@ -33,6 +33,7 @@ export type CreateRunResult =
 export interface RunConfig {
   storeTimeoutMs: number;
   proxyHoldMs: number;
+  freshAnalysis: boolean;
 }
 
 /** Creates a run and one row per scenario, each with its own cart, unless the limits say no. */
@@ -108,7 +109,14 @@ export async function markRunStarted(runId: string): Promise<{ run: RunRow; scen
 }
 
 export async function markRunFinished(runId: string, error: string | null): Promise<void> {
-  await getDb()
+  const db = getDb();
+  // A scenario that could not record its own result, for example after a lost database
+  // connection, must not read as still running once the run is over.
+  await db
+    .update(runScenarios)
+    .set({ status: "ERROR", error: "The run ended before this scenario recorded its result.", finishedAt: new Date() })
+    .where(and(eq(runScenarios.runId, runId), inArray(runScenarios.status, ["QUEUED", ...ACTIVE_SCENARIO])));
+  await db
     .update(runs)
     .set({ status: error ? "ERROR" : "COMPLETED", error, finishedAt: new Date() })
     .where(eq(runs.id, runId));
@@ -118,7 +126,10 @@ export async function updateScenario(
   runId: string,
   scenarioId: string,
   values: Partial<
-    Pick<RunScenarioRow, "status" | "verdict" | "reason" | "error" | "startedAt" | "finishedAt" | "waitingSince">
+    Pick<
+      RunScenarioRow,
+      "status" | "verdict" | "reason" | "headline" | "error" | "startedAt" | "finishedAt" | "waitingSince"
+    >
   >,
 ): Promise<void> {
   await getDb()

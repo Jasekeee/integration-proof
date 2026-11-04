@@ -1,28 +1,102 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens. Every color on the site comes from here, in both themes. Text tokens pass WCAG AA
+ * on the backgrounds they are used on: --muted on --background and --surface, and each status color
+ * on its own -bg token.
+ */
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --muted: #525252;
+  --surface: #fafafa;
+  --surface-2: #f2f2f3;
+  --border: #e4e4e7;
+  --border-strong: #c4c4c8;
+  --accent: #171717;
+  --accent-foreground: #ffffff;
+  --ring: #2563eb;
+  --pass: #166534;
+  --pass-bg: #dcfce7;
+  --fail: #991b1b;
+  --fail-bg: #fee2e2;
+  --warn: #92400e;
+  --warn-bg: #fef3c7;
+  --diff-add: #14532d;
+  --diff-add-bg: #e9f9ee;
+  --diff-del: #7f1d1d;
+  --diff-del-bg: #fdecec;
+  --highlight-bg: #e8f0fe;
   color-scheme: light;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --muted: #a3a3a3;
+    --surface: #131313;
+    --surface-2: #1b1b1c;
+    --border: #2a2a2c;
+    --border-strong: #3f3f43;
+    --accent: #ededed;
+    --accent-foreground: #0a0a0a;
+    --ring: #60a5fa;
+    --pass: #86efac;
+    --pass-bg: #0b2e17;
+    --fail: #fca5a5;
+    --fail-bg: #3b0d0d;
+    --warn: #fcd34d;
+    --warn-bg: #3a2405;
+    --diff-add: #a7f3c0;
+    --diff-add-bg: #0d2416;
+    --diff-del: #fecaca;
+    --diff-del-bg: #2c0f0f;
+    --highlight-bg: #172554;
     color-scheme: dark;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --color-pass: var(--pass);
+  --color-pass-bg: var(--pass-bg);
+  --color-fail: var(--fail);
+  --color-fail-bg: var(--fail-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-diff-add: var(--diff-add);
+  --color-diff-add-bg: var(--diff-add-bg);
+  --color-diff-del: var(--diff-del);
+  --color-diff-del-bg: var(--diff-del-bg);
+  --color-highlight-bg: var(--highlight-bg);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* The trace row an evidence link points to. */
+.trace-highlight {
+  background-color: var(--highlight-bg) !important;
+  box-shadow: inset 3px 0 0 var(--ring);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .trace-highlight {
+    transition: background-color 300ms ease-out;
+  }
 }

@@ -9,7 +9,7 @@ const STALE_AFTER_MS = 10 * 60_000;
 
 export function databaseCache(meta: { scenarioId: string; mode: StoreMode; model: string }): AnalysisCache {
   return {
-    async claim(key) {
+    async claim(key, options) {
       const db = getDb();
       const inserted = await db
         .insert(analyses)
@@ -18,19 +18,15 @@ export function databaseCache(meta: { scenarioId: string; mode: StoreMode; model
         .returning({ key: analyses.key });
       if (inserted.length > 0) return "claimed";
 
-      // Failed and abandoned analyses are tried again; a READY one never is.
+      // Failed and abandoned analyses are tried again; a READY one only when fresh is asked for.
+      const stale = and(eq(analyses.status, "PENDING"), lt(analyses.startedAt, new Date(Date.now() - STALE_AFTER_MS)));
+      const retryable = options?.fresh
+        ? or(eq(analyses.status, "UNAVAILABLE"), eq(analyses.status, "READY"), stale)
+        : or(eq(analyses.status, "UNAVAILABLE"), stale);
       const reclaimed = await db
         .update(analyses)
         .set({ status: "PENDING", startedAt: new Date(), completedAt: null, error: null })
-        .where(
-          and(
-            eq(analyses.key, key),
-            or(
-              eq(analyses.status, "UNAVAILABLE"),
-              and(eq(analyses.status, "PENDING"), lt(analyses.startedAt, new Date(Date.now() - STALE_AFTER_MS))),
-            ),
-          ),
-        )
+        .where(and(eq(analyses.key, key), retryable))
         .returning({ key: analyses.key });
       if (reclaimed.length > 0) return "claimed";
 

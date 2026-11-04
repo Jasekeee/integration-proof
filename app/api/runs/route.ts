@@ -34,10 +34,12 @@ const BodySchema = z
 export async function POST(request: Request) {
   const body = BodySchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return invalidRequest(body.error.issues);
+  // ?fresh=1 makes this run's analyses skip the cache, so a demo shows Claude at work.
+  const freshAnalysis = new URL(request.url).searchParams.get("fresh") === "1";
 
   try {
     const { mode, scenarioIds, storeTimeoutMs, proxyHoldMs } = body.data;
-    const result = await createRun(mode, scenarioIds, { storeTimeoutMs, proxyHoldMs });
+    const result = await createRun(mode, scenarioIds, { storeTimeoutMs, proxyHoldMs, freshAnalysis });
     if (result.kind === "busy") {
       return jsonError(429, "run_in_progress", "Another proof run is in progress. Try again when it finishes.", {
         runId: result.runId,

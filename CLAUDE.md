@@ -18,8 +18,10 @@ PASS/FAIL per scenario, and uses Claude to explain the root cause and propose a 
 app/
   layout.tsx, globals.css                              root layout, global styles
   (marketing)/page.tsx                                 landing
-  proof/page.tsx                                       start a run, browse previous runs
-  proof/[runId]/page.tsx                               results grid for one run
+  proof/page.tsx                                       naive and hardened side by side; Run both
+  proof/[runId]/page.tsx                               shareable results of one run
+  _components/                                         result views: scenario cards, Claude analysis, AG Grid trace
+  icon.svg, opengraph-image.tsx                        favicon and link preview
   proof/[runId]/[scenarioId]/page.tsx                  report for one scenario
   store/[mode]/page.tsx                                reference store, mode = "naive" | "hardened" (both live)
   api/store/[mode]/orders/route.ts                     create order (Orders v2)
@@ -47,9 +49,11 @@ lib/
   proof/proxy.ts, proof/context.ts                     what the proxy forwards; which base URL a store uses
   proof/repository.ts, proof/views.ts                  runs, scenarios and trace steps in the DB; API JSON
   proof/redact.ts, proof/types.ts                      redaction before a body is traced; shared shapes
+  proof/report.ts                                      a run's full report for the API and the result pages
   ai/analyst.ts                                        Claude call + zod output schema
   ai/patch.ts, ai/signature.ts, ai/sources.ts          patch check, analysis cache key, the store code it reads
   ai/jobs.ts, ai/repository.ts                         analysis after a verdict, traced; the analyses cache
+  ai/declarations.ts, ai/context.generated.json        the analyst's read-only context (npm run analyst:context)
   db/schema.ts, db/client.ts                           Drizzle schema, database client
   db/migrations/                                       Drizzle migrations
 scripts/                                               one-off tooling (e.g. sandbox capability checks)

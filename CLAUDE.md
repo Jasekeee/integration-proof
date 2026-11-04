@@ -48,6 +48,8 @@ lib/
   proof/repository.ts, proof/views.ts                  runs, scenarios and trace steps in the DB; API JSON
   proof/redact.ts, proof/types.ts                      redaction before a body is traced; shared shapes
   ai/analyst.ts                                        Claude call + zod output schema
+  ai/patch.ts, ai/signature.ts, ai/sources.ts          patch check, analysis cache key, the store code it reads
+  ai/jobs.ts, ai/repository.ts                         analysis after a verdict, traced; the analyses cache
   db/schema.ts, db/client.ts                           Drizzle schema, database client
   db/migrations/                                       Drizzle migrations
 scripts/                                               one-off tooling (e.g. sandbox capability checks)

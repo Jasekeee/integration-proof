@@ -22,6 +22,8 @@ import {
 import { CAPTURES_PATH, refundCapture } from "../paypal/payments";
 import { SANDBOX_TEST_CARD } from "../paypal/test-cards";
 import { getAccessToken } from "../paypal/token";
+import { analyzeScenario } from "../ai/jobs";
+import { inconclusiveReason } from "./assertions";
 import { redact, traceBody } from "./redact";
 import {
   findAcknowledgedDelivery,
@@ -35,6 +37,7 @@ import {
 } from "./repository";
 import { SCENARIOS, ScenarioIdSchema, type Scenario } from "./scenarios";
 import {
+  ACTORS,
   FORGED_DELIVERY,
   REPLAYED_DELIVERY,
   WEBHOOK_ROUTER_PATH,
@@ -47,8 +50,8 @@ import {
 /** The hardened store may spend three attempts, backoff and a GET on one capture. */
 const STORE_TIMEOUT_MS = 90_000;
 const PAYPAL_TIMEOUT_MS = 30_000;
-/** docs/decisions.md, "Scenarios run in parallel and wait for webhooks with a deadline". */
-export const WEBHOOK_DEADLINE_MS = 90_000;
+/** docs/decisions.md, "INCONCLUSIVE when PayPal does not deliver in time". */
+export const WEBHOOK_DEADLINE_MS = 150_000;
 const WEBHOOK_POLL_MS = 3_000;
 const CAPTURE_COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
 const CAPTURE_REFUNDED = "PAYMENT.CAPTURE.REFUNDED";
@@ -70,15 +73,18 @@ export async function executeRun(runId: string): Promise<void> {
     const { run, scenarios } = await markRunStarted(runId);
     // Each scenario has its own cart, so they cannot interfere and the run lasts as long as the
     // slowest one, which is usually the one waiting for a webhook.
-    await Promise.all(scenarios.map((row) => runScenario(run, row)));
+    const analyses: Promise<void>[] = [];
+    await Promise.all(scenarios.map((row) => runScenario(run, row, analyses)));
     await markRunFinished(runId, null);
+    // The run is finished for its viewers; analyses carry on, and this keeps the process on them.
+    await Promise.allSettled(analyses);
   } catch (error) {
     console.error(`Run ${runId} failed`, error);
     await markRunFinished(runId, describe(error)).catch((cause: unknown) => console.error(cause));
   }
 }
 
-async function runScenario(run: RunRow, row: RunScenarioRow): Promise<void> {
+async function runScenario(run: RunRow, row: RunScenarioRow, analyses: Promise<void>[]): Promise<void> {
   const ctx: ScenarioContext = {
     runId: run.id,
     scenarioId: row.scenarioId,
@@ -104,10 +110,16 @@ async function runScenario(run: RunRow, row: RunScenarioRow): Promise<void> {
     }
 
     const settled = await waitForWebhooks(ctx, paypal);
-    if (scenario.needsWebhooks && !settled.complete) {
-      throw new ScenarioAbort(
-        `PayPal's webhooks did not reach the store within ${WEBHOOK_DEADLINE_MS / 1000} s, so there was nothing to deliver again.`,
-      );
+    if (scenario.needsWebhooks && settled.missing.length > 0) {
+      // The store was never put to the test, so neither PASS nor FAIL would be honest.
+      await updateScenario(ctx.runId, ctx.scenarioId, {
+        status: "COMPLETED",
+        verdict: "INCONCLUSIVE",
+        reason: inconclusiveReason(settled.missing, WEBHOOK_DEADLINE_MS),
+        finishedAt: new Date(),
+      });
+      analyses.push(analyzeScenario(ctx.runId, ctx.scenarioId));
+      return;
     }
     const storeBefore = await deliver(ctx, scenario, paypal, settled.state);
     const store = await readStoreState(ctx);
@@ -120,6 +132,8 @@ async function runScenario(run: RunRow, row: RunScenarioRow): Promise<void> {
       reason: result.reason,
       finishedAt: new Date(),
     });
+    // Claude explains a failure after the verdict is recorded; the scenario does not wait for it.
+    if (result.verdict === "FAIL") analyses.push(analyzeScenario(ctx.runId, ctx.scenarioId));
   } catch (error) {
     if (!(error instanceof ScenarioAbort)) console.error(`Scenario ${ctx.scenarioId} of run ${ctx.runId} failed`, error);
     await updateScenario(ctx.runId, ctx.scenarioId, {
@@ -244,11 +258,11 @@ function expectedEvents(paypal: PayPalOrderTruth[]): ExpectedEvent[] {
 async function waitForWebhooks(
   ctx: ScenarioContext,
   paypal: PayPalOrderTruth[],
-): Promise<{ complete: boolean; state: StoreState | null }> {
+): Promise<{ missing: string[]; state: StoreState | null }> {
   const expected = expectedEvents(paypal);
-  if (expected.length === 0) return { complete: true, state: null };
+  if (expected.length === 0) return { missing: [], state: null };
 
-  await updateScenario(ctx.runId, ctx.scenarioId, { status: "WAITING_FOR_WEBHOOK" });
+  await updateScenario(ctx.runId, ctx.scenarioId, { status: "WAITING_FOR_WEBHOOK", waitingSince: new Date() });
   const span = await openStep(ctx);
   const deadline = Date.now() + WEBHOOK_DEADLINE_MS;
   let state: StoreState | null = null;
@@ -271,8 +285,8 @@ async function waitForWebhooks(
     note: `Waited ${waited} s for PayPal webhooks. ${notes.join(" ")}`,
     responseBody: state ? { deliveries: state.deliveries } : null,
   });
-  await updateScenario(ctx.runId, ctx.scenarioId, { status: "RUNNING" });
-  return { complete: pending.length === 0, state };
+  await updateScenario(ctx.runId, ctx.scenarioId, { status: "RUNNING", waitingSince: null });
+  return { missing: pending.map((event) => event.eventType), state };
 }
 
 /** The 2xx delivery of an event the store recorded for a PayPal order, if any. */
@@ -469,7 +483,7 @@ async function callPayPal(
   return response;
 }
 
-const ActorSchema = z.enum(["buyer", "store", "runner"]);
+const ActorSchema = z.enum(ACTORS);
 
 function toEntry(row: TraceStepRow): TraceEntry {
   return {

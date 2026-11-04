@@ -265,6 +265,8 @@ trace and does not crash the run.
 trace step with its duration, so each run adds a latency measurement.
 
 **Revisit:** when recorded waits show the 90-second deadline is too short or far too long.
+Revisited on 2026-11-04: the deadline is now 150 seconds, see
+[INCONCLUSIVE when PayPal does not deliver in time](#inconclusive-when-paypal-does-not-deliver-in-time).
 
 **References:** [delivery latency](sandbox-findings.md#delivery-latency).
 
@@ -368,3 +370,88 @@ one close to real call latency makes other scenarios fail for the wrong reason.
 
 **References:** [webhook waits in full proofs](sandbox-findings.md#webhook-waits-in-full-proofs),
 [timeouts wait for a measurement](#timeouts-wait-for-a-measurement-from-the-hosting-region).
+
+## INCONCLUSIVE when PayPal does not deliver in time
+
+**Decision:** when a webhook that S4, S5 or S6 needs has not reached the store by the deadline, the
+scenario gets the verdict INCONCLUSIVE with the reason "PayPal did not deliver <event> within <N> s",
+not FAIL, PASS or an error. The deadline is 150 seconds instead of 90. The run summary counts
+INCONCLUSIVE apart from passes and failures. S1 to S3 wait for webhooks only so the state can settle,
+and are judged whether the webhooks came or not.
+
+**Why:**
+
+- A missing delivery says nothing about the store under test. FAIL would blame the store for PayPal's
+  delay, PASS would claim a test that never ran, and an error reads like a crash of the product.
+- S5 waits for two deliveries. One naive run on 2026-11-04 waited 138.3 seconds for them, more than
+  the old 90-second deadline allowed.
+- The page counts the seconds while a scenario waits, so a long wait reads as waiting, not as a hang.
+
+**Consequence:** a full proof can take up to two and a half minutes when PayPal is slow. An
+INCONCLUSIVE scenario is analysed like a failure; the analyst explains what the trace shows about the
+delivery and proposes no patch unless the store's own answers stopped PayPal from delivering.
+
+**Revisit:** when recorded waits regularly come close to 150 seconds.
+
+## Claude explains a failure; the verdict stays deterministic
+
+**Decision:** once a scenario ends FAIL or INCONCLUSIVE, the analyst (`lib/ai/analyst.ts`) asks the
+model in `ANTHROPIC_MODEL` for the root cause, the business impact, evidence that cites trace steps,
+a fix as a unified diff against the real store file, links to PayPal documentation, how to verify the
+fix, and a confidence. It starts after the verdict is recorded and the run does not wait for it.
+
+**Input:** the scenario's definition and PASS criterion, the verdict and its reason, the redacted
+trace without links and personal data, the store file under test, and the modules it calls as
+read-only context. For the reference stores these are the real files in `lib/`.
+
+**Output and checks:**
+
+- Structured output (`output_config.format` with the SDK's `zodOutputFormat`) on `messages.create`.
+  `messages.parse` throws when the answer misses the schema, and that loses the token usage and the
+  answer the retry needs. Forced `tool_choice` returns 400 on Claude Sonnet 5.5, so tool use would
+  not guarantee the format.
+- Code checks every answer: the schema; every evidence `stepId` exists in the trace; documentation
+  links only on `developer.paypal.com` or `docs.paypal.ai`; no PayPal order, capture or event id in
+  the text, because the analysis is reused for runs whose ids differ. An invalid answer gets one retry
+  with the reasons. A second invalid answer, a refusal or a failed API call ends in "analysis
+  unavailable", and the verdict stands.
+- The patch is applied to the real file with jsdiff's `applyPatch`. Hunk line counts are recounted as
+  `git apply --recount` does; the context must match exactly. A patch that does not apply is shown as
+  "patch needs review", never hidden.
+
+**Untrusted data:** everything from the trace (PayPal responses, webhook bodies, the forged event of
+S6) sits in an `<untrusted_trace>` section, with `<` escaped so no content can close the section or
+open another. The system prompt says it is data and not instructions, and a mid-conversation system
+message after it repeats that through the operator channel, which text inside the trace cannot
+imitate.
+
+**Cost:**
+
+- The `analyses` table caches results under a hash of the scenario, the model, the store files and a
+  trace signature. The signature keeps methods, paths, statuses, faults and outcomes and drops ids,
+  times and durations. A run that fails the same way with the same code spends no tokens.
+- The store files come first in the prompt behind a cache breakpoint, so the analyses of one run
+  share that prefix.
+- Effort is `high`, because the patch has to apply to the real file.
+
+**Tracing:** every model call is a trace step of the scenario, with actor `analyst`, the model,
+input, cached and output tokens, the duration and the outcome. A cache hit is a step that says so.
+
+**No server-side fallback:** the reminder is a mid-conversation system message, which Claude Sonnet
+5.5 accepts and its fallback model Claude Sonnet 5 rejects. A refusal therefore ends as "analysis
+unavailable" with its category.
+
+**Verified on 2026-11-04** with a full proof of the naive store and `claude-sonnet-5-5`:
+
+- All five failures were analysed, each valid on the first attempt. Every evidence `stepId` exists
+  in its trace.
+- All five patches apply to `lib/store/naive.ts`, three of them after recounting hunk headers. Each
+  patched file passes `tsc`.
+- Each analysis took 21 to 35 seconds, all running alongside the scenarios. The last one finished
+  29 seconds after the 46-second run.
+- Tokens: 78,889 input in total and 18,863 output. Of the input, 11,493 were written to the cache by
+  the first analysis and 45,972 were read from it by the other four.
+- The next two runs failed the same way and reused all five analyses with no model call.
+
+**Revisit:** when analyses of customer code replace the reference stores. That code is untrusted as a
+whole and needs the same treatment as the trace.

@@ -1,5 +1,6 @@
 // Drizzle schema. Both reference stores share these tables; every order row records its mode.
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -26,9 +27,16 @@ export type RunStatus = (typeof RUN_STATUSES)[number];
 export const SCENARIO_STATUSES = ["QUEUED", "RUNNING", "WAITING_FOR_WEBHOOK", "COMPLETED", "ERROR"] as const;
 export type ScenarioStatus = (typeof SCENARIO_STATUSES)[number];
 
-/** Decided by deterministic assertions, never by the model. */
-export const VERDICTS = ["PASS", "FAIL"] as const;
+/**
+ * Decided by deterministic code, never by the model. INCONCLUSIVE: PayPal did not deliver a webhook
+ * the scenario needs before the deadline, so neither PASS nor FAIL would be honest.
+ */
+export const VERDICTS = ["PASS", "FAIL", "INCONCLUSIVE"] as const;
 export type Verdict = (typeof VERDICTS)[number];
+
+/** PENDING while Claude is working, READY with a validated analysis, UNAVAILABLE after one retry. */
+export const ANALYSIS_STATUSES = ["PENDING", "READY", "UNAVAILABLE"] as const;
+export type AnalysisStatus = (typeof ANALYSIS_STATUSES)[number];
 
 /** Result of checking a delivery's signature. NOT_CHECKED is what the naive store records. */
 export const VERIFICATION_RESULTS = [
@@ -46,6 +54,7 @@ export const runStatus = pgEnum("run_status", RUN_STATUSES);
 export const scenarioStatus = pgEnum("scenario_status", SCENARIO_STATUSES);
 export const verdict = pgEnum("verdict", VERDICTS);
 export const verificationResult = pgEnum("verification_result", VERIFICATION_RESULTS);
+export const analysisStatus = pgEnum("analysis_status", ANALYSIS_STATUSES);
 
 /** Run defaults: well above the store's observed PayPal latency, and well below its 15 s timeout. */
 export const DEFAULT_STORE_TIMEOUT_MS = 8000;
@@ -93,6 +102,12 @@ export const runScenarios = pgTable(
     captureAttempts: integer("capture_attempts").notNull().default(0),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /** When the scenario started waiting for PayPal's webhooks, so the UI can count the seconds. */
+    waitingSince: timestamp("waiting_since", { withTimezone: true }),
+    /** The analysis of a FAIL or INCONCLUSIVE verdict. Several runs can share one cached analysis. */
+    analysisKey: text("analysis_key").references(() => analyses.key, { onDelete: "set null" }),
+    /** True when the analysis came from the cache and cost no tokens in this run. */
+    analysisReused: boolean("analysis_reused"),
   },
   (table) => [
     primaryKey({ columns: [table.runId, table.scenarioId] }),
@@ -202,7 +217,34 @@ export const traceSteps = pgTable(
   (table) => [uniqueIndex("trace_steps_run_scenario_seq_key").on(table.runId, table.scenarioId, table.seq)],
 );
 
+/**
+ * Claude's explanation of a failed scenario. The key is the scenario, a hash of the store code and a
+ * signature of the trace, so a run that fails the same way reuses the analysis and spends no tokens.
+ */
+export const analyses = pgTable("analyses", {
+  key: text("key").primaryKey(),
+  scenarioId: text("scenario_id").notNull(),
+  mode: storeMode("mode").notNull(),
+  model: text("model").notNull(),
+  status: analysisStatus("status").notNull().default("PENDING"),
+  /** The validated analysis. Evidence cites trace steps by their number in the scenario. */
+  result: jsonb("result"),
+  /** "applies", "needs_review" or "none", from applying the patch to the real file. */
+  patchStatus: text("patch_status"),
+  patchNote: text("patch_note"),
+  error: text("error"),
+  attempts: integer("attempts").notNull().default(0),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+  cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+  durationMs: integer("duration_ms"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
 export type OrderRow = typeof orders.$inferSelect;
+export type AnalysisRow = typeof analyses.$inferSelect;
 export type RunRow = typeof runs.$inferSelect;
 export type RunScenarioRow = typeof runScenarios.$inferSelect;
 export type TraceStepRow = typeof traceSteps.$inferSelect;

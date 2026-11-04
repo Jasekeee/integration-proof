@@ -9,7 +9,7 @@ import {
   type StoreOrderState,
   type TraceEntry,
 } from "../types";
-import { assertS1, assertS2, assertS3, assertS4, assertS5, assertS6, chargesPerCart } from ".";
+import { assertS1, assertS2, assertS3, assertS4, assertS5, assertS6, chargesPerCart, inconclusiveReason } from ".";
 
 const ORDER = "5O190127TN364715T";
 const SECOND_ORDER = "8VC12345AB678901C";
@@ -328,5 +328,20 @@ describe("assertS6", () => {
     expect(assertS6([], { ...state(before, []), storeBefore: before }).reason).toBe("The forged delivery is missing from the trace.");
     const trace = [routerDelivery(FORGED_DELIVERY, 400, "rejected")];
     expect(assertS6(trace, state(before, [])).reason).toBe("The store's state before the forged delivery is missing.");
+  });
+});
+
+describe("inconclusiveReason", () => {
+  it("names the event PayPal did not deliver and the deadline", () => {
+    expect(inconclusiveReason(["PAYMENT.CAPTURE.COMPLETED"], 150_000)).toBe(
+      "PayPal did not deliver PAYMENT.CAPTURE.COMPLETED within 150 s.",
+    );
+  });
+
+  it("names each missing event once", () => {
+    const missing = ["PAYMENT.CAPTURE.COMPLETED", "PAYMENT.CAPTURE.REFUNDED", "PAYMENT.CAPTURE.COMPLETED"];
+    expect(inconclusiveReason(missing, 150_000)).toBe(
+      "PayPal did not deliver PAYMENT.CAPTURE.COMPLETED or PAYMENT.CAPTURE.REFUNDED within 150 s.",
+    );
   });
 });

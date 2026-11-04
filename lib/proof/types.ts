@@ -1,8 +1,12 @@
 // Shapes shared by the runner, the trace and the assertions.
-import type { OrderStatus, Verdict } from "../db/schema";
+import type { OrderStatus } from "../db/schema";
 
-/** buyer: the headless buyer. store: the store's PayPal calls, seen by the proxy. runner: checks. */
-export type Actor = "buyer" | "store" | "runner";
+/**
+ * buyer: the headless buyer. store: the store's PayPal calls, seen by the proxy. runner: checks.
+ * analyst: Claude's calls after the verdict; they are never evidence for the verdict itself.
+ */
+export type Actor = "buyer" | "store" | "runner" | "analyst";
+export const ACTORS = ["buyer", "store", "runner", "analyst"] as const satisfies readonly Actor[];
 
 /** The part of a trace step the assertions read. */
 export interface TraceEntry {
@@ -43,8 +47,9 @@ export interface ScenarioState {
   storeBefore?: StoreOrderState[];
 }
 
+/** Assertions decide PASS or FAIL. INCONCLUSIVE comes from the runner, when PayPal never delivered. */
 export interface AssertionResult {
-  verdict: Verdict;
+  verdict: "PASS" | "FAIL";
   reason: string;
 }
 

@@ -1,6 +1,7 @@
 // The report of a run: every scenario with its verdict and its trace, step by step.
 import { z } from "zod";
 import { errorResponse, jsonError } from "@/lib/http";
+import { readAnalyses } from "@/lib/ai/repository";
 import { readRun, readTrace } from "@/lib/proof/repository";
 import { runView, stepView } from "@/lib/proof/views";
 
@@ -12,7 +13,8 @@ export async function GET(_request: Request, context: RouteContext<"/api/runs/[r
     const found = await readRun(runId.data);
     if (!found) return jsonError(404, "unknown_run", "No such run.");
     const steps = await readTrace(runId.data);
-    const view = runView(found.run, found.scenarios);
+    const analyses = await readAnalyses(found.scenarios.flatMap((row) => (row.analysisKey ? [row.analysisKey] : [])));
+    const view = runView(found.run, found.scenarios, analyses);
     return Response.json(
       {
         ...view,

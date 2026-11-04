@@ -1,6 +1,7 @@
 // Pure functions: (trace, state) -> { verdict, reason }. The model never decides a verdict.
 import { z } from "zod";
 import { ORDER_STATUSES, type OrderStatus } from "../../db/schema";
+import type { Harm } from "../harms";
 import {
   FORGED_DELIVERY,
   REPLAYED_DELIVERY,
@@ -87,17 +88,23 @@ function describeDelivery(step: TraceEntry): string {
 }
 
 function pass(reason: string, headline: string): AssertionResult {
-  return { verdict: "PASS", reason, headline };
+  return { verdict: "PASS", reason, headline, harm: null };
 }
 
-function fail(problems: string[], context: string, headline: string): AssertionResult {
+/**
+ * A failure. `harm` is what it cost, or null when the scenario never reached the behaviour it tests,
+ * for example because a delivery is missing from the trace.
+ */
+function fail(problems: string[], context: string, outcome: { headline: string; harm: Harm | null }): AssertionResult {
   const sentence = problems.join("; ");
-  return { verdict: "FAIL", reason: `${sentence[0].toUpperCase()}${sentence.slice(1)}.${context}`, headline };
+  return { verdict: "FAIL", reason: `${sentence[0].toUpperCase()}${sentence.slice(1)}.${context}`, ...outcome };
 }
 
-/** "Buyer charged twice", "Buyer charged 3 times". */
-function chargedTimes(count: number): string {
-  return `Buyer charged ${count === 2 ? "twice" : `${count} times`}`;
+/** "Buyer charged twice", "Buyer charged 3 times", with the harm it counts as. */
+function chargedTimes(count: number): { headline: string; harm: Harm } {
+  return count === 2
+    ? { headline: "Buyer charged twice", harm: "cart_charged_twice" }
+    : { headline: `Buyer charged ${count} times`, harm: "cart_charged_repeatedly" };
 }
 
 /** The INCONCLUSIVE headline: the store was never tested, so nothing is said about it. */
@@ -151,15 +158,15 @@ export const assertS1: Assertion = (trace, state) => {
   if (charges !== 0) problems.push(`PayPal shows ${plural(charges, "charge")} for the cart`);
 
   if (problems.length > 0) {
-    const headline =
+    const outcome: { headline: string; harm: Harm } =
       charges > 0
-        ? "Buyer charged on a declined card"
+        ? { headline: "Buyer charged on a declined card", harm: "declined_card_charged" }
         : paid
-          ? "Declined payment marked paid"
+          ? { headline: "Declined payment marked paid", harm: "declined_payment_marked_paid" }
           : decline?.crash
-            ? "Buyer saw an error instead of a decline"
-            : "Buyer not told the card was declined";
-    return fail(problems, "", headline);
+            ? { headline: "Buyer saw an error instead of a decline", harm: "decline_shown_as_error" }
+            : { headline: "Buyer not told the card was declined", harm: "decline_not_shown" };
+    return fail(problems, "", outcome);
   }
   return pass(
     "The order stayed unpaid, the buyer was told the card was declined, and PayPal shows no charge for the cart.",
@@ -179,9 +186,13 @@ export const assertS2: Assertion = (trace, state) => {
 
   const context = ` The store sent ${describeRequests(storeCaptures(trace))}.`;
   if (problems.length > 0) {
-    const headline =
-      charges === 0 ? "Sale lost on a transient error" : charges > 1 ? chargedTimes(charges) : "Paid order shown as unpaid";
-    return fail(problems, context, headline);
+    const outcome =
+      charges === 0
+        ? { headline: "Sale lost on a transient error", harm: "sale_lost" as const }
+        : charges > 1
+          ? chargedTimes(charges)
+          : { headline: "Paid order shown as unpaid", harm: "paid_order_shown_as_unpaid" as const };
+    return fail(problems, context, outcome);
   }
   return pass(`The order is PAID with exactly 1 charge at PayPal.${context}`, "Retried and charged once");
 };
@@ -206,9 +217,14 @@ export const assertS3: Assertion = (trace, state) => {
 
   const context = ` The buyer checked out ${plural(buyerCheckouts(trace), "time")}.`;
   if (problems.length > 0) {
-    const headline =
-      charges === 0 ? "Capture never went through" : charges > 1 ? chargedTimes(charges) : "Paid order shown as failed";
-    return fail(problems, context, headline);
+    // With nothing captured the lost response was never tested, so no harm is claimed.
+    const outcome =
+      charges === 0
+        ? { headline: "Capture never went through", harm: null }
+        : charges > 1
+          ? chargedTimes(charges)
+          : { headline: "Paid order shown as failed", harm: "paid_order_shown_as_failed" as const };
+    return fail(problems, context, outcome);
   }
   return pass(`The order is PAID with exactly 1 charge at PayPal.${context}`, "Charged once, no second checkout");
 };
@@ -216,7 +232,9 @@ export const assertS3: Assertion = (trace, state) => {
 /** S4, duplicate webhook: the same real PAYMENT.CAPTURE.COMPLETED twice, the order fulfilled once. */
 export const assertS4: Assertion = (trace, state) => {
   const replay = runnerDeliveries(trace, REPLAYED_DELIVERY).at(-1);
-  if (!replay) return fail(["the replayed delivery is missing from the trace"], "", "Replay never delivered");
+  if (!replay) {
+    return fail(["the replayed delivery is missing from the trace"], "", { headline: "Replay never delivered", harm: null });
+  }
   const problems: string[] = [];
   if (state.store.length === 0) problems.push("the store has no order for the cart");
   for (const order of state.store) {
@@ -226,9 +244,15 @@ export const assertS4: Assertion = (trace, state) => {
   const context = ` The replayed PAYMENT.CAPTURE.COMPLETED got ${describeDelivery(replay)}.`;
   if (problems.length > 0) {
     const most = Math.max(0, ...state.store.map((order) => order.fulfilments));
-    const headline =
-      most > 1 ? `Order shipped ${most === 2 ? "twice" : `${most} times`}` : most === 0 ? "Paid order never shipped" : "Order not shipped once";
-    return fail(problems, context, headline);
+    const outcome: { headline: string; harm: Harm } =
+      most > 2
+        ? { headline: `Order shipped ${most} times`, harm: "order_shipped_repeatedly" }
+        : most === 2
+          ? { headline: "Order shipped twice", harm: "order_shipped_twice" }
+          : most === 0
+            ? { headline: "Paid order never shipped", harm: "paid_order_not_shipped" }
+            : { headline: "Order not shipped once", harm: "paid_order_not_shipped" };
+    return fail(problems, context, outcome);
   }
   return pass(`The order was fulfilled once although PAYMENT.CAPTURE.COMPLETED arrived twice.${context}`, "Shipped once");
 };
@@ -255,15 +279,15 @@ export const assertS5: Assertion = (trace, state) => {
     const paidButRefunded = refunded.some(
       (truth) => state.store.find((row) => row.paypalOrderId === truth.id)?.status === "PAID",
     );
-    const headline =
+    const outcome: { headline: string; harm: Harm | null } =
       refunded.length === 0
-        ? "Refund never happened"
+        ? { headline: "Refund never happened", harm: null }
         : paidButRefunded
-          ? "Refunded order shown as paid"
+          ? { headline: "Refunded order shown as paid", harm: "refund_shown_as_paid" }
           : runnerDeliveries(trace, REPLAYED_DELIVERY).length === 0
-            ? "Late event never delivered"
-            : "Order state differs from PayPal";
-    return fail(problems, "", headline);
+            ? { headline: "Late event never delivered", harm: null }
+            : { headline: "Order state differs from PayPal", harm: "order_out_of_sync" };
+    return fail(problems, "", outcome);
   }
   return pass(
     "The store reports the order REFUNDED, as PayPal does, although a PAYMENT.CAPTURE.COMPLETED arrived after the refund.",
@@ -278,10 +302,9 @@ function describeOrder(order: StoreOrderState): string {
 /** S6, forged webhook: rejected with a 4xx, and the store's state is unchanged. */
 export const assertS6: Assertion = (trace, state) => {
   const forged = runnerDeliveries(trace, FORGED_DELIVERY).at(-1);
-  if (!forged) return fail(["the forged delivery is missing from the trace"], "", "Forgery never delivered");
-  if (!state.storeBefore) {
-    return fail(["the store's state before the forged delivery is missing"], "", "Forgery never delivered");
-  }
+  const neverDelivered = { headline: "Forgery never delivered", harm: null };
+  if (!forged) return fail(["the forged delivery is missing from the trace"], "", neverDelivered);
+  if (!state.storeBefore) return fail(["the store's state before the forged delivery is missing"], "", neverDelivered);
   const problems: string[] = [];
   const status = forged.httpStatus;
   if (status === null || status < 400 || status >= 500) {
@@ -298,14 +321,15 @@ export const assertS6: Assertion = (trace, state) => {
   if (problems.length > 0) {
     const accepted = status !== null && status >= 200 && status < 300;
     const changed = problems.some((problem) => problem.includes(" changed from ") || problem.includes(" appeared "));
-    const headline = accepted
+    // An answer outside 2xx and 4xx neither accepts nor rejects the forgery; it costs nothing yet.
+    const outcome: { headline: string; harm: Harm | null } = accepted
       ? changed
-        ? "Forged refund accepted"
-        : "Forged event accepted"
+        ? { headline: "Forged refund accepted", harm: "forged_refund_accepted" }
+        : { headline: "Forged event accepted", harm: "forged_event_accepted" }
       : changed
-        ? "Forged event changed the order"
-        : "Forged event not rejected";
-    return fail(problems, "", headline);
+        ? { headline: "Forged event changed the order", harm: "forged_event_changed_order" }
+        : { headline: "Forged event not rejected", harm: null };
+    return fail(problems, "", outcome);
   }
   return pass(
     `The store rejected the forged event with ${describeDelivery(forged)}, and the order did not change.`,

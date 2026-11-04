@@ -1,7 +1,35 @@
 import Link from "next/link";
-import { isRunActive, MODE_LABELS, seconds, timeAgo, type Mode, type RunReport } from "./report";
+import { isRunActive, MODE_LABELS, runTone, seconds, timeAgo, type Mode, type RunReport } from "./report";
 
-/** A store's name, its score in large type, and what state its latest run is in. */
+/** Status colors pass WCAG AA on the page background in both themes (globals.css). */
+const SCORE_COLORS = { pass: "text-pass", fail: "text-fail", warn: "text-warn" } as const;
+
+/**
+ * What the run cost, from the harms its assertions recorded. A run where every scenario passed says
+ * so; a run that could not judge everything and found no harm says nothing.
+ */
+function Consequences({ report }: { report: RunReport }) {
+  const harms = report.consequences ?? [];
+  if (harms.length > 0) {
+    return (
+      <p className="text-sm font-medium leading-6 text-fail">
+        <span className="text-muted">This run: </span>
+        {harms.join(" · ")}
+      </p>
+    );
+  }
+  if (report.status === "COMPLETED" && report.summary.passed === report.summary.total) {
+    return (
+      <p className="text-sm font-medium leading-6 text-pass">
+        <span className="text-muted">This run: </span>
+        all {report.summary.total} failures handled, nothing charged or shipped twice
+      </p>
+    );
+  }
+  return null;
+}
+
+/** A store's name, its score in large type, what the run cost, and what state the run is in. */
 export function RunHeader({
   mode,
   report,
@@ -17,6 +45,7 @@ export function RunHeader({
   const active = isRunActive(report);
   const total = report?.summary.total ?? 6;
   const elapsed = report?.startedAt ? Math.max(0, Math.floor((now - Date.parse(report.startedAt)) / 1000)) : 0;
+  const tone = runTone(report);
 
   return (
     <div className="flex h-full flex-col gap-4 rounded-lg border border-border p-4 sm:p-6">
@@ -30,11 +59,13 @@ export function RunHeader({
 
       <div className="flex items-baseline gap-3">
         <p className="font-mono text-5xl font-semibold tabular-nums tracking-tight sm:text-6xl">
-          {report ? report.summary.passed : "–"}
+          <span className={tone ? SCORE_COLORS[tone] : undefined}>{report ? report.summary.passed : "–"}</span>
           <span className="text-muted">/{total}</span>
         </p>
         <p className="text-sm text-muted">scenarios passed</p>
       </div>
+
+      {report && !active && <Consequences report={report} />}
 
       <p className="text-sm text-muted" aria-live="polite" suppressHydrationWarning>
         {!report && "Not run yet."}

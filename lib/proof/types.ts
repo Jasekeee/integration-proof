@@ -1,5 +1,6 @@
 // Shapes shared by the runner, the trace and the assertions.
 import type { OrderStatus } from "../db/schema";
+import type { Harm } from "./harms";
 
 /**
  * buyer: the headless buyer. store: the store's PayPal calls, seen by the proxy. runner: checks.
@@ -53,6 +54,8 @@ export interface AssertionResult {
   reason: string;
   /** What happened in plain words, for the card's title: "Buyer charged twice", "Shipped once". */
   headline: string;
+  /** What a FAIL cost, from the same facts as the headline; null for a PASS. */
+  harm: Harm | null;
 }
 
 /** Deterministic: the same trace and state always give the same verdict. */

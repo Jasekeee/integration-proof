@@ -41,6 +41,7 @@ describe("runView", () => {
       verdict: null,
       reason: null,
       headline: null,
+      harm: null,
       error: null,
       lastSeq: 6,
       captureAttempts: 1,
@@ -53,5 +54,6 @@ describe("runView", () => {
     const view = runView(run, [scenario]);
     expect(view.scenarios[0]).toMatchObject({ status: "ERROR", error: "The run ended before this scenario recorded its result." });
     expect(view.summary.errors).toBe(1);
+    expect(view.consequences).toEqual([]);
   });
 });

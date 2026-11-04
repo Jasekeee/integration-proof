@@ -99,6 +99,8 @@ export const runScenarios = pgTable(
     reason: text("reason"),
     /** What happened in plain words, from the same deterministic code as the verdict. */
     headline: text("headline"),
+    /** What a FAIL cost, a key of HARMS in lib/proof/harms.ts, from the same code as the verdict. */
+    harm: text("harm"),
     error: text("error"),
     /** Last trace step number handed out. Steps take a number when they start, so nesting reads in order. */
     lastSeq: integer("last_seq").notNull().default(0),

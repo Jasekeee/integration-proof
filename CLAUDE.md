@@ -43,9 +43,12 @@ lib/
   paypal/payments.ts                                   Payments v2 refund the runner makes as the merchant (S5)
   store/naive.ts, store/hardened.ts                    two implementations of the same store logic
   store/shared.ts, store/repository.ts                 pure decisions shared by both stores; their DB access
+  store/snippets.ts                                    the marked lines of each store a passing card shows
   proof/scenarios/index.ts                             scenario definitions (S1..S6)
   proof/assertions/index.ts                            pure functions: (trace, state) -> { verdict, reason }
+  proof/harms.ts                                       what a failure cost, counted for a run's "This run:" line
   proof/runner.ts                                      runs a run's scenarios in parallel and writes the trace
+  proof/retry.ts                                       retries of the runner's own PayPal calls, never the store's
   proof/proxy.ts, proof/context.ts                     what the proxy forwards; which base URL a store uses
   proof/repository.ts, proof/views.ts                  runs, scenarios and trace steps in the DB; API JSON
   proof/redact.ts, proof/types.ts                      redaction before a body is traced; shared shapes

@@ -1,4 +1,5 @@
 // Shapes of the runs API on the client, and the small pure helpers the result views share.
+import type { Snippet } from "@/lib/store/snippets";
 
 export type Mode = "naive" | "hardened";
 export type Verdict = "PASS" | "FAIL" | "INCONCLUSIVE";
@@ -49,6 +50,7 @@ export interface ScenarioView {
   verdict: Verdict | null;
   reason: string | null;
   headline: string | null;
+  harm: string | null;
   error: string | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -63,6 +65,8 @@ export interface RunReport {
   status: "QUEUED" | "RUNNING" | "COMPLETED" | "ERROR";
   error: string | null;
   summary: { total: number; passed: number; failed: number; inconclusive: number; errors: number };
+  /** What the run's failures cost, counted and worded by the server: "1 cart charged twice". */
+  consequences: string[];
   config: { storeTimeoutMs: number; proxyHoldMs: number; webhookDeadlineMs: number; freshAnalysis: boolean };
   createdAt: string;
   startedAt: string | null;
@@ -93,6 +97,33 @@ export const FALLBACK_HEADLINES: Record<string, { PASS: string; FAIL: string }> 
   S5: { PASS: "Shows refunded, as PayPal does", FAIL: "Refunded order shown as paid" },
   S6: { PASS: "Forged event rejected", FAIL: "Forged refund accepted" },
 };
+
+/**
+ * The marked lines of both store files, read on the server, and the commit they come from, so a
+ * link opens the same lines in the repository.
+ */
+export interface StoreCode {
+  ref: string;
+  snippets: Partial<Record<Mode, Record<string, Snippet>>>;
+}
+
+export type Tone = "pass" | "fail" | "warn";
+
+/** A verdict as a color: PASS green, FAIL red, INCONCLUSIVE amber. ERROR and no verdict have none. */
+export function verdictTone(verdict: Verdict | null): Tone | null {
+  return verdict === "PASS" ? "pass" : verdict === "FAIL" ? "fail" : verdict === "INCONCLUSIVE" ? "warn" : null;
+}
+
+/**
+ * A finished run as a color: red with any failure, green when every scenario passed, amber when
+ * something could not be judged. Nothing while the run is in progress.
+ */
+export function runTone(report: RunReport | null): Tone | null {
+  if (!report || isRunActive(report)) return null;
+  if (report.summary.failed > 0) return "fail";
+  if (report.status === "COMPLETED" && report.summary.passed === report.summary.total) return "pass";
+  return "warn";
+}
 
 export const MODE_LABELS: Record<Mode, { name: string; blurb: string }> = {
   naive: { name: "Naive store", blurb: "The common integration mistakes, left in." },

@@ -405,3 +405,47 @@ describe("headlines", () => {
     expect(assertS6(rejected, { ...state(before, []), storeBefore: before }).headline).toBe("Forged event rejected");
   });
 });
+
+describe("harms", () => {
+  const paidOnce = state([storeOrder("PAID", ORDER, 1)], [paypalOrder(["COMPLETED"])]);
+  const replay = [routerDelivery(REPLAYED_DELIVERY, 200, "applied")];
+
+  it("are null for every pass", () => {
+    expect(assertS1([buyerCapture(200, DECLINED_ANSWER)], state([storeOrder("DECLINED")], [paypalOrder([])])).harm).toBeNull();
+    expect(assertS2([storeCapture(500, 2), storeCapture(201, 3)], paidOnce).harm).toBeNull();
+    expect(assertS3([buyerCreate(1)], paidOnce).harm).toBeNull();
+    expect(assertS4(replay, paidOnce).harm).toBeNull();
+  });
+
+  it("name what each failure cost, from the facts the verdict checked", () => {
+    expect(assertS1([buyerCapture(200, PAID_ANSWER)], state([storeOrder("PAID")], [paypalOrder(["COMPLETED"])])).harm).toBe(
+      "declined_card_charged",
+    );
+    expect(assertS1([buyerCapture(500, null)], state([storeOrder("CREATED")], [paypalOrder([])])).harm).toBe(
+      "decline_shown_as_error",
+    );
+    expect(assertS2([storeCapture(500, 2)], state([storeOrder("FAILED")], [paypalOrder([])])).harm).toBe("sale_lost");
+    const twice = state(
+      [storeOrder("FAILED", ORDER, 1), storeOrder("PAID", SECOND_ORDER, 1)],
+      [paypalOrder(["COMPLETED"]), paypalOrder(["COMPLETED"], SECOND_ORDER)],
+    );
+    expect(assertS3([buyerCreate(1), buyerCreate(5)], twice).harm).toBe("cart_charged_twice");
+    expect(assertS4(replay, state([storeOrder("PAID", ORDER, 2)], [paypalOrder(["COMPLETED"])])).harm).toBe("order_shipped_twice");
+    expect(assertS4(replay, state([storeOrder("PAID", ORDER, 3)], [paypalOrder(["COMPLETED"])])).harm).toBe(
+      "order_shipped_repeatedly",
+    );
+    expect(assertS5(replay, state([storeOrder("PAID", ORDER, 2)], [paypalOrder(["REFUNDED"])])).harm).toBe("refund_shown_as_paid");
+    const before = [storeOrder("PAID", ORDER, 1)];
+    const accepted = [routerDelivery(FORGED_DELIVERY, 200, "applied")];
+    expect(assertS6(accepted, { ...state([storeOrder("REFUNDED", ORDER, 1)], []), storeBefore: before }).harm).toBe(
+      "forged_refund_accepted",
+    );
+  });
+
+  it("claim nothing when the scenario never reached the behaviour it tests", () => {
+    expect(assertS3([buyerCreate(1)], state([storeOrder("FAILED")], [paypalOrder([])])).harm).toBeNull();
+    expect(assertS4([], paidOnce).harm).toBeNull();
+    expect(assertS5(replay, state([storeOrder("PAID", ORDER, 1)], [paypalOrder(["COMPLETED"])])).harm).toBeNull();
+    expect(assertS6([], { ...paidOnce, storeBefore: [] }).harm).toBeNull();
+  });
+});

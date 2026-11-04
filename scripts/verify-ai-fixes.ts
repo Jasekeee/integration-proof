@@ -22,7 +22,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writ
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseArgs, promisify } from "node:util";
-import { applyPatch, parsePatch } from "diff";
+import { applyPatch, createTwoFilesPatch, parsePatch } from "diff";
 import { z } from "zod";
 import type { BenchRun } from "../bench/harness";
 import { checkPatch } from "../lib/ai/patch";
@@ -397,6 +397,15 @@ async function main(): Promise<void> {
       }
     });
     if (stale.length > 0) {
+      for (const [file, content] of stale) {
+        let committed = "";
+        try {
+          committed = readFileSync(path.join(REPO, file), "utf8");
+        } catch {
+          // A missing file shows as all new lines.
+        }
+        console.error(createTwoFilesPatch(`${file} (committed)`, `${file} (this run)`, committed, content));
+      }
       console.error(`Out of date: ${stale.map(([file]) => file).join(", ")}. Run npx tsx scripts/verify-ai-fixes.ts.`);
       process.exit(1);
     }

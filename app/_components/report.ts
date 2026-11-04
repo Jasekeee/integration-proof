@@ -1,0 +1,183 @@
+// Shapes of the runs API on the client, and the small pure helpers the result views share.
+
+export type Mode = "naive" | "hardened";
+export type Verdict = "PASS" | "FAIL" | "INCONCLUSIVE";
+
+export interface StepView {
+  id: string;
+  seq: number;
+  actor: string;
+  startedAt: string;
+  durationMs: number;
+  method: string | null;
+  path: string | null;
+  httpStatus: number | null;
+  debugId: string | null;
+  paypalRequestId: string | null;
+  fault: string | null;
+  note: string | null;
+}
+
+export interface AnalysisResult {
+  rootCause: string;
+  businessImpact: string;
+  evidence: { stepId: number; observation: string }[];
+  fix: { summary: string; patch: string; docs: { title: string; url: string }[] };
+  verifyBy: string;
+  confidence: "low" | "medium" | "high";
+}
+
+export interface AnalysisView {
+  status: "PENDING" | "READY" | "UNAVAILABLE";
+  reused: boolean;
+  model: string;
+  durationMs: number | null;
+  tokens: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  result: AnalysisResult | null;
+  patchStatus: "applies" | "needs_review" | "none" | null;
+  patchNote: string | null;
+  error: string | null;
+}
+
+export interface ScenarioView {
+  id: string;
+  title: string;
+  passWhen: string | null;
+  status: "QUEUED" | "RUNNING" | "WAITING_FOR_WEBHOOK" | "COMPLETED" | "ERROR";
+  statusLabel: string;
+  waitingSince: string | null;
+  verdict: Verdict | null;
+  reason: string | null;
+  headline: string | null;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  analysis: AnalysisView | null;
+  steps?: StepView[];
+}
+
+export interface RunReport {
+  id: string;
+  mode: Mode;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "ERROR";
+  error: string | null;
+  summary: { total: number; passed: number; failed: number; inconclusive: number; errors: number };
+  config: { storeTimeoutMs: number; proxyHoldMs: number; webhookDeadlineMs: number; freshAnalysis: boolean };
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  scenarios: ScenarioView[];
+}
+
+/** Six scenarios, in order, so a column has its rows before a run has any. */
+export const SCENARIO_TITLES: Record<string, string> = {
+  S1: "Capture declined",
+  S2: "Transient 5xx on capture",
+  S3: "Lost response after a successful capture",
+  S4: "Duplicate webhook",
+  S5: "Late redelivery of COMPLETED after a refund",
+  S6: "Forged webhook",
+};
+
+/**
+ * Headlines for runs recorded before the assertions wrote their own. New runs carry a headline
+ * derived from the same facts as the verdict, which these only stand in for.
+ */
+export const FALLBACK_HEADLINES: Record<string, { PASS: string; FAIL: string }> = {
+  S1: { PASS: "Decline shown, nothing charged", FAIL: "Declined capture mishandled" },
+  S2: { PASS: "Retried and charged once", FAIL: "Sale lost on a transient error" },
+  S3: { PASS: "Charged once, no second checkout", FAIL: "Buyer charged twice" },
+  S4: { PASS: "Shipped once", FAIL: "Order shipped twice" },
+  S5: { PASS: "Shows refunded, as PayPal does", FAIL: "Refunded order shown as paid" },
+  S6: { PASS: "Forged event rejected", FAIL: "Forged refund accepted" },
+};
+
+export const MODE_LABELS: Record<Mode, { name: string; blurb: string }> = {
+  naive: { name: "Naive store", blurb: "The common integration mistakes, left in." },
+  hardened: { name: "Hardened store", blurb: "The same store with each mistake fixed." },
+};
+
+export function isRunActive(report: RunReport | null): boolean {
+  return report !== null && (report.status === "QUEUED" || report.status === "RUNNING");
+}
+
+/** How long the page keeps waiting for analyses once a run has finished. */
+const ANALYSIS_WAIT_MS = 10 * 60_000;
+
+/** Nothing more will change: the run is over and every failure has its analysis or never will. */
+export function isSettled(report: RunReport, now = Date.now()): boolean {
+  if (isRunActive(report)) return false;
+  const finished = report.finishedAt ? Date.parse(report.finishedAt) : now;
+  if (now - finished > ANALYSIS_WAIT_MS) return true;
+  return report.scenarios.every(
+    (scenario) =>
+      (scenario.verdict !== "FAIL" && scenario.verdict !== "INCONCLUSIVE") ||
+      (scenario.analysis !== null && scenario.analysis.status !== "PENDING"),
+  );
+}
+
+export function seconds(ms: number | null): string {
+  if (ms === null) return "–";
+  return ms < 10_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms / 1000)} s`;
+}
+
+export function timeAgo(iso: string, now: number): string {
+  const minutes = Math.round((now - Date.parse(iso)) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return new Date(iso).toLocaleDateString("en", { month: "short", day: "numeric" });
+}
+
+export type TraceActor = "buyer" | "store" | "proxy" | "PayPal" | "runner" | "Claude";
+
+export interface TraceRow {
+  seq: number;
+  actor: TraceActor;
+  call: string;
+  httpStatus: number | null;
+  durationMs: number;
+  debugId: string | null;
+  detail: string | null;
+}
+
+/** The path without its query string, which only carries ids. */
+function shortPath(path: string): string {
+  return path.split("?")[0];
+}
+
+const DELIVERED = /(PAYMENT\.CAPTURE\.[A-Z]+) for order \S+ acknowledged/g;
+const MISSING = /No acknowledged (PAYMENT\.CAPTURE\.[A-Z]+)/g;
+
+/**
+ * One trace step as a reader would describe it. The store's PayPal calls pass the proxy; a call
+ * the proxy faulted is shown as the proxy's. The runner's wait for webhooks shows PayPal's
+ * deliveries, which have no request line of their own.
+ */
+export function traceRow(step: StepView): TraceRow {
+  const base = { seq: step.seq, httpStatus: step.httpStatus, durationMs: step.durationMs, debugId: step.debugId };
+  const request = step.method && step.path ? `${step.method} ${shortPath(step.path)}` : null;
+
+  if (step.actor === "analyst") {
+    return { ...base, actor: "Claude", call: request ?? "Analysis reused from the cache", detail: step.note };
+  }
+  if (step.actor === "store") {
+    return { ...base, actor: step.fault ? "proxy" : "store", call: request ?? "PayPal call", detail: step.fault ?? step.note };
+  }
+  if (step.actor === "runner" && !request) {
+    const delivered = [...(step.note ?? "").matchAll(DELIVERED)].map((match) => match[1]);
+    const missing = [...(step.note ?? "").matchAll(MISSING)].map((match) => match[1]);
+    const call =
+      missing.length > 0
+        ? `Webhook not delivered: ${missing.join(", ")}`
+        : delivered.length > 0
+          ? `Webhook delivered: ${delivered.join(", ")}`
+          : "Waited for PayPal webhooks";
+    return { ...base, actor: "PayPal", call, detail: step.note };
+  }
+  const actor: TraceActor = step.actor === "buyer" ? "buyer" : "runner";
+  return { ...base, actor, call: request ?? "Step", detail: step.fault ?? step.note };
+}

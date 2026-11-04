@@ -1,3 +1,4 @@
+import { CodeScroller } from "./code-scroller";
 import type { Mode, StoreCode } from "./report";
 import { GITHUB_URL } from "./site";
 
@@ -24,20 +25,27 @@ export function HandlingCode({ id, mode, code }: { id: string; mode: Mode; code:
         </a>
       </div>
       <p className="text-sm leading-6 text-muted">{snippet.caption}</p>
-      <pre className="overflow-x-auto rounded-md border border-border bg-surface py-2 font-mono text-xs leading-5">
-        <code className="block min-w-max">
-          {lines.map((line, index) => (
-            <span key={index} className="flex">
-              <span className="w-10 shrink-0 select-none pr-3 text-right text-muted" aria-hidden="true">
-                {first + index}
+      <CodeScroller label={`${snippet.file}, lines ${first} to ${last}`} gutter className="rounded-md border border-border bg-surface">
+        <pre className="py-2 font-mono text-xs leading-5">
+          <code className="block min-w-max">
+            {lines.map((line, index) => (
+              <span key={index} className="flex">
+                {/* The numbers stay in place while the code scrolls under them. */}
+                <span
+                  data-gutter=""
+                  className="sticky left-0 z-10 w-10 shrink-0 select-none bg-surface pr-3 text-right text-muted"
+                  aria-hidden="true"
+                >
+                  {first + index}
+                </span>
+                <span className={`pr-6 ${line.trimStart().startsWith("//") ? "text-muted" : "text-foreground"}`}>
+                  {line === "" ? " " : line}
+                </span>
               </span>
-              <span className={`pr-3 ${line.trimStart().startsWith("//") ? "text-muted" : "text-foreground"}`}>
-                {line === "" ? " " : line}
-              </span>
-            </span>
-          ))}
-        </code>
-      </pre>
+            ))}
+          </code>
+        </pre>
+      </CodeScroller>
     </section>
   );
 }

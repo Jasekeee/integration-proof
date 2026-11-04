@@ -51,6 +51,8 @@ export interface ScenarioState {
 export interface AssertionResult {
   verdict: "PASS" | "FAIL";
   reason: string;
+  /** What happened in plain words, for the card's title: "Buyer charged twice", "Shipped once". */
+  headline: string;
 }
 
 /** Deterministic: the same trace and state always give the same verdict. */

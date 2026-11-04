@@ -71,6 +71,8 @@ export const runs = pgTable("runs", {
   storeTimeoutMs: integer("store_timeout_ms").notNull().default(DEFAULT_STORE_TIMEOUT_MS),
   /** How long the proxy holds PayPal's answer in S3. Longer than the store timeout. */
   proxyHoldMs: integer("proxy_hold_ms").notNull().default(DEFAULT_PROXY_HOLD_MS),
+  /** Analyses ignore the cache for this run, so a demo shows Claude working; rate limits still apply. */
+  freshAnalysis: boolean("fresh_analysis").notNull().default(false),
   error: text("error"),
   createdAt: createdAt(),
   startedAt: timestamp("started_at", { withTimezone: true }),
@@ -95,6 +97,8 @@ export const runScenarios = pgTable(
     status: scenarioStatus("status").notNull().default("QUEUED"),
     verdict: verdict("verdict"),
     reason: text("reason"),
+    /** What happened in plain words, from the same deterministic code as the verdict. */
+    headline: text("headline"),
     error: text("error"),
     /** Last trace step number handed out. Steps take a number when they start, so nesting reads in order. */
     lastSeq: integer("last_seq").notNull().default(0),

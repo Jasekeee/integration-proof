@@ -70,7 +70,12 @@ function input(overrides: Partial<AnalystInput> = {}): AnalystInput {
       step(3, "buyer", `/api/store/naive/orders/${ORDER_ID}/capture`, 200, { status: "FAILED" }),
       step(4, "buyer", "/api/store/naive/orders", 201, { status: "CREATED" }),
     ],
-    sources: { target: { path: TARGET, content: SOURCE }, context: [{ path: "lib/store/shared.ts", content: "export {};\n" }], hash: "h" },
+    sources: {
+      target: { path: TARGET, content: SOURCE },
+      context: [{ path: "lib/store/shared.ts", content: "export declare const PRODUCT: { description: string };" }],
+      environment: "# ID of the registered webhook.\nPAYPAL_WEBHOOK_ID=",
+      hash: "h",
+    },
     ...overrides,
   };
 }
@@ -224,6 +229,8 @@ describe("buildMessages", () => {
     expect(messages.map((item) => item.role)).toEqual(["user", "system"]);
     const blocks = messages[0].content as Anthropic.TextBlockParam[];
     expect(blocks[0].text).toContain(`<file path="${TARGET}" target="true">`);
+    expect(blocks[0].text).toContain('<file path="lib/store/shared.ts" kind="declarations">');
+    expect(blocks[0].text).toContain("<environment>\n# ID of the registered webhook.\nPAYPAL_WEBHOOK_ID=\n</environment>");
     expect(blocks[0].cache_control).toEqual({ type: "ephemeral" });
     expect(blocks[1].cache_control).toBeUndefined();
     expect(blocks[2].text.startsWith("<untrusted_trace>")).toBe(true);
@@ -268,8 +275,8 @@ describe("analyzeOnce", () => {
     const claimed = new Set<string>();
     return {
       saved,
-      async claim(key) {
-        if (saved.get(key)?.status === "READY") return "ready";
+      async claim(key, options) {
+        if (saved.get(key)?.status === "READY" && !options?.fresh) return "ready";
         if (claimed.has(key) && !saved.has(key)) return "in_progress";
         claimed.add(key);
         return "claimed";
@@ -292,6 +299,15 @@ describe("analyzeOnce", () => {
 
     const other = await analyzeOnce("key-2", input(), { client, model: MODEL, cache });
     expect(other.reused).toBe(false);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks the model again for a fresh run, even when the failure is cached", async () => {
+    const { client, create } = clientReturning(message(JSON.stringify(VALID)), message(JSON.stringify(VALID)));
+    const cache = memoryCache();
+    await analyzeOnce("key-4", input(), { client, model: MODEL, cache });
+    const fresh = await analyzeOnce("key-4", input(), { client, model: MODEL, cache, fresh: true });
+    expect(fresh.reused).toBe(false);
     expect(create).toHaveBeenCalledTimes(2);
   });
 

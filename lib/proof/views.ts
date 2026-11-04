@@ -52,15 +52,27 @@ export function analysisView(row: AnalysisRow | undefined, reused: boolean | nul
   };
 }
 
-export function runView(run: RunRow, scenarios: RunScenarioRow[], analyses: AnalysisRow[] = []) {
+export function runView(run: RunRow, stored: RunScenarioRow[], analyses: AnalysisRow[] = []) {
   const byKey = new Map(analyses.map((row) => [row.key, row]));
+  // Rows left unfinished by a run that is over read as what they are: never finished.
+  const runOver = run.status === "COMPLETED" || run.status === "ERROR";
+  const scenarios = stored.map((row) =>
+    runOver && row.status !== "COMPLETED" && row.status !== "ERROR"
+      ? { ...row, status: "ERROR" as const, error: row.error ?? "The run ended before this scenario recorded its result." }
+      : row,
+  );
   return {
     id: run.id,
     mode: run.mode,
     status: run.status,
     error: run.error,
     summary: summarize(scenarios),
-    config: { storeTimeoutMs: run.storeTimeoutMs, proxyHoldMs: run.proxyHoldMs, webhookDeadlineMs: WEBHOOK_DEADLINE_MS },
+    config: {
+      storeTimeoutMs: run.storeTimeoutMs,
+      proxyHoldMs: run.proxyHoldMs,
+      webhookDeadlineMs: WEBHOOK_DEADLINE_MS,
+      freshAnalysis: run.freshAnalysis,
+    },
     createdAt: run.createdAt,
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
@@ -76,6 +88,7 @@ export function runView(run: RunRow, scenarios: RunScenarioRow[], analyses: Anal
         waitingSince: row.waitingSince,
         verdict: row.verdict,
         reason: row.reason,
+        headline: row.headline,
         error: row.error,
         startedAt: row.startedAt,
         finishedAt: row.finishedAt,

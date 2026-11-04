@@ -1,6 +1,14 @@
 // Executes the scenarios of a run side by side and writes every step to the trace.
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { ORDER_STATUSES, type RunRow, type RunScenarioRow, type StoreMode, type TraceStepRow } from "../db/schema";
+import {
+  ORDER_STATUSES,
+  type OrderStatus,
+  type RunRow,
+  type RunScenarioRow,
+  type StoreMode,
+  type TraceStepRow,
+} from "../db/schema";
 import { internalOrigin } from "../origin";
 import { SANDBOX_API_BASE, type PayPalResponse } from "../paypal/client";
 import {
@@ -11,10 +19,12 @@ import {
   PayPalOrderSchema,
   type CallContext,
 } from "../paypal/orders";
+import { CAPTURES_PATH, refundCapture } from "../paypal/payments";
 import { SANDBOX_TEST_CARD } from "../paypal/test-cards";
 import { getAccessToken } from "../paypal/token";
-import { redact } from "./redact";
+import { redact, traceBody } from "./redact";
 import {
+  findAcknowledgedDelivery,
   markRunFinished,
   markRunStarted,
   nextSeq,
@@ -23,16 +33,25 @@ import {
   writeStep,
   type StepRecord,
 } from "./repository";
-import { SCENARIOS, ScenarioIdSchema } from "./scenarios";
-import type { Actor, PayPalOrderTruth, StoreOrderState, TraceEntry } from "./types";
+import { SCENARIOS, ScenarioIdSchema, type Scenario } from "./scenarios";
+import {
+  FORGED_DELIVERY,
+  REPLAYED_DELIVERY,
+  WEBHOOK_ROUTER_PATH,
+  type Actor,
+  type PayPalOrderTruth,
+  type StoreOrderState,
+  type TraceEntry,
+} from "./types";
 
-/** The hardened store may spend three 15-second attempts, backoff and a GET on one capture. */
+/** The hardened store may spend three attempts, backoff and a GET on one capture. */
 const STORE_TIMEOUT_MS = 90_000;
 const PAYPAL_TIMEOUT_MS = 30_000;
 /** docs/decisions.md, "Scenarios run in parallel and wait for webhooks with a deadline". */
 export const WEBHOOK_DEADLINE_MS = 90_000;
 const WEBHOOK_POLL_MS = 3_000;
 const CAPTURE_COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
+const CAPTURE_REFUNDED = "PAYMENT.CAPTURE.REFUNDED";
 
 interface ScenarioContext {
   runId: string;
@@ -71,13 +90,30 @@ async function runScenario(run: RunRow, row: RunScenarioRow): Promise<void> {
     const scenario = SCENARIOS[ScenarioIdSchema.parse(row.scenarioId)];
     await updateScenario(ctx.runId, ctx.scenarioId, { status: "RUNNING", startedAt: new Date() });
 
-    const orderIds = [await checkout(ctx)];
-    const paypal = await readPayPal(ctx, orderIds);
-    await waitForWebhooks(ctx, paypal);
+    const first = await checkout(ctx);
+    const orderIds = [first.orderId];
+    if (scenario.buyerRetriesFailedPayment && first.answer === "FAILED") {
+      // The store told the buyer the payment failed, so the buyer pays for the same cart again.
+      orderIds.push((await checkout(ctx)).orderId);
+    }
+
+    let paypal = await readPayPal(ctx, orderIds);
+    if (scenario.refundAfterCapture) {
+      await refundCaptures(ctx, paypal);
+      paypal = await readPayPal(ctx, orderIds);
+    }
+
+    const settled = await waitForWebhooks(ctx, paypal);
+    if (scenario.needsWebhooks && !settled.complete) {
+      throw new ScenarioAbort(
+        `PayPal's webhooks did not reach the store within ${WEBHOOK_DEADLINE_MS / 1000} s, so there was nothing to deliver again.`,
+      );
+    }
+    const storeBefore = await deliver(ctx, scenario, paypal, settled.state);
     const store = await readStoreState(ctx);
     const trace = (await readTrace(ctx.runId, ctx.scenarioId)).map(toEntry);
 
-    const result = scenario.assert(trace, { store, paypal });
+    const result = scenario.assert(trace, { store, paypal, storeBefore });
     await updateScenario(ctx.runId, ctx.scenarioId, {
       status: "COMPLETED",
       verdict: result.verdict,
@@ -95,9 +131,10 @@ async function runScenario(run: RunRow, row: RunScenarioRow): Promise<void> {
 }
 
 const CreatedSchema = z.object({ orderId: z.string().regex(/^[A-Z0-9]{1,36}$/) });
+const CaptureAnswerSchema = z.object({ status: z.enum(ORDER_STATUSES) });
 
 /** The headless buyer: the store creates the order, the buyer approves it, the store captures. */
-async function checkout(ctx: ScenarioContext): Promise<string> {
+async function checkout(ctx: ScenarioContext): Promise<{ orderId: string; answer: OrderStatus | null }> {
   // The run key makes the store send this order's PayPal calls through the scenario's proxy.
   const created = await callStore(ctx, "buyer", "POST", `/api/store/${ctx.mode}/orders`, {
     cartId: ctx.cartId,
@@ -119,8 +156,8 @@ async function checkout(ctx: ScenarioContext): Promise<string> {
   if (!approved) throw new ScenarioAbort(`PayPal did not approve the test card on order ${orderId}.`);
 
   // The store's answer is evidence for the assertion, whatever it is, so nothing is checked here.
-  await callStore(ctx, "buyer", "POST", `/api/store/${ctx.mode}/orders/${orderId}/capture`);
-  return orderId;
+  const captured = await callStore(ctx, "buyer", "POST", `/api/store/${ctx.mode}/orders/${orderId}/capture`);
+  return { orderId, answer: CaptureAnswerSchema.safeParse(captured.body).data?.status ?? null };
 }
 
 /** PayPal's view of every order created for the cart. This is what the verdict trusts. */
@@ -139,6 +176,24 @@ async function readPayPal(ctx: ScenarioContext, orderIds: string[]): Promise<Pay
     });
   }
   return truth;
+}
+
+/** The merchant refunds every completed capture in full, as a refund from the PayPal dashboard would. */
+async function refundCaptures(ctx: ScenarioContext, paypal: PayPalOrderTruth[]): Promise<void> {
+  const captures = paypal.flatMap((order) => order.captures.filter((capture) => capture.status === "COMPLETED"));
+  if (captures.length === 0) throw new ScenarioAbort("PayPal shows no completed capture to refund.");
+  for (const capture of captures) {
+    const requestId = randomUUID();
+    const refunded = await callPayPal(
+      ctx,
+      "runner",
+      { method: "POST", path: `${CAPTURES_PATH}/${capture.id}/refund`, body: {}, requestId },
+      (call) => refundCapture(call, { captureId: capture.id, requestId }),
+    );
+    if (refunded.kind !== "response" || refunded.status !== 201) {
+      throw new ScenarioAbort(`PayPal did not refund capture ${capture.id}.`);
+    }
+  }
 }
 
 const StateSchema = z.object({
@@ -162,31 +217,54 @@ const StateSchema = z.object({
 });
 type StoreState = z.infer<typeof StateSchema>;
 
+interface ExpectedEvent {
+  paypalOrderId: string;
+  eventType: string;
+}
+
+/** The webhooks PayPal sends for the cart: COMPLETED for every charge, REFUNDED for every refund. */
+function expectedEvents(paypal: PayPalOrderTruth[]): ExpectedEvent[] {
+  return paypal.flatMap((order) => {
+    const statuses = new Set(order.captures.map((capture) => capture.status));
+    const events: ExpectedEvent[] = [];
+    if (["COMPLETED", "PARTIALLY_REFUNDED", "REFUNDED"].some((status) => statuses.has(status))) {
+      events.push({ paypalOrderId: order.id, eventType: CAPTURE_COMPLETED });
+    }
+    if (statuses.has("REFUNDED") || statuses.has("PARTIALLY_REFUNDED")) {
+      events.push({ paypalOrderId: order.id, eventType: CAPTURE_REFUNDED });
+    }
+    return events;
+  });
+}
+
 /**
- * Waits until the store has acknowledged PAYMENT.CAPTURE.COMPLETED for every order PayPal shows as
- * captured, so the assertion sees the state the webhook leaves behind. Ends at the deadline.
+ * Waits until the store has acknowledged every webhook PayPal sends for the cart, so the assertion
+ * sees the state those webhooks leave behind. Ends at the deadline.
  */
-async function waitForWebhooks(ctx: ScenarioContext, paypal: PayPalOrderTruth[]): Promise<void> {
-  const expected = paypal.filter((order) => order.captures.some((capture) => capture.status === "COMPLETED"));
-  if (expected.length === 0) return;
+async function waitForWebhooks(
+  ctx: ScenarioContext,
+  paypal: PayPalOrderTruth[],
+): Promise<{ complete: boolean; state: StoreState | null }> {
+  const expected = expectedEvents(paypal);
+  if (expected.length === 0) return { complete: true, state: null };
 
   await updateScenario(ctx.runId, ctx.scenarioId, { status: "WAITING_FOR_WEBHOOK" });
   const span = await openStep(ctx);
   const deadline = Date.now() + WEBHOOK_DEADLINE_MS;
   let state: StoreState | null = null;
-  let pending = expected.map((order) => order.id);
+  let pending = expected;
   while (pending.length > 0 && Date.now() < deadline) {
     await sleep(Math.min(WEBHOOK_POLL_MS, deadline - Date.now()));
     state = (await fetchState(ctx)) ?? state;
-    if (state) pending = pending.filter((orderId) => !acknowledgement(state!, orderId));
+    if (state) pending = pending.filter((event) => !acknowledgement(state!, event));
   }
 
   const waited = ((Date.now() - span.startedAt.getTime()) / 1000).toFixed(1);
-  const notes = expected.map((order) => {
-    const delivery = state ? acknowledgement(state, order.id) : undefined;
+  const notes = expected.map((event) => {
+    const delivery = state ? acknowledgement(state, event) : undefined;
     return delivery
-      ? `${CAPTURE_COMPLETED} for order ${order.id} acknowledged: verification ${delivery.verification}, outcome ${delivery.outcome}.`
-      : `No acknowledged ${CAPTURE_COMPLETED} for order ${order.id} within ${WEBHOOK_DEADLINE_MS / 1000} s.`;
+      ? `${event.eventType} for order ${event.paypalOrderId} acknowledged: verification ${delivery.verification}, outcome ${delivery.outcome}.`
+      : `No acknowledged ${event.eventType} for order ${event.paypalOrderId} within ${WEBHOOK_DEADLINE_MS / 1000} s.`;
   });
   await closeStep(ctx, span, {
     actor: "runner",
@@ -194,19 +272,91 @@ async function waitForWebhooks(ctx: ScenarioContext, paypal: PayPalOrderTruth[])
     responseBody: state ? { deliveries: state.deliveries } : null,
   });
   await updateScenario(ctx.runId, ctx.scenarioId, { status: "RUNNING" });
+  return { complete: pending.length === 0, state };
 }
 
-/** The 2xx delivery of PAYMENT.CAPTURE.COMPLETED the store recorded for a PayPal order, if any. */
-function acknowledgement(state: StoreState, paypalOrderId: string) {
-  const order = state.orders.find((row) => row.paypalOrderId === paypalOrderId);
+/** The 2xx delivery of an event the store recorded for a PayPal order, if any. */
+function acknowledgement(state: StoreState, event: ExpectedEvent) {
+  const order = state.orders.find((row) => row.paypalOrderId === event.paypalOrderId);
   if (!order) return undefined;
   return state.deliveries.find(
     (delivery) =>
       delivery.orderId === order.id &&
-      delivery.eventType === CAPTURE_COMPLETED &&
+      delivery.eventType === event.eventType &&
       delivery.responseStatus >= 200 &&
       delivery.responseStatus < 300,
   );
+}
+
+/**
+ * S4 and S5 send a recorded PAYMENT.CAPTURE.COMPLETED again, byte for byte with its transmission
+ * headers. S6 sends it with the body changed after PayPal signed it, and returns the state before.
+ */
+async function deliver(
+  ctx: ScenarioContext,
+  scenario: Scenario,
+  paypal: PayPalOrderTruth[],
+  settled: StoreState | null,
+): Promise<StoreOrderState[] | undefined> {
+  if (!scenario.delivery) return undefined;
+  const state = settled ?? (await fetchState(ctx));
+  const charged = paypal.filter((order) => expectedEvents([order]).some((event) => event.eventType === CAPTURE_COMPLETED));
+  if (!state || charged.length === 0) throw new ScenarioAbort("The store has no captured order to deliver an event for.");
+
+  const storeBefore = scenario.delivery === "forge" ? await readStoreState(ctx) : undefined;
+  for (const truth of charged) {
+    const order = state.orders.find((row) => row.paypalOrderId === truth.id);
+    const recorded = order ? await findAcknowledgedDelivery(order.id, CAPTURE_COMPLETED) : undefined;
+    if (!recorded) throw new ScenarioAbort(`The store has no recorded ${CAPTURE_COMPLETED} for order ${truth.id}.`);
+
+    if (scenario.delivery === "replay") {
+      await postToRouter(ctx, recorded.headers, recorded.body, REPLAYED_DELIVERY,
+        `Sent event ${recorded.eventId} again, byte for byte with its original transmission headers.`);
+    } else {
+      const event = JSON.parse(recorded.body) as { event_type: string; resource: { status?: string } };
+      event.event_type = CAPTURE_REFUNDED;
+      event.resource.status = "REFUNDED";
+      await postToRouter(ctx, recorded.headers, JSON.stringify(event), FORGED_DELIVERY,
+        `Event ${recorded.eventId} with its original transmission headers, after event_type was changed to ` +
+          `${CAPTURE_REFUNDED} and resource.status to REFUNDED.`);
+    }
+  }
+  return storeBefore;
+}
+
+async function postToRouter(
+  ctx: ScenarioContext,
+  headers: Record<string, string>,
+  body: string,
+  kind: string,
+  note: string,
+): Promise<void> {
+  const span = await openStep(ctx);
+  let status: number | null = null;
+  let responseBody: unknown = null;
+  try {
+    const response = await fetch(`${internalOrigin()}${WEBHOOK_ROUTER_PATH}`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body,
+      signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS * 2),
+      cache: "no-store",
+    });
+    status = response.status;
+    responseBody = await response.json().catch(() => null);
+  } catch (error) {
+    note = `${note} The router did not answer: ${describe(error)}`;
+  }
+  await closeStep(ctx, span, {
+    actor: "runner",
+    method: "POST",
+    path: WEBHOOK_ROUTER_PATH,
+    httpStatus: status,
+    fault: kind,
+    requestBody: traceBody(body),
+    responseBody: redact(responseBody),
+    note,
+  });
 }
 
 /** Only the orders this run created for the cart, so an order placed by anyone else cannot count. */
@@ -227,7 +377,7 @@ async function fetchState(ctx: ScenarioContext): Promise<StoreState | null> {
   }
 }
 
-/** What the store believes once the scenario has settled. */
+/** What the store believes, as a traced read of its state contract. */
 async function readStoreState(ctx: ScenarioContext): Promise<StoreOrderState[]> {
   const read = await callStore(ctx, "runner", "GET", statePath(ctx));
   const state = StateSchema.safeParse(read.body);
@@ -299,7 +449,7 @@ async function callStore(
 async function callPayPal(
   ctx: ScenarioContext,
   actor: Actor,
-  request: { method: "GET" | "POST"; path: string; body?: unknown },
+  request: { method: "GET" | "POST"; path: string; body?: unknown; requestId?: string },
   send: (call: CallContext) => Promise<PayPalResponse>,
 ): Promise<PayPalResponse> {
   const call = { baseUrl: SANDBOX_API_BASE, token: await getAccessToken(), timeoutMs: PAYPAL_TIMEOUT_MS };
@@ -311,6 +461,7 @@ async function callPayPal(
     path: request.path,
     httpStatus: response.kind === "response" ? response.status : null,
     debugId: response.kind === "response" ? response.debugId : null,
+    paypalRequestId: request.requestId ?? null,
     requestBody: request.body === undefined ? null : redact(request.body),
     responseBody: response.kind === "response" ? redact(response.body) : null,
     note: response.kind === "no_response" ? `No response from PayPal (${response.reason}): ${response.message}` : null,
@@ -327,6 +478,7 @@ function toEntry(row: TraceStepRow): TraceEntry {
     method: row.method,
     path: row.path,
     httpStatus: row.httpStatus,
+    fault: row.fault,
     responseBody: row.responseBody,
   };
 }

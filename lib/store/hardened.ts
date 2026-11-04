@@ -26,7 +26,8 @@ import {
 const CAPTURE_ATTEMPTS = 3;
 
 async function paypal(context: StoreContext) {
-  return { baseUrl: context.baseUrl, token: await getAccessToken(), timeoutMs: PAYPAL_CALL_TIMEOUT_MS };
+  const timeoutMs = context.timeoutMs ?? PAYPAL_CALL_TIMEOUT_MS;
+  return { baseUrl: context.baseUrl, token: await getAccessToken(), timeoutMs };
 }
 
 function webhookId(): string {

@@ -11,8 +11,16 @@ export interface TraceEntry {
   method: string | null;
   path: string | null;
   httpStatus: number | null;
+  fault: string | null;
   responseBody: unknown;
 }
+
+/** The webhook router the runner delivers recorded or forged events to. */
+export const WEBHOOK_ROUTER_PATH = "/api/store/webhooks-router";
+/** Trace fault of a recorded PayPal delivery the runner sends again, byte for byte (S4, S5). */
+export const REPLAYED_DELIVERY = "Replayed PayPal delivery";
+/** Trace fault of a recorded delivery whose body the runner changed after PayPal signed it (S6). */
+export const FORGED_DELIVERY = "Forged delivery: body changed after PayPal signed it";
 
 /** What the store believes about one order of the cart, from its state contract. */
 export interface StoreOrderState {
@@ -31,6 +39,8 @@ export interface PayPalOrderTruth {
 export interface ScenarioState {
   store: StoreOrderState[];
   paypal: PayPalOrderTruth[];
+  /** The store's state just before the runner's forged delivery (S6). */
+  storeBefore?: StoreOrderState[];
 }
 
 export interface AssertionResult {

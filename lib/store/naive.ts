@@ -19,7 +19,8 @@ import {
 } from "./shared";
 
 async function paypal(context: StoreContext) {
-  return { baseUrl: context.baseUrl, token: await getAccessToken(), timeoutMs: PAYPAL_CALL_TIMEOUT_MS };
+  const timeoutMs = context.timeoutMs ?? PAYPAL_CALL_TIMEOUT_MS;
+  return { baseUrl: context.baseUrl, token: await getAccessToken(), timeoutMs };
 }
 
 export const naiveStore: Store = {

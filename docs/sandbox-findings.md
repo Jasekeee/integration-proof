@@ -213,3 +213,57 @@ Documentation: [Webhooks API](https://developer.paypal.com/docs/api/webhooks/v1/
 
 - The event names page lists `PAYMENT.CAPTURE.DECLINED` for Payments v2, not
   `PAYMENT.CAPTURE.DENIED`. Source: [event names](https://developer.paypal.com/api/rest/webhooks/event-names/).
+
+## Refunds, 2026-11-03
+
+### Full refund of a capture
+
+One hardened checkout on the deployed service, then a refund through the Payments API with an
+empty body. PayPal order `2E69545469028204E`, capture `16B6712761564310P`:
+
+| Call | Status | `debug_id` |
+|---|---|---|
+| `POST /v2/payments/captures/{id}/refund`, empty body, new `PayPal-Request-Id` | 201, refund `018790663G7408425` `COMPLETED` | `f57746175dccc` |
+| `GET /v2/checkout/orders/{id}` | 200, order `COMPLETED`, capture `REFUNDED`, 1 refund `COMPLETED` | `f322420b0a023` |
+
+- An empty body refunds the full amount.
+- The refund carries the capture's `custom_id`, although the request set none. The
+  `PAYMENT.CAPTURE.REFUNDED` resource is the refund: it has `custom_id` but no
+  `supplementary_data`, and its `up` link points to the capture. The webhook router finds the order
+  by `custom_id`.
+- After the refund the order's own status stays `COMPLETED`; only the capture changes to `REFUNDED`.
+  A store that reads the order status alone does not see the refund.
+- The refund's `create_time` is written with a `-08:00` offset, the capture's with `Z`.
+
+### Deliveries around the refund
+
+| Time (UTC) | What | Source |
+|---|---|---|
+| 12:28:44 | Capture created | capture `create_time` |
+| 12:28:47 | Refund created | refund `create_time` |
+| 12:28:49.919 | `PAYMENT.CAPTURE.COMPLETED` created | event `create_time` |
+| 12:28:51.765 | `PAYMENT.CAPTURE.REFUNDED` created | event `create_time` |
+| 12:28:55 / 12:28:59.320 | `COMPLETED` transmitted / recorded, `SUCCESS`, applied | headers, `webhook_deliveries` |
+| 12:29:04 / 12:29:08.448 | `REFUNDED` transmitted / recorded, `SUCCESS`, applied | headers, `webhook_deliveries` |
+
+PayPal created the `COMPLETED` event three seconds after the refund, and it reached the store
+twelve seconds after the refund. The hardened store read the order on that event, found the capture
+`REFUNDED`, recorded the order as `REFUNDED` and shipped nothing. The webhook is subscribed to
+`PAYMENT.CAPTURE.COMPLETED`, `DECLINED`, `PENDING`, `REFUNDED` and `REVERSED`
+(`GET /v1/notifications/webhooks/{id}`, `f5618034aba41`).
+
+Documentation: [refund captured payment](https://developer.paypal.com/docs/api/payments/v2/#captures_refund),
+[webhook event names](https://developer.paypal.com/api/rest/webhooks/event-names/).
+
+### Webhook waits in full proofs
+
+Runner wait from its `GET` order after the last action until the store had acknowledged every
+expected delivery. Local runs of all six scenarios, deliveries to the deployed router:
+
+| Run | S2 | S3 | S4 | S5 (`COMPLETED` and `REFUNDED`) | S6 |
+|---|---|---|---|---|---|
+| naive | none expected | 46.6 s, 2 deliveries | 7.4 s | 60.3 s | 11.2 s |
+| hardened | 11.2 s | 7.5 s | 11.3 s | 18.3 s | 14.6 s |
+
+The longest wait, 60.3 s, is within the 90-second deadline. Delivery time varies far more than the
+calls do.

@@ -7,8 +7,8 @@ export default function ProofPage() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Proof runs</h1>
         <p className="text-sm">
-          Each run checks out one cart per scenario against the PayPal sandbox, with the scenario&apos;s fault
-          injected into the store&apos;s capture. Scenarios run side by side.
+          A full proof runs all six scenarios against the PayPal sandbox at once, each with its own cart:
+          failed and lost captures, duplicate, late and forged webhooks.
         </p>
       </header>
       <RunConsole />

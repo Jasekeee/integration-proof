@@ -32,3 +32,15 @@ export type MockCode = "INSTRUMENT_DECLINED" | "INTERNAL_SERVER_ERROR";
 export function mockResponseHeader(code: MockCode): string {
   return JSON.stringify({ mock_application_codes: code });
 }
+
+/**
+ * What the proxy does to one request. mock: PayPal answers with a negative-testing error and does
+ * nothing. hold_response: PayPal handles the request for real, and the proxy keeps the answer for
+ * the run's hold time, longer than the store waits.
+ */
+export type Fault = { kind: "mock"; code: MockCode } | { kind: "hold_response" };
+
+/** How a fault reads in the trace. */
+export function describeFault(fault: Fault, holdMs: number): string {
+  return fault.kind === "mock" ? `PayPal-Mock-Response ${fault.code}` : `Response held ${holdMs} ms`;
+}

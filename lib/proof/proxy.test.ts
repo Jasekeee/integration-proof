@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyProxiedRequest, mockResponseHeader, sandboxUrl } from "./proxy";
+import { classifyProxiedRequest, describeFault, mockResponseHeader, sandboxUrl } from "./proxy";
 import { REDACTED, redact, traceBody } from "./redact";
 import { SCENARIOS } from "./scenarios";
 
@@ -45,17 +45,44 @@ describe("mockResponseHeader", () => {
 
 describe("scenario faults", () => {
   it("S1 declines every capture and nothing else", () => {
-    expect(SCENARIOS.S1.fault({ operation: "capture", captureAttempt: 1 })).toBe("INSTRUMENT_DECLINED");
-    expect(SCENARIOS.S1.fault({ operation: "capture", captureAttempt: 2 })).toBe("INSTRUMENT_DECLINED");
+    const declined = { kind: "mock", code: "INSTRUMENT_DECLINED" };
+    expect(SCENARIOS.S1.fault({ operation: "capture", captureAttempt: 1 })).toEqual(declined);
+    expect(SCENARIOS.S1.fault({ operation: "capture", captureAttempt: 2 })).toEqual(declined);
     expect(SCENARIOS.S1.fault({ operation: "create", captureAttempt: 0 })).toBeNull();
     expect(SCENARIOS.S1.fault({ operation: "get", captureAttempt: 1 })).toBeNull();
   });
 
   it("S2 fails the first capture attempt only", () => {
-    expect(SCENARIOS.S2.fault({ operation: "capture", captureAttempt: 1 })).toBe("INTERNAL_SERVER_ERROR");
+    expect(SCENARIOS.S2.fault({ operation: "capture", captureAttempt: 1 })).toEqual({ kind: "mock", code: "INTERNAL_SERVER_ERROR" });
     expect(SCENARIOS.S2.fault({ operation: "capture", captureAttempt: 2 })).toBeNull();
     expect(SCENARIOS.S2.fault({ operation: "create", captureAttempt: 0 })).toBeNull();
     expect(SCENARIOS.S2.fault({ operation: "get", captureAttempt: 1 })).toBeNull();
+  });
+
+  it("S3 holds the answer to the first capture only, so the second checkout goes through", () => {
+    expect(SCENARIOS.S3.fault({ operation: "capture", captureAttempt: 1 })).toEqual({ kind: "hold_response" });
+    expect(SCENARIOS.S3.fault({ operation: "capture", captureAttempt: 2 })).toBeNull();
+    expect(SCENARIOS.S3.fault({ operation: "get", captureAttempt: 1 })).toBeNull();
+    expect(SCENARIOS.S3.buyerRetriesFailedPayment).toBe(true);
+  });
+
+  it.each(["S4", "S5", "S6"] as const)("%s leaves the store's PayPal calls alone and needs webhooks", (id) => {
+    for (const operation of ["create", "get", "capture"] as const) {
+      expect(SCENARIOS[id].fault({ operation, captureAttempt: 1 })).toBeNull();
+    }
+    expect(SCENARIOS[id].needsWebhooks).toBe(true);
+  });
+
+  it("S4 and S5 replay a delivery, S6 forges one, and only S5 refunds", () => {
+    expect([SCENARIOS.S4.delivery, SCENARIOS.S5.delivery, SCENARIOS.S6.delivery]).toEqual(["replay", "replay", "forge"]);
+    expect(Object.values(SCENARIOS).filter((scenario) => scenario.refundAfterCapture).map((s) => s.id)).toEqual(["S5"]);
+  });
+});
+
+describe("describeFault", () => {
+  it("names the mock or the hold in the trace", () => {
+    expect(describeFault({ kind: "mock", code: "INSTRUMENT_DECLINED" }, 10_000)).toBe("PayPal-Mock-Response INSTRUMENT_DECLINED");
+    expect(describeFault({ kind: "hold_response" }, 10_000)).toBe("Response held 10000 ms");
   });
 });
 

@@ -27,6 +27,8 @@
   --diff-del: #7f1d1d;
   --diff-del-bg: #fdecec;
   --highlight-bg: #e8f0fe;
+  /* The edge of a code block with more code beyond it. */
+  --scroll-shadow: rgba(23, 23, 23, 0.16);
   color-scheme: light;
 }
 
@@ -53,6 +55,7 @@
     --diff-del: #fecaca;
     --diff-del-bg: #2c0f0f;
     --highlight-bg: #172554;
+    --scroll-shadow: rgba(0, 0, 0, 0.85);
     color-scheme: dark;
   }
 }
@@ -87,6 +90,42 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Code blocks scroll sideways inside themselves. The shadow marks the edge with hidden code; the
+ * thin scrollbar stays visible, also where the system hides scrollbars until one scrolls.
+ */
+.scroll-shadow-right {
+  background: linear-gradient(to left, var(--scroll-shadow), transparent);
+}
+
+.scroll-shadow-left {
+  background: linear-gradient(to right, var(--scroll-shadow), transparent);
+}
+
+.code-scroll[data-scrolled] [data-gutter] {
+  box-shadow: 6px 0 6px -6px var(--scroll-shadow);
+}
+
+.code-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.code-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.code-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .code-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
 }
 
 /* The trace row an evidence link points to. */

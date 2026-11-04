@@ -209,6 +209,23 @@ itself took somewhat less than 40 seconds. This is one delivery, not a distribut
 Documentation: [Webhooks API](https://developer.paypal.com/docs/api/webhooks/v1/),
 [webhook event names](https://developer.paypal.com/api/rest/webhooks/event-names/).
 
+### A body changed after signing
+
+S6 sends a recorded `PAYMENT.CAPTURE.COMPLETED` with its original transmission headers after
+changing `event_type` to `PAYMENT.CAPTURE.REFUNDED` and `resource.status` to `REFUNDED`. The hardened
+store posts it to `verify-webhook-signature` with the changed body. Three full proofs on the deployed
+service, 2026-11-04:
+
+| Run | Forged delivery sent (UTC) | `verification_status` | Router answer |
+|---|---|---|---|
+| `87fbf7d5` | 14:58:43 | `FAILURE` | 400, `rejected` |
+| `e99b3da9` | 15:09:28 | `FAILURE` | 400, `rejected` |
+| `5c2d9e1b` | 16:24:33 | `FAILURE` | 400, `rejected` |
+
+Unlike the forged-signature call above, everything but the body is genuine here: a real transmission
+id, signature and certificate URL, and the registered webhook id. The changed body alone makes
+verification fail.
+
 ### Documented, not yet observed on a real delivery
 
 - The event names page lists `PAYMENT.CAPTURE.DECLINED` for Payments v2, not

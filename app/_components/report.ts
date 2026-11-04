@@ -37,6 +37,8 @@ export interface AnalysisView {
   result: AnalysisResult | null;
   patchStatus: "applies" | "needs_review" | "none" | null;
   patchNote: string | null;
+  /** The offline check of this exact patch: docs/ai-fixes-report.md. */
+  fixCheck?: { verified: boolean; before: string | null; after: string | null; reason: string | null; report: string } | null;
   error: string | null;
 }
 

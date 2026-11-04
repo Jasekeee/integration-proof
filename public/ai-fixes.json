@@ -1,0 +1,68 @@
+{
+  "method": "Offline bench: the real runner and assertions on a deterministic PayPal model built from sandbox observations.",
+  "report": "https://github.com/Jasekeee/integration-proof/blob/main/docs/ai-fixes-report.md",
+  "runId": "fcc80878-24ff-483d-aa41-66bb8d7869f3",
+  "controls": {
+    "naive": "1/6",
+    "hardened": "6/6",
+    "reproducesLive": true
+  },
+  "verified": 4,
+  "total": 5,
+  "scenarios": {
+    "S2": {
+      "patchSha256": "411465f444c5989fdeecba6d2f5abbe8c4043bdd952facd50fa0faa513bd43ef",
+      "verified": true,
+      "applies": true,
+      "typechecks": true,
+      "before": "FAIL",
+      "after": "PASS",
+      "sideEffects": [],
+      "confidence": "high"
+    },
+    "S3": {
+      "patchSha256": "3580cb053042dd09400019c1613658efece0b8e9d3863324664ca4a7bc6296af",
+      "verified": false,
+      "applies": false,
+      "typechecks": null,
+      "before": "FAIL",
+      "after": "not run",
+      "sideEffects": [],
+      "confidence": "high"
+    },
+    "S4": {
+      "patchSha256": "ddd64bdb68b8f84d58fea04340733133ef2f2874702af63181bf039bba1d64fa",
+      "verified": true,
+      "applies": true,
+      "typechecks": true,
+      "before": "FAIL",
+      "after": "PASS",
+      "sideEffects": [
+        "S5 FAIL → PASS"
+      ],
+      "confidence": "high"
+    },
+    "S5": {
+      "patchSha256": "b348d5b6f981bfe0d8ec6ae8fb1ba440134a2a78ba492c51bd1689b0d7a1e8f7",
+      "verified": true,
+      "applies": true,
+      "typechecks": true,
+      "before": "FAIL",
+      "after": "PASS",
+      "sideEffects": [
+        "S4 FAIL → PASS"
+      ],
+      "confidence": "high"
+    },
+    "S6": {
+      "patchSha256": "592fc0f37212048e51d39df1c4ca4bdd8ce01cb6d9d88f6a99feb7909c4b7a6c",
+      "verified": true,
+      "applies": true,
+      "typechecks": true,
+      "before": "FAIL",
+      "after": "PASS",
+      "sideEffects": [],
+      "confidence": "high"
+    }
+  }
+}

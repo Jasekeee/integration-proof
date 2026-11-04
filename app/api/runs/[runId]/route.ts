@@ -1,6 +1,7 @@
 // Poll the status of a run and its scenarios.
 import { z } from "zod";
 import { errorResponse, jsonError } from "@/lib/http";
+import { readAnalyses } from "@/lib/ai/repository";
 import { readRun } from "@/lib/proof/repository";
 import { runView } from "@/lib/proof/views";
 
@@ -11,7 +12,8 @@ export async function GET(_request: Request, context: RouteContext<"/api/runs/[r
   try {
     const found = await readRun(runId.data);
     if (!found) return jsonError(404, "unknown_run", "No such run.");
-    return Response.json(runView(found.run, found.scenarios), { headers: { "Cache-Control": "no-store" } });
+    const analyses = await readAnalyses(found.scenarios.flatMap((row) => (row.analysisKey ? [row.analysisKey] : [])));
+    return Response.json(runView(found.run, found.scenarios, analyses), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error);
   }

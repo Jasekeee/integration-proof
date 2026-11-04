@@ -19,6 +19,10 @@ export interface Scenario {
   title: string;
   /** What happens and what a correct store does, in product language. */
   summary: string;
+  /** The PASS column of the Scenarios table in CLAUDE.md. */
+  passWhen: string;
+  /** The store function the scenario exercises, which the analyst reads first. */
+  storeFunction: "captureOrder" | "handleWebhook";
   /** The fault the proxy injects into one request, or null to forward it untouched. */
   fault(request: ProxiedRequest): Fault | null;
   /** The buyer checks out the same cart again when the store says the payment failed. */
@@ -41,6 +45,8 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     summary:
       "PayPal declines the card when the store captures. The store must keep the order unpaid and " +
       "tell the buyer the card was declined, without an error page and without a charge.",
+    passWhen: "Order not marked PAID; buyer sees a decline, not a crash; chargesPerCart == 0",
+    storeFunction: "captureOrder",
     fault: ({ operation }) => (operation === "capture" ? { kind: "mock", code: "INSTRUMENT_DECLINED" } : null),
     assert: assertS1,
   },
@@ -51,6 +57,8 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
       "PayPal answers the first capture attempt with a 500 and captures nothing. A store that treats " +
       "the 500 as final loses a sale from a buyer who was ready to pay; a store that retries captures " +
       "the order once.",
+    passWhen: "Order PAID with exactly one charge",
+    storeFunction: "captureOrder",
     fault: ({ operation, captureAttempt }) =>
       operation === "capture" && captureAttempt === 1 ? { kind: "mock", code: "INTERNAL_SERVER_ERROR" } : null,
     assert: assertS2,
@@ -63,6 +71,8 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
       "waiting. A store that reads the timeout as a failed payment sends the buyer back to checkout, " +
       "and the second order is charged too. A store that asks PayPal sees the capture and marks the " +
       "order paid.",
+    passWhen: "chargesPerCart == 1 and order PAID",
+    storeFunction: "captureOrder",
     fault: ({ operation, captureAttempt }) =>
       operation === "capture" && captureAttempt === 1 ? { kind: "hold_response" } : null,
     buyerRetriesFailedPayment: true,
@@ -74,6 +84,8 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     summary:
       "The same real PAYMENT.CAPTURE.COMPLETED arrives twice, with a valid signature both times. " +
       "The order must be fulfilled once.",
+    passWhen: "Fulfilled once",
+    storeFunction: "handleWebhook",
     fault: none,
     delivery: "replay",
     needsWebhooks: true,
@@ -86,6 +98,8 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
       "The merchant refunds the payment right after the capture, and a PAYMENT.CAPTURE.COMPLETED " +
       "arrives after the refund. A store that applies events in arrival order ends up paid; a store " +
       "that asks PayPal ends up refunded, as PayPal reports.",
+    passWhen: "Final state equals PayPal source of truth",
+    storeFunction: "handleWebhook",
     fault: none,
     refundAfterCapture: true,
     delivery: "replay",
@@ -98,6 +112,8 @@ export const SCENARIOS: Record<ScenarioId, Scenario> = {
     summary:
       "A delivery arrives with PayPal's transmission headers but a body changed after signing. The " +
       "store must reject it with a 4xx and leave the order as it was.",
+    passWhen: "Rejected with 4xx, state unchanged",
+    storeFunction: "handleWebhook",
     fault: none,
     delivery: "forge",
     needsWebhooks: true,

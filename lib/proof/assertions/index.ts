@@ -117,6 +117,16 @@ function unpaidCharges(store: StoreOrderState[], paypal: PayPalOrderTruth[]): st
   });
 }
 
+/**
+ * The reason of an INCONCLUSIVE verdict: PayPal did not deliver what the scenario needs in time, so
+ * the store was never put to the test.
+ */
+export function inconclusiveReason(missingEvents: string[], deadlineMs: number): string {
+  const events = [...new Set(missingEvents)];
+  const list = events.length > 1 ? `${events.slice(0, -1).join(", ")} or ${events.at(-1)}` : events[0];
+  return `PayPal did not deliver ${list} within ${Math.round(deadlineMs / 1000)} s.`;
+}
+
 /** S1, capture declined: order not PAID, the buyer sees a decline, and nothing is charged. */
 export const assertS1: Assertion = (trace, state) => {
   const problems: string[] = [];

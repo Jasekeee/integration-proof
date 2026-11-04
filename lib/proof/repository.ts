@@ -117,7 +117,9 @@ export async function markRunFinished(runId: string, error: string | null): Prom
 export async function updateScenario(
   runId: string,
   scenarioId: string,
-  values: Partial<Pick<RunScenarioRow, "status" | "verdict" | "reason" | "error" | "startedAt" | "finishedAt">>,
+  values: Partial<
+    Pick<RunScenarioRow, "status" | "verdict" | "reason" | "error" | "startedAt" | "finishedAt" | "waitingSince">
+  >,
 ): Promise<void> {
   await getDb()
     .update(runScenarios)

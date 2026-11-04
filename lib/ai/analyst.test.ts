@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import {
   analyze,
   analyzeOnce,
@@ -10,6 +11,8 @@ import {
   type AnalystInput,
   type AnalystResult,
 } from "./analyst";
+import { checkPatch } from "./patch";
+import { analysisKey } from "./signature";
 
 const TARGET = "lib/store/naive.ts";
 const SOURCE = [
@@ -25,17 +28,14 @@ const SOURCE = [
   "",
 ].join("\n");
 
-// Context lines are a space followed by the file's line, as in any unified diff.
-const lines = SOURCE.split("\n");
-const PATCH = [
-  `--- a/${TARGET}`,
-  `+++ b/${TARGET}`,
-  "@@ -3,5 +3,6 @@",
-  ...lines.slice(2, 5).map((line) => ` ${line}`),
-  '+    else if (outcome.kind === "unknown") result = await reconcile(order);',
-  ...lines.slice(5, 7).map((line) => ` ${line}`),
-  "",
+// The fix quotes these two lines of SOURCE exactly, and adds one between them.
+const FIND = ['    if (outcome.kind === "settled") result = outcome.result;', '    else result = { status: "FAILED", captureId: null };'].join("\n");
+const REPLACE = [
+  '    if (outcome.kind === "settled") result = outcome.result;',
+  '    else if (outcome.kind === "unknown") result = await reconcile(order);',
+  '    else result = { status: "FAILED", captureId: null };',
 ].join("\n");
+const EDIT = { file: TARGET, find: FIND, replace: REPLACE };
 
 const ORDER_ID = "5O190127TN364715T";
 
@@ -89,7 +89,7 @@ const VALID = {
   ],
   fix: {
     summary: "Ask PayPal for the order when the capture gets no answer.",
-    patch: PATCH,
+    edits: [EDIT],
     docs: [{ title: "Orders v2 API", url: "https://developer.paypal.com/api/orders/v2" }],
   },
   verifyBy: "Re-run S3: the store should read the order and answer PAID, with one checkout.",
@@ -123,7 +123,7 @@ function clientReturning(...answers: (Anthropic.Message | Error)[]) {
 const MODEL = "claude-sonnet-5-5";
 
 describe("analyze", () => {
-  it("returns a checked analysis on a valid answer, with the patch applied to the real file", async () => {
+  it("applies edits that match the file exactly, and builds the diff itself", async () => {
     const { client, create } = clientReturning(message(JSON.stringify(VALID)));
     const result = await analyze(input(), { client, model: MODEL });
 
@@ -131,6 +131,9 @@ describe("analyze", () => {
     if (result.status !== "READY") return;
     expect(result.analysis.rootCause).toBe(VALID.rootCause);
     expect(result.patch.status).toBe("applies");
+    expect(result.analysis.fix.patch).toContain('+    else if (outcome.kind === "unknown") result = await reconcile(order);');
+    expect(checkPatch(result.analysis.fix.patch, { path: TARGET, source: SOURCE }).status).toBe("applies");
+    expect(result.analysis.fix.selfCheck).toEqual({ checks: 0, matched: true });
     expect(result.calls).toHaveLength(1);
     expect(result.calls[0]).toMatchObject({ outcome: "valid", usage: { input: 1200, output: 800, cacheRead: 3000, cacheWrite: 0 } });
 
@@ -175,17 +178,66 @@ describe("analyze", () => {
     expect(JSON.stringify(create.mock.calls[1][0].messages.at(-1)?.content)).toContain("example.com");
   });
 
-  it("keeps an analysis whose patch does not apply, marked as needing review", async () => {
-    const broken = PATCH.replace(" let result;", " let outcomeResult;");
-    const answer = { ...VALID, fix: { ...VALID.fix, patch: broken } };
-    const { client } = clientReturning(message(JSON.stringify(answer)));
+  /** The answer with its one edit changed. */
+  const withEdit = (edit: Partial<typeof EDIT>) => ({ ...VALID, fix: { ...VALID.fix, edits: [{ ...EDIT, ...edit }] } });
+
+  it("asks once for a find that occurs more than once, and applies the corrected edit", async () => {
+    const twice = withEdit({ find: "  },", replace: "  }, // end" });
+    const source = SOURCE.replace("  },\n", "  },\n  helper() {\n  },\n");
+    const { client, create } = clientReturning(message(JSON.stringify(twice)), message(JSON.stringify(VALID)));
+    const result = await analyze(input({ sources: { ...input().sources, target: { path: TARGET, content: source } } }), { client, model: MODEL });
+
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(result.calls.map((call) => call.outcome)).toEqual(["edits_rejected", "valid"]);
+    expect(result.calls[0].problems[0]).toMatch(/find occurs 2 times in lib\/store\/naive\.ts, at lines \d+, \d+/);
+    expect(result).toMatchObject({ status: "READY", patch: { status: "applies" }, analysis: { fix: { selfCheck: { checks: 1, matched: true } } } });
+  });
+
+  it("self-corrects a find indented differently from the file, after one check that shows the file's indentation", async () => {
+    // As in the S3 analysis of run fcc80878: two spaces of indentation where the file has four.
+    const shallow = withEdit({ find: FIND.replace(/^ {4}/gm, "  "), replace: REPLACE.replace(/^ {4}/gm, "  ") });
+    const { client, create } = clientReturning(message(JSON.stringify(shallow)), message(JSON.stringify(VALID)));
     const result = await analyze(input(), { client, model: MODEL });
 
+    const correction = JSON.stringify(create.mock.calls[1][0].messages.at(-1)?.content);
+    expect(correction).toContain('line 1 of find, \\"··if (outcome.kind === \\\"settled\\\") result = outcome.result;\\", is not a line');
+    expect(correction).toContain("The file has that line with other indentation (· is a space)");
+    expect(correction).toContain('5: ····if (outcome.kind === \\"settled\\") result = outcome.result;');
     expect(result.status).toBe("READY");
     if (result.status !== "READY") return;
-    expect(result.patch.status).toBe("needs_review");
-    expect(result.patch.note).toContain("does not apply to lib/store/naive.ts");
-    expect(result.analysis.fix.patch).toContain("outcomeResult");
+    expect(result.patch.status).toBe("applies");
+    expect(result.patch.note).toContain("Self-corrected after 1 check.");
+    expect(result.analysis.fix.selfCheck).toEqual({ checks: 1, matched: true });
+  });
+
+  it("keeps the analysis as needing review when the edits still do not match after the check", async () => {
+    const shallow = withEdit({ find: FIND.replace(/^ {4}/gm, "  "), replace: REPLACE.replace(/^ {4}/gm, "  ") });
+    const { client, create } = clientReturning(message(JSON.stringify(shallow)), message(JSON.stringify(shallow)));
+    const result = await analyze(input(), { client, model: MODEL });
+
+    // One check, then no more: the analysis stands without a diff, and nothing touches the verdict.
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(result.status).toBe("READY");
+    if (result.status !== "READY") return;
+    expect(result.calls.map((call) => call.outcome)).toEqual(["edits_rejected", "edits_rejected"]);
+    expect(result.patch).toMatchObject({ status: "needs_review", patch: "" });
+    expect(result.patch.note).toContain("Claude's edits do not match the file after 1 self-check");
+    expect(result.analysis.rootCause).toBe(VALID.rootCause);
+    expect(result.analysis.fix).toMatchObject({ patch: "", selfCheck: { checks: 1, matched: false } });
+  });
+
+  it("keeps the first analysis, needing review, when the correction call itself fails", async () => {
+    const shallow = withEdit({ find: FIND.replace(/^ {4}/gm, "  ") });
+    const { client } = clientReturning(message(JSON.stringify(shallow)), new Error("connection reset"));
+    const result = await analyze(input(), { client, model: MODEL });
+    expect(result).toMatchObject({ status: "READY", patch: { status: "needs_review" } });
+  });
+
+  it("stores no diff and no review for an analysis with no edits", async () => {
+    const none = { ...VALID, fix: { ...VALID.fix, edits: [] } };
+    const { client } = clientReturning(message(JSON.stringify(none)));
+    const result = await analyze(input(), { client, model: MODEL });
+    expect(result).toMatchObject({ status: "READY", patch: { status: "none", patch: "" }, analysis: { fix: { patch: "" } } });
   });
 
   it("rejects an analysis that names a PayPal id, because the cache reuses it for other runs", async () => {
@@ -266,6 +318,14 @@ describe("isAllowedDocsUrl", () => {
     ["not a url", false],
   ])("%s -> %s", (url, allowed) => {
     expect(isAllowedDocsUrl(url)).toBe(allowed);
+  });
+});
+
+describe("analysis cache key", () => {
+  it("differs from the key of an analysis in the old diff format, so none is reused", () => {
+    const parts = { scenarioId: "S3", model: MODEL, codeHash: "c", traceSignature: "t" };
+    const formatOne = createHash("sha256").update(JSON.stringify(["S3", MODEL, "c", "t"])).digest("hex");
+    expect(analysisKey(parts)).not.toBe(formatOne);
   });
 });
 

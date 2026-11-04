@@ -65,6 +65,8 @@ const MetaSchema = z.object({
       analyzedAt: z.string().nullable(),
       confidence: z.enum(["low", "medium", "high"]),
       patchStatus: z.string().nullable(),
+      patchNote: z.string().nullable().optional(),
+      selfCheck: z.object({ checks: z.number(), matched: z.boolean() }).nullable().optional(),
       fixSummary: z.string(),
     }),
   ),
@@ -79,6 +81,8 @@ interface FixResult {
   model: string;
   analyzedAt: string | null;
   patchSha256: string;
+  /** How Claude's edits met the file on the server: "first check", "after 1 check", "did not match". */
+  edits: string;
   applies: boolean;
   importsAllowed: boolean;
   typechecks: boolean | null;
@@ -213,6 +217,7 @@ async function verify(): Promise<{ report: string; json: string; problems: strin
         model: fixture.model,
         analyzedAt: fixture.analyzedAt,
         patchSha256: sha256(patch),
+        edits: describeSelfCheck(fixture.selfCheck),
         applies: false,
         importsAllowed: false,
         typechecks: null,
@@ -224,6 +229,10 @@ async function verify(): Promise<{ report: string; json: string; problems: strin
       };
       results.push(result);
 
+      if (patch.trim() === "") {
+        result.note = `There is no patch: ${fixture.patchNote ?? "Claude proposed no change to the file."}`;
+        continue;
+      }
       // b. The same check the server runs on every analysis, then the patch itself.
       const check = checkPatch(patch, { path: TARGET, source });
       const patched = check.status === "applies" ? applyPatch(source, parsePatch(check.patch)[0]) : false;
@@ -278,6 +287,13 @@ function score(benchRun: BenchRun): string {
   return `${benchRun.scenarios.filter((row) => row.verdict === "PASS").length}/${benchRun.scenarios.length}`;
 }
 
+/** How the server's check of Claude's edits went, for the report. */
+function describeSelfCheck(selfCheck: { checks: number; matched: boolean } | null | undefined): string {
+  if (!selfCheck) return "diff written by the model";
+  if (!selfCheck.matched) return `did not match after ${selfCheck.checks} check`;
+  return selfCheck.checks === 0 ? "matched on the first check" : `matched after ${selfCheck.checks} self-check`;
+}
+
 function yesNo(value: boolean | null): string {
   return value === null ? "not run" : value ? "yes" : "no";
 }
@@ -299,7 +315,9 @@ function renderReport(
     "",
     `**${verified} of ${results.length}** fixes turn their failure into a pass.`,
     "",
-    "Each fix is the patch Claude proposed for a failed scenario of the naive store. The check ran",
+    "Each fix is Claude's change for a failed scenario of the naive store. Claude writes it as edits",
+    "that quote the store file; the server checks that each quote occurs exactly once, gives Claude one",
+    "round to correct a quote that does not, and builds the patch from the edits. The check ran",
     "on the offline bench: the real runner, routes, fault-injection proxy, store code and assertions,",
     "against a deterministic model of PayPal built from the behaviour recorded in",
     "[sandbox findings](sandbox-findings.md), and an in-memory Postgres with the real migrations. It",
@@ -325,11 +343,11 @@ function renderReport(
     "",
     "## Results",
     "",
-    "| Scenario | Patch applies | Types | Before | After | Other scenarios | Claude's confidence |",
-    "|---|---|---|---|---|---|---|",
+    "| Scenario | Claude's edits | Patch applies | Types | Before | After | Other scenarios | Claude's confidence |",
+    "|---|---|---|---|---|---|---|---|",
     ...results.map(
       (row) =>
-        `| ${row.id} · ${row.headline ?? ""} | ${yesNo(row.applies)} | ${yesNo(row.typechecks)} | ${row.before} | ${row.after}${row.verified ? " ✓" : ""} | ${row.sideEffects.length > 0 ? row.sideEffects.join(", ") : "unchanged"} | ${row.confidence} |`,
+        `| ${row.id} · ${row.headline ?? ""} | ${row.edits} | ${yesNo(row.applies)} | ${yesNo(row.typechecks)} | ${row.before} | ${row.after}${row.verified ? " ✓" : ""} | ${row.sideEffects.length > 0 ? row.sideEffects.join(", ") : "unchanged"} | ${row.confidence} |`,
     ),
     "",
     "## Notes",
@@ -367,6 +385,7 @@ function renderJson(
           row.id,
           {
             patchSha256: row.patchSha256,
+            edits: row.edits,
             verified: row.verified,
             applies: row.applies,
             typechecks: row.typechecks,

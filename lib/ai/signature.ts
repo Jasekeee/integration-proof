@@ -73,7 +73,13 @@ export function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
+/**
+ * The format of an analysis. 2: the fix is edits that code applies and turns into a diff; analyses
+ * of format 1 carried a model-written diff and are not reused.
+ */
+export const ANALYSIS_FORMAT = 2;
+
 /** The analysis cache key. The model is part of it: another model writes another analysis. */
 export function analysisKey(parts: { scenarioId: string; model: string; codeHash: string; traceSignature: string }): string {
-  return sha256(JSON.stringify([parts.scenarioId, parts.model, parts.codeHash, parts.traceSignature]));
+  return sha256(JSON.stringify([ANALYSIS_FORMAT, parts.scenarioId, parts.model, parts.codeHash, parts.traceSignature]));
 }

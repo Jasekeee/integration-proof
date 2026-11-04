@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { TraceStepRow } from "../db/schema";
 import { nextSeq, readRun, readTrace, writeStep } from "../proof/repository";
 import { SCENARIOS, ScenarioIdSchema } from "../proof/scenarios";
-import { analyzeOnce, type AnalysisCache, type AnalystClient, type ModelCall } from "./analyst";
+import { analyzeOnce, type AnalysisCache, type AnalystClient, type ModelCall, type SelfCheck } from "./analyst";
 import { databaseCache, linkAnalysis } from "./repository";
 import { analysisKey, traceSignature } from "./signature";
 import { readStoreSources } from "./sources";
@@ -63,6 +63,10 @@ export async function analyzeScenario(runId: string, scenarioId: string, client:
       claim: stored.claim,
       save: async (analysisKeyToSave, result) => {
         for (const call of result.calls) await recordCall(runId, scenarioId, call);
+        const selfCheck = result.status === "READY" ? result.analysis.fix.selfCheck : undefined;
+        if (selfCheck && result.status === "READY" && result.analysis.fix.edits?.length) {
+          await recordNote(runId, scenarioId, selfCheckNote(selfCheck));
+        }
         await stored.save(analysisKeyToSave, result);
       },
     };
@@ -136,6 +140,16 @@ async function recordCall(runId: string, scenarioId: string, call: ModelCall): P
       problems: call.problems,
     },
   });
+}
+
+/** How Claude's edits met the store file, for the trace. */
+export function selfCheckNote(selfCheck: SelfCheck): string {
+  if (!selfCheck.matched) {
+    return `Claude's edits did not match the store file after ${selfCheck.checks} self-check; the patch needs review.`;
+  }
+  return selfCheck.checks === 0
+    ? "Claude's edits matched the store file on the first check; the diff was built from them."
+    : `Claude's edits matched the store file after ${selfCheck.checks} self-check; the diff was built from them.`;
 }
 
 async function recordNote(runId: string, scenarioId: string, note: string): Promise<void> {

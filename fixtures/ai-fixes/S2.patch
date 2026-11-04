@@ -1,28 +1,23 @@
 --- a/lib/store/naive.ts
 +++ b/lib/store/naive.ts
-@@ -9,9 +9,11 @@
+@@ -9,8 +9,10 @@
    setOrderStatus,
  } from "./repository";
  import {
 +  backoffMs,
    classifyCapture,
    PAYPAL_CALL_TIMEOUT_MS,
-   PRODUCT,
 +  sleep,
+   PRODUCT,
    statusFromEventType,
    type CaptureResult,
-   type Store,
-@@ -32,11 +34,18 @@
-   },
- 
+@@ -34,9 +36,16 @@
    async captureOrder(order, context) {
--    // Mistakes: no PayPal-Request-Id, a 5xx is final, and a timeout is read as a failed payment
--    // without asking PayPal whether the capture went through.
+     // Mistakes: no PayPal-Request-Id, a 5xx is final, and a timeout is read as a failed payment
+     // without asking PayPal whether the capture went through.
 -    const outcome = classifyCapture(
 -      await captureOrder(await paypal(context), { orderId: order.paypalOrderId }),
 -    );
-+    // A 5xx means PayPal did nothing, so retry with the same PayPal-Request-Id. A timeout is still
-+    // read as a failed payment without asking PayPal whether the capture went through.
 +    const requestId = randomUUID();
 +    const attempt = async () =>
 +      classifyCapture(

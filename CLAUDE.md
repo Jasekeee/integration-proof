@@ -55,6 +55,7 @@ lib/
   proof/report.ts                                      a run's full report for the API and the result pages
   ai/analyst.ts                                        Claude call + zod output schema
   ai/patch.ts, ai/signature.ts, ai/sources.ts          patch check, analysis cache key, the store code it reads
+  ai/edits.ts                                          applies Claude's find/replace edits and builds the diff
   ai/jobs.ts, ai/repository.ts                         analysis after a verdict, traced; the analyses cache
   ai/declarations.ts, ai/context.generated.json        the analyst's read-only context (npm run analyst:context)
   ai/fix-check.ts                                      whether a shown patch is one the offline check verified
@@ -139,7 +140,9 @@ output with zod.
    events by id (unique index).
 5. The model never decides PASS/FAIL. Assertions are deterministic code. Model output is validated;
    every evidence item must reference an existing trace step id. Invalid output -> one retry ->
-   explanation marked unavailable; the verdict is still shown.
+   explanation marked unavailable; the verdict is still shown. A fix is edits whose `find` must
+   occur in the file exactly once; code applies them and builds the diff. Edits that do not match
+   get one self-check round, then "patch needs review".
 6. Trace every PayPal and model call: step id, timestamp, duration, method, path, status, PayPal
    `debug_id`, redacted bodies.
 7. Rate-limit runs (one concurrent run, bounded runs per hour).

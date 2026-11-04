@@ -1,0 +1,54 @@
+{
+  "source": "https://integration-proof.onrender.com/proof/fcc80878-24ff-483d-aa41-66bb8d7869f3",
+  "runId": "fcc80878-24ff-483d-aa41-66bb8d7869f3",
+  "runFinishedAt": "2026-11-04T16:23:50.429Z",
+  "target": "lib/store/naive.ts",
+  "targetSha256": "72959de3d0c007e81e79ef63f7534b52f789055b083f20179f736c95455e6680",
+  "scenarios": {
+    "S2": {
+      "patch": "S2.patch",
+      "headline": "Sale lost on a transient error",
+      "model": "claude-sonnet-5-5",
+      "analyzedAt": "2026-11-04T16:23:37.700Z",
+      "confidence": "high",
+      "patchStatus": "applies",
+      "fixSummary": "Retry the capture on a transient 5xx with backoff, using one PayPal-Request-Id for all attempts so a retry can never create a second capture."
+    },
+    "S3": {
+      "patch": "S3.patch",
+      "headline": "Buyer charged twice",
+      "model": "claude-sonnet-5-5",
+      "analyzedAt": "2026-11-04T16:24:19.090Z",
+      "confidence": "high",
+      "patchStatus": "needs_review",
+      "fixSummary": "When the capture outcome is unknown, call GET order and take the result from PayPal via reconciliationFrom. If PayPal cannot be reached either, save PENDING instead of FAILED so the buyer is not told to pay again."
+    },
+    "S4": {
+      "patch": "S4.patch",
+      "headline": "Order shipped twice",
+      "model": "claude-sonnet-5-5",
+      "analyzedAt": "2026-11-04T16:24:13.229Z",
+      "confidence": "high",
+      "patchStatus": "applies",
+      "fixSummary": "Claim the event id and apply its effect in one step with applyEventOnce, and return a duplicate outcome when the event was already processed. This stops the double fulfilment; signature verification and event ordering are separate gaps this patch does not close."
+    },
+    "S5": {
+      "patch": "S5.patch",
+      "headline": "Refunded order shown as paid",
+      "model": "claude-sonnet-5-5",
+      "analyzedAt": "2026-11-04T16:24:23.607Z",
+      "confidence": "high",
+      "patchStatus": "applies",
+      "fixSummary": "Take the order's status from GET order (reconciliationFrom) instead of from the event type, and claim each event id once with applyEventOnce so replays are reported as duplicates. Signature verification is still missing and should be added as well."
+    },
+    "S6": {
+      "patch": "S6.patch",
+      "headline": "Forged refund accepted",
+      "model": "claude-sonnet-5-5",
+      "analyzedAt": "2026-11-04T16:24:20.479Z",
+      "confidence": "high",
+      "patchStatus": "applies",
+      "fixSummary": "Before applying any event, require the transmission headers and call verifyWebhookSignature with the raw body and PAYPAL_WEBHOOK_ID. Reject a missing or failed verification with a 4xx and return 503 when verification is unavailable so PayPal retries."
+    }
+  }
+}

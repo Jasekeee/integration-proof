@@ -57,8 +57,12 @@ lib/
   ai/patch.ts, ai/signature.ts, ai/sources.ts          patch check, analysis cache key, the store code it reads
   ai/jobs.ts, ai/repository.ts                         analysis after a verdict, traced; the analyses cache
   ai/declarations.ts, ai/context.generated.json        the analyst's read-only context (npm run analyst:context)
+  ai/fix-check.ts                                      whether a shown patch is one the offline check verified
   db/schema.ts, db/client.ts                           Drizzle schema, database client
   db/migrations/                                       Drizzle migrations
+bench/                                                 offline bench: in-memory PayPal model, PGlite, real runner
+fixtures/ai-fixes/                                     Claude's committed fixes for S2..S6 (scripts/export-ai-fixes.ts)
+public/ai-fixes.json, docs/ai-fixes-report.md          offline verification of those fixes (scripts/verify-ai-fixes.ts)
 scripts/                                               one-off tooling (e.g. sandbox capability checks)
 docs/decisions.md                                      engineering decisions and their reasoning
 docs/sandbox-findings.md                               observed PayPal sandbox behavior
@@ -142,6 +146,9 @@ output with zod.
 8. Every assertion has unit tests with passing and failing fixtures.
 9. Never invent PayPal endpoints, headers, error codes or SDK options. When unsure, run a sandbox
    experiment and record the real response in `docs/sandbox-findings.md` with the doc URL.
+10. Model-generated code never runs on the server. Patches run only in `scripts/verify-ai-fixes.ts`,
+    offline and in CI, from committed files. The bench's PayPal model covers only behaviour recorded
+    in `docs/sandbox-findings.md`.
 
 ## Repository conventions
 

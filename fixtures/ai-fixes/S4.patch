@@ -1,0 +1,31 @@
+--- a/lib/store/naive.ts
++++ b/lib/store/naive.ts
+@@ -3,10 +3,9 @@
+ import { captureOrder, createOrder } from "../paypal/orders";
+ import { getAccessToken } from "../paypal/token";
+ import {
++  applyEventOnce,
+   insertCreatedOrder,
+-  recordFulfilment,
+   saveCaptureResult,
+-  setOrderStatus,
+ } from "./repository";
+ import {
+   classifyCapture,
+@@ -54,8 +53,14 @@
+     const status = statusFromEventType(event.event_type);
+     if (!status) return { httpStatus: 200, outcome: "ignored", verification: "NOT_CHECKED" };
+ 
+-    await setOrderStatus(order.id, status);
+-    if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") await recordFulfilment(order.id, event.id);
++    const applied = await applyEventOnce({
++      orderId: order.id,
++      eventId: event.id,
++      eventType: event.event_type,
++      result: { status, captureId: order.captureId },
++      fulfil: event.event_type === "PAYMENT.CAPTURE.COMPLETED",
++    });
++    if (!applied) return { httpStatus: 200, outcome: "duplicate", verification: "NOT_CHECKED" };
+     return { httpStatus: 200, outcome: "applied", verification: "NOT_CHECKED" };
+   },
+ };

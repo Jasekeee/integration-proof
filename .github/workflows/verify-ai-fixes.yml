@@ -1,0 +1,29 @@
+# Verifies Claude's committed fixes on the offline bench (docs/decisions.md, "Claude's fixes are
+# verified offline on a model of PayPal"). Uses no secret, and runs the bench and the patched stores
+# in a network namespace with no interface, so they cannot reach anything.
+name: Verify AI fixes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-ai-fixes:
+    name: verify-ai-fixes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: The bench reproduces the sandbox
+        run: sudo unshare --net -- sudo -u "$USER" env "PATH=$PATH" "HOME=$HOME" node_modules/.bin/vitest run bench lib/ai/fix-check.test.ts
+      - name: The committed fixes, verified offline, match the committed report
+        run: sudo unshare --net -- sudo -u "$USER" env "PATH=$PATH" "HOME=$HOME" node_modules/.bin/tsx scripts/verify-ai-fixes.ts --check

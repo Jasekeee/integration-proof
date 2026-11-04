@@ -1,5 +1,6 @@
 // JSON shapes the runs API returns. The scenarios' run keys are never part of them.
 import { AnalysisSchema } from "../ai/analyst";
+import { fixCheck } from "../ai/fix-check";
 import type { AnalysisRow, RunRow, RunScenarioRow, ScenarioStatus, TraceStepRow, Verdict } from "../db/schema";
 import { consequences } from "./harms";
 import { WEBHOOK_DEADLINE_MS } from "./runner";
@@ -33,7 +34,10 @@ export function summarize(scenarios: Pick<RunScenarioRow, "status" | "verdict">[
 /** The stored analysis, read back through the schema: rows are data and are checked like any input. */
 export function analysisView(row: AnalysisRow | undefined, reused: boolean | null) {
   if (!row) return null;
+  const result = row.status === "READY" ? (AnalysisSchema.safeParse(row.result).data ?? null) : null;
   return {
+    /** The cache key: a hash of the scenario, model, store code and trace. Exports check it. */
+    key: row.key,
     status: row.status,
     reused: reused ?? false,
     model: row.model,
@@ -45,8 +49,10 @@ export function analysisView(row: AnalysisRow | undefined, reused: boolean | nul
       cacheRead: row.cacheReadTokens,
       cacheWrite: row.cacheWriteTokens,
     },
-    result: row.status === "READY" ? (AnalysisSchema.safeParse(row.result).data ?? null) : null,
+    result,
     patchStatus: row.patchStatus,
+    /** Whether this exact patch turned FAIL into PASS in the offline check. Fixes target the naive store. */
+    fixCheck: row.mode === "naive" ? fixCheck(row.scenarioId, result?.fix.patch) : null,
     patchNote: row.patchNote,
     error: row.error,
     completedAt: row.completedAt,

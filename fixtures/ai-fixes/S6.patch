@@ -1,0 +1,45 @@
+--- a/lib/store/naive.ts
++++ b/lib/store/naive.ts
+@@ -2,6 +2,7 @@
+ import { randomUUID } from "node:crypto";
+ import { captureOrder, createOrder } from "../paypal/orders";
+ import { getAccessToken } from "../paypal/token";
++import { verifyWebhookSignature } from "../paypal/webhooks";
+ import {
+   insertCreatedOrder,
+   recordFulfilment,
+@@ -49,14 +50,29 @@
+     return result;
+   },
+ 
+-  async handleWebhook({ order, event }) {
+-    // Mistakes: no signature verification, no event-id dedupe, and each event's status is applied
+-    // in the order deliveries arrive.
++  async handleWebhook({ order, event, rawBody, transmission }) {
++    // Still missing: no event-id dedupe, and each event's status is applied in the order
++    // deliveries arrive. The signature is verified before anything is applied.
++    if (!transmission) {
++      return { httpStatus: 400, outcome: "rejected", verification: "MISSING_HEADERS" };
++    }
++    const verified = await verifyWebhookSignature({
++      transmission,
++      rawBody,
++      webhookId: process.env.PAYPAL_WEBHOOK_ID ?? "",
++      token: await getAccessToken(),
++    });
++    if (verified.status === "UNAVAILABLE") {
++      return { httpStatus: 503, outcome: "verification_unavailable", verification: "UNAVAILABLE" };
++    }
++    if (verified.status !== "SUCCESS") {
++      return { httpStatus: 400, outcome: "rejected", verification: "FAILURE" };
++    }
+     const status = statusFromEventType(event.event_type);
+-    if (!status) return { httpStatus: 200, outcome: "ignored", verification: "NOT_CHECKED" };
++    if (!status) return { httpStatus: 200, outcome: "ignored", verification: "SUCCESS" };
+ 
+     await setOrderStatus(order.id, status);
+     if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") await recordFulfilment(order.id, event.id);
+-    return { httpStatus: 200, outcome: "applied", verification: "NOT_CHECKED" };
++    return { httpStatus: 200, outcome: "applied", verification: "SUCCESS" };
+   },
+ };

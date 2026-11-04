@@ -2,9 +2,38 @@
 
 import { useId, useState } from "react";
 import { DiffView } from "./diff-view";
-import { seconds, type ScenarioView } from "./report";
+import { seconds, type AnalysisView, type ScenarioView } from "./report";
 
 const PATCH_LABELS = { applies: "Patch applies to the store file", needs_review: "Patch needs review", none: null };
+
+/**
+ * The offline check of this exact patch. The caption says where the verdict comes from: a
+ * deterministic model of PayPal built from sandbox observations, not the live sandbox.
+ */
+function FixBadge({ check }: { check: NonNullable<AnalysisView["fixCheck"]> }) {
+  const checked = check.before !== null;
+  const style = check.verified ? "bg-pass-bg text-pass" : checked ? "bg-warn-bg text-warn" : "bg-surface-2 text-muted";
+  return (
+    <div className="flex flex-col gap-1">
+      <p>
+        <span className={`inline-flex rounded-md px-2 py-1 font-mono text-xs font-semibold ${style}`}>
+          {check.verified ? `Fix verified offline: ${check.before} → ${check.after}` : "Fix not verified"}
+        </span>
+      </p>
+      <p className="text-xs leading-5 text-muted">
+        {check.verified
+          ? "The patched store passed this scenario on a deterministic model of PayPal built from sandbox observations."
+          : `Not verified: ${check.reason}. The offline check runs on a deterministic model of PayPal built from sandbox observations.`}{" "}
+        <a
+          href={check.report}
+          className="text-foreground underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          Report
+        </a>
+      </p>
+    </div>
+  );
+}
 
 /**
  * Claude's explanation of a FAIL or INCONCLUSIVE verdict. The root cause is always visible; the
@@ -45,6 +74,7 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
       {result && analysis && (
         <>
           <p className="text-sm leading-6">{result.rootCause}</p>
+          {analysis.fixCheck && <FixBadge check={analysis.fixCheck} />}
           <button
             type="button"
             aria-expanded={open}

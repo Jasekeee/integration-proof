@@ -1,6 +1,7 @@
 // Landing page: what Integration Proof is, the failure it catches, and how it works.
 import Link from "next/link";
 import { GITHUB_URL } from "../_components/site";
+import { fixesSummary } from "@/lib/ai/fix-check";
 
 const STORY = [
   { title: "PayPal captured the payment.", body: "The buyer's money moved; PayPal has the capture." },
@@ -53,6 +54,7 @@ const secondary =
   "inline-flex min-h-11 items-center rounded-md border border-border-strong px-5 text-sm font-medium hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-ring";
 
 export default function LandingPage() {
+  const fixes = fixesSummary();
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-4 py-12 sm:px-6 sm:py-20">
       <section className="flex flex-col gap-6">
@@ -109,6 +111,23 @@ export default function LandingPage() {
             </li>
           ))}
         </ol>
+        {fixes && (
+          <p className="max-w-3xl leading-7">
+            <span className="font-semibold">
+              Claude&apos;s fixes, verified: {fixes.verified}/{fixes.total}.
+            </span>{" "}
+            <span className="text-muted">
+              Each patch is applied to the naive store and its scenario is run again, offline, on a deterministic model of
+              PayPal built from sandbox observations.
+            </span>{" "}
+            <a
+              href={fixes.report}
+              className="underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              Read the report
+            </a>
+          </p>
+        )}
       </section>
 
       <section className="grid gap-10 lg:grid-cols-2" aria-label="Scenarios and technology">

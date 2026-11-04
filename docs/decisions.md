@@ -599,3 +599,76 @@ trace step whose note says which attempt it was.
 sandbox is down, and still ends in ERROR then.
 
 **References:** [retries of the runner's own calls](sandbox-findings.md#retries-of-the-runners-own-calls-2026-11-04).
+
+## Model-generated code never runs on the server
+
+**Decision:** code written by the model never runs on the server. A patch is checked against the
+store file as text on the server and shown; it is executed only by `scripts/verify-ai-fixes.ts`,
+offline and in CI, and only from patches committed to `fixtures/ai-fixes/`. The server reads the
+result of that check, `public/ai-fixes.json`, and nothing else.
+
+**Why:** a patch is untrusted code. The model wrote it from a trace that includes PayPal responses
+and a forged webhook, so text from outside could have shaped it. On the server it would run next to
+the PayPal credentials, the Anthropic key and the database. Committed, it has been read in a pull
+request before anything executes it.
+
+**How the check contains it:**
+
+- It runs in a child process whose environment holds no secret: placeholders for the PayPal
+  credentials and webhook id, no database URL, no Anthropic key.
+- Its `fetch` answers only the app's own routes and the in-memory PayPal model; any other host is
+  refused and fails the check.
+- A patch that imports anything a store does not already use, such as `node:fs` or
+  `node:child_process`, is not run.
+- In CI the step runs without a network interface.
+
+## Claude's fixes are verified offline on a model of PayPal
+
+**Decision:** `scripts/verify-ai-fixes.ts` applies each committed fix to a copy of
+`lib/store/naive.ts`, type-checks it with `tsc --noEmit`, and runs all six scenarios against the
+patched store on an offline bench. A fix is verified when its scenario goes from FAIL to PASS. The
+result is `docs/ai-fixes-report.md` and `public/ai-fixes.json`; the analysis card shows "Fix verified
+offline: FAIL → PASS" only for the exact patch that passed, compared by SHA-256, and "Fix not
+verified" with the reason otherwise.
+
+**The bench (`bench/`):**
+
+- The real runner, routes, fault-injection proxy, stores and assertions run in one process. Only
+  the network and the database server are replaced.
+- The database is PGlite, an in-memory Postgres, migrated with the real migrations. The event-id
+  dedupe rests on a primary key inside a transaction; a hand-written fake would have to imitate that,
+  and could get it wrong.
+- PayPal is `bench/paypal-model.ts`. Each behaviour names the section of
+  [sandbox findings](sandbox-findings.md) it comes from. A request the findings do not cover gets a
+  501 and is recorded, and a run with any such request is not counted.
+- PayPal's webhooks reach the router while the runner waits for them, at its state reads, in the
+  order PayPal created them. Live deliveries take 10 to 50 seconds, far longer than the runner's own
+  calls, so this is the order a live run sees.
+- The store timeout is 800 ms and the proxy holds S3's answer for 1,000 ms, the ratio of the
+  deployed 8 s and 10 s. A full run takes about five seconds.
+
+**Controls:** the naive store as committed must give the live verdicts and headlines, 1/6, and the
+hardened store 6/6. A test checks both, and the script fails when either differs, because a bench
+that disagrees with the sandbox cannot judge a fix.
+
+**Which fixes are exported:** `scripts/export-ai-fixes.ts` takes a run's analyses only when they
+were written for the store code in the checkout. The analysis cache key hashes the scenario, the
+model, the store code and the trace; the script computes it again from the current files and the
+run's trace and requires the stored key to match. The first export took the newest naive run, which
+the deployed service had run before the `[S1]` marker was added to `naive.ts`, and its S2 patch did
+not apply to the current file. That said nothing about the fix, only about the file it was written
+for.
+
+**Result on 2026-11-04,** run `fcc80878`, `claude-sonnet-5-5`: 4 of 5 verified. S2, S4, S5 and S6 go
+from FAIL to PASS. S3 does not apply: its third hunk indents two context lines by two spaces where
+the file has four. The server had already marked it "Patch needs review". The check applies patches
+as written, with no whitespace fuzz, as the server does, and the patch is not repaired. The S4 and S5
+fixes each also turn the other scenario into a PASS: both add the event-id dedupe, which is what
+stops the replayed `COMPLETED` in S5.
+
+**Limits:** the bench shows that a fix handles the behaviour PayPal showed in the sandbox, not that
+it is the right fix in every respect. A fix that relies on behaviour nobody has observed, such as a
+redelivery after a 5xx, is not counted.
+
+**Revisit:** when a scenario or the store changes. The CI job fails when the committed report no
+longer matches what the bench gives, and new fixes come from a new export.

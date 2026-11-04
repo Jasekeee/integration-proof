@@ -1,0 +1,31 @@
+--- a/lib/store/naive.ts
++++ b/lib/store/naive.ts
+@@ -1,6 +1,6 @@
+ // Store logic with the common integration mistakes left in. Read it side by side with hardened.ts.
+ import { randomUUID } from "node:crypto";
+-import { captureOrder, createOrder } from "../paypal/orders";
++import { captureOrder, createOrder, getOrder } from "../paypal/orders";
+ import { getAccessToken } from "../paypal/token";
+ import {
+   insertCreatedOrder,
+@@ -12,6 +12,7 @@
+   classifyCapture,
+   PAYPAL_CALL_TIMEOUT_MS,
+   PRODUCT,
++  reconciliationFrom,
+   statusFromEventType,
+   type CaptureResult,
+   type Store,
+@@ -42,7 +43,11 @@
+   let result: CaptureResult;
+   if (outcome.kind === "settled") result = outcome.result;
+   else if (outcome.kind === "declined") result = { status: "DECLINED", captureId: null };
+-    else result = { status: "FAILED", captureId: null };
++    else if (outcome.kind === "unknown") {
++      // PayPal may have captured: ask before telling the buyer anything.
++      const reconciled = reconciliationFrom(await getOrder(await paypal(context), order.paypalOrderId));
++      result = reconciled === "not_captured" || reconciled === "unknown" ? { status: "PENDING", captureId: null } : reconciled;
++    } else result = { status: "FAILED", captureId: null };
+ 
+   await saveCaptureResult(order.id, result);
+   return result;

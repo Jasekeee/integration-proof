@@ -8,7 +8,7 @@
  import {
    insertCreatedOrder,
    recordFulfilment,
-@@ -49,14 +50,29 @@
+@@ -48,14 +49,28 @@
      return result;
    },
  
@@ -16,23 +16,22 @@
 -    // Mistakes: no signature verification, no event-id dedupe, and each event's status is applied
 -    // in the order deliveries arrive.
 +  async handleWebhook({ order, event, rawBody, transmission }) {
-+    // Still missing: no event-id dedupe, and each event's status is applied in the order
-+    // deliveries arrive. The signature is verified before anything is applied.
-+    if (!transmission) {
-+      return { httpStatus: 400, outcome: "rejected", verification: "MISSING_HEADERS" };
-+    }
-+    const verified = await verifyWebhookSignature({
++    // Signature is now verified. Remaining mistakes: no event-id dedupe, and each event's status
++    // is applied in the order deliveries arrive.
++    if (!transmission) return { httpStatus: 400, outcome: "rejected", verification: "MISSING_HEADERS" };
++    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
++    if (!webhookId) return { httpStatus: 503, outcome: "verification_unavailable", verification: "UNAVAILABLE" };
++    const check = await verifyWebhookSignature({
 +      transmission,
 +      rawBody,
-+      webhookId: process.env.PAYPAL_WEBHOOK_ID ?? "",
++      webhookId,
 +      token: await getAccessToken(),
 +    });
-+    if (verified.status === "UNAVAILABLE") {
++    if (check.status === "UNAVAILABLE") {
 +      return { httpStatus: 503, outcome: "verification_unavailable", verification: "UNAVAILABLE" };
 +    }
-+    if (verified.status !== "SUCCESS") {
-+      return { httpStatus: 400, outcome: "rejected", verification: "FAILURE" };
-+    }
++    if (check.status !== "SUCCESS") return { httpStatus: 400, outcome: "rejected", verification: "FAILURE" };
++
      const status = statusFromEventType(event.event_type);
 -    if (!status) return { httpStatus: 200, outcome: "ignored", verification: "NOT_CHECKED" };
 +    if (!status) return { httpStatus: 200, outcome: "ignored", verification: "SUCCESS" };

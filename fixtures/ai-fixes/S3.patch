@@ -8,24 +8,27 @@
  import { getAccessToken } from "../paypal/token";
  import {
    insertCreatedOrder,
-@@ -12,6 +12,7 @@
+@@ -10,6 +10,7 @@
+ } from "./repository";
+ import {
    classifyCapture,
++  reconciliationFrom,
    PAYPAL_CALL_TIMEOUT_MS,
    PRODUCT,
-+  reconciliationFrom,
    statusFromEventType,
-   type CaptureResult,
-   type Store,
-@@ -42,7 +43,11 @@
-   let result: CaptureResult;
-   if (outcome.kind === "settled") result = outcome.result;
-   else if (outcome.kind === "declined") result = { status: "DECLINED", captureId: null };
+@@ -42,7 +43,14 @@
+     let result: CaptureResult;
+     if (outcome.kind === "settled") result = outcome.result;
+     else if (outcome.kind === "declined") result = { status: "DECLINED", captureId: null };
 -    else result = { status: "FAILED", captureId: null };
 +    else if (outcome.kind === "unknown") {
-+      // PayPal may have captured: ask before telling the buyer anything.
++      // No answer: PayPal may have captured. Ask before telling the buyer anything.
 +      const reconciled = reconciliationFrom(await getOrder(await paypal(context), order.paypalOrderId));
-+      result = reconciled === "not_captured" || reconciled === "unknown" ? { status: "PENDING", captureId: null } : reconciled;
++      result =
++        reconciled === "not_captured" || reconciled === "unknown"
++          ? { status: "FAILED", captureId: null }
++          : reconciled;
 +    } else result = { status: "FAILED", captureId: null };
  
-   await saveCaptureResult(order.id, result);
-   return result;
+     await saveCaptureResult(order.id, result);
+     return result;

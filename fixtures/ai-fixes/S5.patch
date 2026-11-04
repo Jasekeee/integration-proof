@@ -1,6 +1,6 @@
 --- a/lib/store/naive.ts
 +++ b/lib/store/naive.ts
-@@ -1,18 +1,18 @@
+@@ -1,17 +1,17 @@
  // Store logic with the common integration mistakes left in. Read it side by side with hardened.ts.
  import { randomUUID } from "node:crypto";
 -import { captureOrder, createOrder } from "../paypal/orders";
@@ -21,8 +21,7 @@
    statusFromEventType,
    type CaptureResult,
    type Store,
-   type StoreContext,
-@@ -48,14 +48,16 @@
+@@ -48,14 +48,30 @@
      return result;
    },
  
@@ -30,18 +29,32 @@
 -    // Mistakes: no signature verification, no event-id dedupe, and each event's status is applied
 -    // in the order deliveries arrive.
 +  async handleWebhook({ order, event }, context) {
-+    // Status comes from GET order, not from the event type, and each event id is claimed once.
++    // Still no signature verification. The status comes from PayPal's current order, not from the
++    // event type, and the event id is claimed once so a replay changes nothing.
      const status = statusFromEventType(event.event_type);
      if (!status) return { httpStatus: 200, outcome: "ignored", verification: "NOT_CHECKED" };
  
 -    await setOrderStatus(order.id, status);
 -    if (event.event_type === "PAYMENT.CAPTURE.COMPLETED") await recordFulfilment(order.id, event.id);
 -    return { httpStatus: 200, outcome: "applied", verification: "NOT_CHECKED" };
-+    const state = reconciliationFrom(await getOrder(await paypal(context), order.paypalOrderId));
-+    if (state === "unknown") return { httpStatus: 500, outcome: "reconcile_failed", verification: "NOT_CHECKED" };
-+    const result = state === "not_captured" ? null : state;
-+    const fulfil = result?.status === "PAID" && event.event_type === "PAYMENT.CAPTURE.COMPLETED";
-+    const first = await applyEventOnce({ orderId: order.id, eventId: event.id, eventType: event.event_type, result, fulfil });
-+    return { httpStatus: 200, outcome: first ? "applied" : "duplicate", verification: "NOT_CHECKED" };
++    const reconciliation = reconciliationFrom(
++      await getOrder(await paypal(context), order.paypalOrderId),
++    );
++    if (reconciliation === "unknown" || reconciliation === "not_captured") {
++      return { httpStatus: 500, outcome: "reconcile_failed", verification: "NOT_CHECKED" };
++    }
++
++    const applied = await applyEventOnce({
++      orderId: order.id,
++      eventId: event.id,
++      eventType: event.event_type,
++      result: reconciliation,
++      fulfil: event.event_type === "PAYMENT.CAPTURE.COMPLETED" && reconciliation.status === "PAID",
++    });
++    return {
++      httpStatus: 200,
++      outcome: applied ? "applied" : "duplicate",
++      verification: "NOT_CHECKED",
++    };
    },
  };

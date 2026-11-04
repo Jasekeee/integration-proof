@@ -33,7 +33,11 @@ const SECRET_PATTERNS = [/sk-ant-[A-Za-z0-9_-]{10,}/, /A21AA[A-Za-z0-9_-]{20,}/,
 
 const ResultSchema = z.object({
   confidence: z.enum(["low", "medium", "high"]),
-  fix: z.object({ summary: z.string(), patch: z.string() }),
+  fix: z.object({
+    summary: z.string(),
+    patch: z.string(),
+    selfCheck: z.object({ checks: z.number(), matched: z.boolean() }).optional(),
+  }),
 });
 
 /** One failed scenario with its analysis, from either source. */
@@ -49,6 +53,7 @@ interface Candidate {
     model: string;
     completedAt: string | null;
     patchStatus: string | null;
+    patchNote: string | null;
     result: unknown;
   } | null;
 }
@@ -111,6 +116,7 @@ const ApiReportSchema = z.object({
           model: z.string(),
           completedAt: z.string().nullable(),
           patchStatus: z.string().nullable(),
+          patchNote: z.string().nullable().default(null),
           result: z.unknown(),
         })
         .nullable(),
@@ -171,6 +177,7 @@ async function* fromDatabase(runId?: string): AsyncGenerator<RunCandidate> {
                 model: analysis.model,
                 completedAt: analysis.completedAt?.toISOString() ?? null,
                 patchStatus: analysis.patchStatus,
+                patchNote: analysis.patchNote,
                 result: analysis.result,
               }
             : null,
@@ -215,6 +222,8 @@ async function main(): Promise<void> {
       analyzedAt: analysis.completedAt,
       confidence: result.confidence,
       patchStatus: analysis.patchStatus,
+      patchNote: analysis.patchNote,
+      selfCheck: result.fix.selfCheck ?? null,
       fixSummary: result.fix.summary,
     };
   }

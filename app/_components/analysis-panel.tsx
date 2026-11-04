@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { DiffView } from "./diff-view";
-import { seconds, type AnalysisView, type ScenarioView } from "./report";
+import { proposedEdits, seconds, selfCheckLabel, type AnalysisView, type ScenarioView } from "./report";
 
 const PATCH_LABELS = { applies: "Patch applies to the store file", needs_review: "Patch needs review", none: null };
 
@@ -53,6 +53,7 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
         {result && analysis && (
           <span className="font-mono text-xs text-muted">
             {result.confidence} confidence · {analysis.reused ? "cached" : seconds(analysis.durationMs)}
+            {selfCheckLabel(result.fix.selfCheck) ? ` · ${selfCheckLabel(result.fix.selfCheck)}` : ""}
           </span>
         )}
       </div>
@@ -114,13 +115,14 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
               <div className="flex flex-col gap-2">
                 <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">Fix</h5>
                 <p className="text-sm leading-6">{result.fix.summary}</p>
-                {result.fix.patch && (
+                {(result.fix.patch || (result.fix.edits?.length ?? 0) > 0) && (
                   <>
                     <p className="font-mono text-xs text-muted">
                       {PATCH_LABELS[analysis.patchStatus ?? "none"] ?? "Patch"}
                       {analysis.patchStatus === "needs_review" && analysis.patchNote ? `: ${analysis.patchNote}` : ""}
                     </p>
-                    <DiffView patch={result.fix.patch} />
+                    {/* A diff when the edits matched; otherwise the edits as Claude wrote them, for review. */}
+                    <DiffView patch={result.fix.patch || proposedEdits(result.fix.edits ?? [])} />
                   </>
                 )}
                 {result.fix.docs.length > 0 && (

@@ -1,17 +1,18 @@
 {
   "method": "Offline bench: the real runner and assertions on a deterministic PayPal model built from sandbox observations.",
   "report": "https://github.com/Jasekeee/integration-proof/blob/main/docs/ai-fixes-report.md",
-  "runId": "fcc80878-24ff-483d-aa41-66bb8d7869f3",
+  "runId": "42001f64-55e7-4e73-91d8-96483c081d8d",
   "controls": {
     "naive": "1/6",
     "hardened": "6/6",
     "reproducesLive": true
   },
-  "verified": 4,
+  "verified": 5,
   "total": 5,
   "scenarios": {
     "S2": {
-      "patchSha256": "411465f444c5989fdeecba6d2f5abbe8c4043bdd952facd50fa0faa513bd43ef",
+      "patchSha256": "7105453ad572800bce74c3a8a7ddd4b696f366de2fc3d3b146f90e99f3148290",
+      "edits": "matched on the first check",
       "verified": true,
       "applies": true,
       "typechecks": true,
@@ -21,17 +22,19 @@
       "confidence": "high"
     },
     "S3": {
-      "patchSha256": "3580cb053042dd09400019c1613658efece0b8e9d3863324664ca4a7bc6296af",
-      "verified": false,
-      "applies": false,
-      "typechecks": null,
+      "patchSha256": "46259aacc82390ee0373dc6b7090a25e8b378551b4108358728a591592a4e012",
+      "edits": "matched on the first check",
+      "verified": true,
+      "applies": true,
+      "typechecks": true,
       "before": "FAIL",
-      "after": "not run",
+      "after": "PASS",
       "sideEffects": [],
       "confidence": "high"
     },
     "S4": {
-      "patchSha256": "ddd64bdb68b8f84d58fea04340733133ef2f2874702af63181bf039bba1d64fa",
+      "patchSha256": "787d558283fea3124811e37148b1cf084bcc50e532121c7f79be9b3a1ed1b3d8",
+      "edits": "matched on the first check",
       "verified": true,
       "applies": true,
       "typechecks": true,
@@ -43,7 +46,8 @@
       "confidence": "high"
     },
     "S5": {
-      "patchSha256": "b348d5b6f981bfe0d8ec6ae8fb1ba440134a2a78ba492c51bd1689b0d7a1e8f7",
+      "patchSha256": "79bd2e6dcca0fe35425b7402abab8a7f2001a7ee343fbfc9dcd955f637602124",
+      "edits": "matched on the first check",
       "verified": true,
       "applies": true,
       "typechecks": true,
@@ -55,7 +59,8 @@
       "confidence": "high"
     },
     "S6": {
-      "patchSha256": "592fc0f37212048e51d39df1c4ca4bdd8ce01cb6d9d88f6a99feb7909c4b7a6c",
+      "patchSha256": "e46512ded9fd5093795c1f8348a3f2be9440e4db8e843caf63d53b3c351d5e0e",
+      "edits": "matched on the first check",
       "verified": true,
       "applies": true,
       "typechecks": true,

@@ -23,7 +23,15 @@ export interface AnalysisResult {
   rootCause: string;
   businessImpact: string;
   evidence: { stepId: number; observation: string }[];
-  fix: { summary: string; patch: string; docs: { title: string; url: string }[] };
+  fix: {
+    summary: string;
+    /** The unified diff, built by the server from Claude's edits. Empty when they did not match. */
+    patch: string;
+    edits?: { file: string; find: string; replace: string }[];
+    /** checks: self-check rounds used, 0 or 1; matched: whether the edits matched the file in the end. */
+    selfCheck?: { checks: number; matched: boolean };
+    docs: { title: string; url: string }[];
+  };
   verifyBy: string;
   confidence: "low" | "medium" | "high";
 }
@@ -125,6 +133,29 @@ export function runTone(report: RunReport | null): Tone | null {
   if (report.summary.failed > 0) return "fail";
   if (report.status === "COMPLETED" && report.summary.passed === report.summary.total) return "pass";
   return "warn";
+}
+
+/** How Claude's edits met the store file, in a few words for the analysis header. */
+export function selfCheckLabel(selfCheck: AnalysisResult["fix"]["selfCheck"]): string | null {
+  if (!selfCheck) return null;
+  if (!selfCheck.matched) return `edits did not match after ${selfCheck.checks} check`;
+  return selfCheck.checks === 0 ? "edits matched on the first check" : `self-corrected after ${selfCheck.checks} check`;
+}
+
+/**
+ * Edits that did not match the file, as diff-like lines for review: each find as removed lines and
+ * its replace as added ones. Not a patch; nothing applies it.
+ */
+export function proposedEdits(edits: NonNullable<AnalysisResult["fix"]["edits"]>): string {
+  return edits
+    .map((edit, index) =>
+      [
+        `@@ edit ${index + 1} of ${edits.length}, not applied: ${edit.file} @@`,
+        ...edit.find.split("\n").map((line) => `-${line}`),
+        ...edit.replace.split("\n").map((line) => `+${line}`),
+      ].join("\n"),
+    )
+    .join("\n");
 }
 
 export const MODE_LABELS: Record<Mode, { name: string; blurb: string }> = {

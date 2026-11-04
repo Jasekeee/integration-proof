@@ -1,17 +1,19 @@
 // Claude explains a failed scenario: the root cause in the store's code, what it means for the
-// business, evidence from the trace, and a fix as a patch to the real file. The deterministic verdict
-// is never touched, and nothing the model writes is shown before code has checked it.
+// business, evidence from the trace, and a fix as edits to the real file. Code checks every edit
+// against the file and writes the diff itself. The deterministic verdict is never touched, and
+// nothing the model writes is shown before code has checked it.
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import type { StoreMode } from "../db/schema";
+import { applyEdits } from "./edits";
 import { checkPatch, type PatchCheck } from "./patch";
 import { volatileIds } from "./signature";
 import type { StoreSources } from "./sources";
 
-/** Non-streaming stays under the SDK's long-request guard; it is room for thinking plus the patch. */
+/** Non-streaming stays under the SDK's long-request guard; it is room for thinking plus the edits. */
 const MAX_TOKENS = 16_000;
-/** High effort: the patch has to apply to the real file, so depth matters more than speed here. */
+/** High effort: the edits have to match the real file, so depth matters more than speed here. */
 const EFFORT = "high";
 
 /** The only hosts a documentation link may point to. */
@@ -30,7 +32,16 @@ export const REFERENCE_DOCS = [
   { title: "Webhooks Management v1 API", url: "https://developer.paypal.com/api/webhooks/v1" },
 ] as const;
 
-export const AnalysisSchema = z.object({
+const EditSchema = z.object({
+  file: z.string().describe("The path of the target file."),
+  find: z
+    .string()
+    .describe("Whole lines copied character for character from the target file, indentation included, enough to occur exactly once."),
+  replace: z.string().describe("The lines that take the place of find."),
+});
+
+/** What the model answers. Its fix is a list of edits; the server writes the diff from them. */
+export const AnswerSchema = z.object({
   rootCause: z.string().describe("One or two sentences naming the decision in the target file that produced the result."),
   businessImpact: z.string().describe("What this means for the buyer and the merchant. No invented numbers."),
   evidence: z
@@ -43,11 +54,31 @@ export const AnalysisSchema = z.object({
     .describe("Two to five steps that show the root cause."),
   fix: z.object({
     summary: z.string().describe("The change in one or two sentences."),
-    patch: z.string().describe("A unified diff against the target file only, or an empty string."),
+    edits: z.array(EditSchema).describe("The fix as edits to the target file; empty when no change would fix the result."),
     docs: z.array(z.object({ title: z.string(), url: z.string() })).describe("One to three links from the reference list."),
   }),
   verifyBy: z.string().describe("Which scenario to re-run and what its trace should then show."),
   confidence: z.enum(["low", "medium", "high"]),
+});
+export type Answer = z.infer<typeof AnswerSchema>;
+
+/**
+ * How the edits met the file. checks: correction rounds used, 0 or 1. matched: whether every edit
+ * matched in the end. "Self-corrected after 1 check" is { checks: 1, matched: true }.
+ */
+export const SelfCheckSchema = z.object({ checks: z.number().int().min(0), matched: z.boolean() });
+export type SelfCheck = z.infer<typeof SelfCheckSchema>;
+
+/**
+ * An analysis as stored and shown: the answer, the diff the server built from its edits, and how the
+ * edits met the file. Analyses written before edits existed have a patch only.
+ */
+export const AnalysisSchema = AnswerSchema.extend({
+  fix: AnswerSchema.shape.fix.extend({
+    edits: z.array(EditSchema).optional(),
+    patch: z.string(),
+    selfCheck: SelfCheckSchema.optional(),
+  }),
 });
 export type Analysis = z.infer<typeof AnalysisSchema>;
 
@@ -92,7 +123,8 @@ export interface ModelCall {
   model: string;
   startedAt: Date;
   durationMs: number;
-  outcome: "valid" | "invalid" | "refused" | "error";
+  /** edits_rejected: a valid answer whose edits did not match the target file. */
+  outcome: "valid" | "invalid" | "edits_rejected" | "refused" | "error";
   httpStatus: number | null;
   stopReason: string | null;
   usage: TokenUsage | null;
@@ -117,12 +149,12 @@ Answer with JSON that matches the schema:
 - businessImpact: what it means for the buyer and for the merchant, in plain words. Use only facts from the trace; invent no numbers, amounts, percentages or rates.
 - evidence: two to five steps that show it, each by its stepId from the trace, with what that step shows.
 - fix.summary: the change in one or two sentences.
-- fix.patch: a unified diff against the target file only, with the headers "--- a/<path>" and "+++ b/<path>" and three unchanged context lines around each change, copied exactly from the file. Use only functions and imports that exist in the provided files, and keep the change as small as the fix allows. Leave it empty when no change to the target file would fix the result.
+- fix.edits: the change as edits to the target file, each with file (the target file's path), find and replace. find is one or more whole lines copied character for character from the target file, indentation included, and long enough to occur exactly once in it; replace is what those lines become. Edits must not overlap. Code checks every find against the file and builds the diff, so write no diff. Use only functions and imports that exist in the provided files, and keep the change as small as the fix allows. Leave edits empty when no change to the target file would fix the result.
 - fix.docs: one to three links, taken only from the reference list below.
 - verifyBy: which scenario to re-run and what its trace should then show.
 - confidence: low, medium or high.
 
-When the verdict is INCONCLUSIVE, PayPal did not deliver a webhook the scenario needs before the deadline, so the store was never tested. Explain what the trace shows about the delivery, and leave the patch empty unless the store's own answers made PayPal stop delivering.
+When the verdict is INCONCLUSIVE, PayPal did not deliver a webhook the scenario needs before the deadline, so the store was never tested. Explain what the trace shows about the delivery, and leave fix.edits empty unless the store's own answers made PayPal stop delivering.
 
 Refer to orders, captures and events by their role ("the first order", "the replayed delivery") and to steps by stepId. Never write a PayPal order, capture or event id: the analysis is reused for later runs in which those ids differ.
 
@@ -240,14 +272,14 @@ export function isAllowedDocsUrl(value: string): boolean {
 export function validateAnswer(
   text: string,
   context: { stepIds: Set<number>; volatileIds: string[] },
-): { analysis: Analysis | null; problems: string[] } {
+): { analysis: Answer | null; problems: string[] } {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch (error) {
     return { analysis: null, problems: [`The answer is not valid JSON (${error instanceof Error ? error.message : String(error)}).`] };
   }
-  const parsed = AnalysisSchema.safeParse(raw);
+  const parsed = AnswerSchema.safeParse(raw);
   if (!parsed.success) {
     return {
       analysis: null,
@@ -295,14 +327,52 @@ function describeError(error: unknown): { status: number | null; message: string
   return { status: null, message: error instanceof Error ? `${error.name}: ${error.message}` : String(error) };
 }
 
-/** One analysis: a model call, the checks, and one retry with the reasons when the answer is invalid. */
+/** The analysis with the diff built from its edits, once every edit matched the file. */
+function matched(answer: Answer, patch: string, checks: number, target: { path: string; source: string }) {
+  // The diff is built by code, so it applies; checking it again keeps that a fact, not a hope.
+  const check: PatchCheck = patch === "" ? { status: "none", patch: "", note: null } : checkPatch(patch, target);
+  const corrected = checks > 0 ? ` Self-corrected after ${checks} check.` : "";
+  const note = check.status === "applies" ? `Claude's edits match ${target.path} exactly.${corrected}` : check.note;
+  const analysis: Analysis = { ...answer, fix: { ...answer.fix, patch, selfCheck: { checks, matched: true } } };
+  return { analysis, patch: { ...check, patch, note } };
+}
+
+/** The analysis without a diff, when its edits still did not match after the correction round. */
+function unmatched(answer: Answer, problems: string[], checks: number) {
+  const analysis: Analysis = { ...answer, fix: { ...answer.fix, patch: "", selfCheck: { checks, matched: false } } };
+  const note = `Claude's edits do not match the file after ${checks} self-check: ${problems.join(" ")}`;
+  return { analysis, patch: { status: "needs_review" as const, patch: "", note } };
+}
+
+function correction(path: string, problems: string[]): string {
+  return (
+    `Code applied your fix.edits to ${path}, and they do not match the file:\n` +
+    problems.map((problem) => `- ${problem}`).join("\n") +
+    `\nEvery find must be whole lines copied character for character from ${path}, indentation included, ` +
+    "and must occur in it exactly once. Return the complete corrected JSON analysis."
+  );
+}
+
+/**
+ * One analysis: a model call, the checks, one retry with the reasons when the answer is invalid, and
+ * one self-check round when its edits do not match the file. An analysis whose edits still do not
+ * match is kept, marked as needing review; the verdict is never affected.
+ */
 export async function analyze(input: AnalystInput, deps: { client: AnalystClient; model: string }): Promise<AnalystResult> {
   const calls: ModelCall[] = [];
   const stepIds = new Set(input.steps.map((step) => step.seq));
   const forbidden = volatileIds(traceLines(input.steps));
+  const target = { path: input.sources.target.path, source: input.sources.target.content };
   let messages = buildMessages(input);
+  let invalidRetries = 0;
+  let editChecks = 0;
+  /** A valid answer whose edits did not match, kept in case the correction round fails. */
+  let rejected: { answer: Answer; problems: string[] } | null = null;
+  const keepRejected = (): AnalystResult | null =>
+    rejected ? { status: "READY", ...unmatched(rejected.answer, rejected.problems, editChecks), calls } : null;
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (;;) {
+    const attempt = calls.length + 1;
     const startedAt = new Date();
     let message: Anthropic.Message;
     try {
@@ -311,7 +381,7 @@ export async function analyze(input: AnalystInput, deps: { client: AnalystClient
         max_tokens: MAX_TOKENS,
         system: SYSTEM_PROMPT,
         messages,
-        output_config: { effort: EFFORT, format: zodOutputFormat(AnalysisSchema) },
+        output_config: { effort: EFFORT, format: zodOutputFormat(AnswerSchema) },
       });
     } catch (error) {
       const { status, message: text } = describeError(error);
@@ -326,7 +396,7 @@ export async function analyze(input: AnalystInput, deps: { client: AnalystClient
         usage: null,
         problems: [text],
       });
-      return { status: "UNAVAILABLE", reason: `The model call failed: ${text}`, calls };
+      return keepRejected() ?? { status: "UNAVAILABLE", reason: `The model call failed: ${text}`, calls };
     }
 
     const call: ModelCall = {
@@ -346,39 +416,50 @@ export async function analyze(input: AnalystInput, deps: { client: AnalystClient
       call.outcome = "refused";
       const category = message.stop_details?.category ?? "no category";
       call.problems = [`The model declined (${category}).`];
-      return { status: "UNAVAILABLE", reason: `The model declined to analyse this scenario (${category}).`, calls };
+      return keepRejected() ?? { status: "UNAVAILABLE", reason: `The model declined to analyse this scenario (${category}).`, calls };
     }
 
     const text = message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("");
     const checked = validateAnswer(text, { stepIds, volatileIds: forbidden });
     if (message.stop_reason === "max_tokens") checked.problems.unshift("The answer was cut off at max_tokens.");
-    if (checked.analysis && message.stop_reason !== "max_tokens") {
-      const patch = checkPatch(checked.analysis.fix.patch, {
-        path: input.sources.target.path,
-        source: input.sources.target.content,
-      });
-      const analysis = { ...checked.analysis, fix: { ...checked.analysis.fix, patch: patch.patch } };
-      return { status: "READY", analysis, patch, calls };
+
+    if (!checked.analysis || message.stop_reason === "max_tokens") {
+      call.outcome = "invalid";
+      call.problems = checked.problems;
+      if (invalidRetries >= 1) {
+        return keepRejected() ?? { status: "UNAVAILABLE", reason: `The answer failed validation twice: ${checked.problems.join(" ")}`, calls };
+      }
+      invalidRetries++;
+      // The retry carries the first answer and what was wrong with it, so the model can correct it.
+      messages = [
+        ...messages,
+        { role: "assistant", content: message.content },
+        {
+          role: "user",
+          content:
+            "Your answer was rejected for these reasons:\n" +
+            checked.problems.map((problem) => `- ${problem}`).join("\n") +
+            "\nReturn the complete corrected JSON analysis.",
+        },
+      ];
+      continue;
     }
 
-    call.outcome = "invalid";
-    call.problems = checked.problems;
-    // The retry carries the first answer and what was wrong with it, so the model can correct it.
+    const applied = applyEdits(target, checked.analysis.fix.edits);
+    if (applied.ok) return { status: "READY", ...matched(checked.analysis, applied.patch, editChecks, target), calls };
+
+    call.outcome = "edits_rejected";
+    call.problems = applied.problems;
+    rejected = { answer: checked.analysis, problems: applied.problems };
+    if (editChecks >= 1) return keepRejected()!;
+    // One self-check round: the exact mismatch, with the file's own lines and indentation.
+    editChecks++;
     messages = [
       ...messages,
       { role: "assistant", content: message.content },
-      {
-        role: "user",
-        content:
-          "Your answer was rejected for these reasons:\n" +
-          checked.problems.map((problem) => `- ${problem}`).join("\n") +
-          "\nReturn the complete corrected JSON analysis.",
-      },
+      { role: "user", content: correction(target.path, applied.problems) },
     ];
   }
-
-  const last = calls.at(-1)?.problems ?? [];
-  return { status: "UNAVAILABLE", reason: `The answer failed validation twice: ${last.join(" ")}`, calls };
 }
 
 export function totalUsage(calls: ModelCall[]): TokenUsage {

@@ -424,6 +424,8 @@ of date. Patches then use the project's real helpers and configuration, such as
 - The patch is applied to the real file with jsdiff's `applyPatch`. Hunk line counts are recounted as
   `git apply --recount` does; the context must match exactly. A patch that does not apply is shown as
   "patch needs review", never hidden.
+- Revisited on 2026-11-05: the model now writes edits and code builds the diff, see
+  [Claude proposes edits; code writes the diff](#claude-proposes-edits-code-writes-the-diff).
 
 **Untrusted data:** everything from the trace (PayPal responses, webhook bodies, the forged event of
 S6) sits in an `<untrusted_trace>` section, with `<` escaped so no content can close the section or
@@ -672,3 +674,40 @@ redelivery after a 5xx, is not counted.
 
 **Revisit:** when a scenario or the store changes. The CI job fails when the committed report no
 longer matches what the bench gives, and new fixes come from a new export.
+
+## Claude proposes edits; code writes the diff
+
+**Decision:** the analyst no longer writes a unified diff. Its fix is a list of edits, each
+`{ file, find, replace }`, where `find` is whole lines quoted from the store file with their exact
+indentation. Code (`lib/ai/edits.ts`) checks that every `find` occurs in the file exactly once and
+that no two edits overlap, applies them all or none, and builds the unified diff that the page
+shows, the export saves and the offline check applies.
+
+**Self-check:** when a `find` does not occur, or occurs more than once, the model gets one round to
+correct its edits. The message names the edit, the first line of `find` that is not a line of the
+file, and the file's own closest lines with their line numbers. Leading spaces are shown as `·`, so
+two spaces against four is visible. If the edits still do not match after that round, the analysis
+is kept, its patch is "needs review" and shows the edits as written, and the verdict is untouched.
+A schema retry and the self-check round are counted apart, so a call can need at most three model
+calls.
+
+**Why:** the first offline check verified four of five fixes. The fifth, S3, was a correct change
+that did not apply, because its diff quoted two context lines with two spaces of indentation where
+the file has four. A diff asks the model to reproduce context, counts and headers exactly; a quote
+that code looks up asks only for the lines it changes, and a mismatch can be described precisely and
+corrected.
+
+**Consequence:**
+
+- Every model call is a trace step: a rejected round reads "edits_rejected" with the reasons, and a
+  note says whether the edits matched on the first check, after one self-check, or not at all. The
+  analysis header on the page says the same: "self-corrected after 1 check".
+- The analysis cache key includes a format version, `ANALYSIS_FORMAT = 2`, so no analysis written
+  as a diff is reused, and `scripts/export-ai-fixes.ts` accepts only analyses of this format.
+- The stored analysis keeps the edits, the server-built diff in `fix.patch`, and the self-check
+  result. Analyses of the old format still display with their diff.
+
+**Result on 2026-11-05,** run `42001f64`, `claude-sonnet-5-5`: 5 of 5 fixes verified offline, S3
+included. Every edit matched the store file on the first check, so this run did not need the
+self-check round; the tests cover the round with an ambiguous quote, with an indentation mismatch
+that is corrected, and with one that is not.

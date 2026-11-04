@@ -3,8 +3,20 @@
 import dynamic from "next/dynamic";
 import { useId, useState } from "react";
 import { AnalysisPanel } from "./analysis-panel";
-import { FALLBACK_HEADLINES, SCENARIO_TITLES, seconds, type ScenarioView } from "./report";
+import { HandlingCode } from "./handling-code";
+import { FALLBACK_HEADLINES, SCENARIO_TITLES, seconds, verdictTone, type Mode, type ScenarioView, type StoreCode } from "./report";
 import { VerdictBadge } from "./verdict-badge";
+
+/**
+ * The thin stripe on a card's left edge, an inset shadow so it follows the rounded corners without
+ * clipping the card's content. The badge carries the meaning; the stripe repeats it.
+ */
+const STRIPES = {
+  pass: "shadow-[inset_3px_0_0_0_var(--pass)]",
+  fail: "shadow-[inset_3px_0_0_0_var(--fail)]",
+  warn: "shadow-[inset_3px_0_0_0_var(--warn)]",
+  error: "shadow-[inset_3px_0_0_0_var(--border-strong)]",
+} as const;
 
 // AG Grid needs the browser; it loads when a trace is first opened.
 const TraceGrid = dynamic(() => import("./trace-grid"), {
@@ -27,20 +39,26 @@ function liveHeadline(scenario: ScenarioView, now: number, deadlineMs: number): 
 
 export function ScenarioCard({
   id,
+  mode,
   scenario,
   now,
   deadlineMs,
+  code,
 }: {
   id: string;
+  mode: Mode;
   scenario: ScenarioView | null;
   now: number;
   deadlineMs: number;
+  code: StoreCode;
 }) {
   const [traceOpen, setTraceOpen] = useState(false);
   const [highlightSeq, setHighlightSeq] = useState<number | null>(null);
   const traceId = useId();
   const steps = scenario?.steps ?? [];
   const failed = scenario?.verdict === "FAIL" || scenario?.verdict === "INCONCLUSIVE";
+  const tone = verdictTone(scenario?.verdict ?? null);
+  const stripe = tone ? STRIPES[tone] : scenario?.status === "ERROR" ? STRIPES.error : "";
 
   function showStep(seq: number) {
     setTraceOpen(true);
@@ -48,7 +66,7 @@ export function ScenarioCard({
   }
 
   return (
-    <article className="flex h-full flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+    <article className={`flex h-full min-w-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4 pl-5 ${stripe}`}>
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <p className="font-mono text-xs text-muted">
@@ -66,6 +84,8 @@ export function ScenarioCard({
       )}
 
       {scenario && failed && <AnalysisPanel scenario={scenario} onStep={showStep} />}
+
+      {scenario?.verdict === "PASS" && <HandlingCode id={id} mode={mode} code={code} />}
 
       {steps.length > 0 && (
         <div className="flex flex-col gap-2">

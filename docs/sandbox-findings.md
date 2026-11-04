@@ -267,3 +267,60 @@ expected delivery. Local runs of all six scenarios, deliveries to the deployed r
 
 The longest wait, 60.3 s, is within the 90-second deadline. Delivery time varies far more than the
 calls do.
+
+## Retries of the runner's own calls, 2026-11-04
+
+Reproduce with `npx tsx scripts/repeated-runner-calls.ts`. The runner retries its own calls after a
+5xx, a timeout or a network error (see [decisions](decisions.md#the-runner-retries-its-own-paypal-calls)).
+A retry after a lost response repeats a request PayPal may already have carried out, so each call
+was sent twice on purpose. Orders are `intent: CAPTURE` for 1.00 USD, paid with the published test
+card.
+
+### Header support in the API schemas
+
+Checked in the published schemas,
+[Orders v2](https://developer.paypal.com/api/orders/v2/schema.json) and
+[Payments v2](https://developer.paypal.com/api/payments/v2/schema.json):
+
+| Call | `PayPal-Request-Id` |
+|---|---|
+| `POST /v2/checkout/orders` | Listed |
+| `POST /v2/checkout/orders/{id}/confirm-payment-source` | Not listed |
+| `POST /v2/checkout/orders/{id}/capture` | Listed |
+| `GET /v2/checkout/orders/{id}` | Not listed |
+| `POST /v2/payments/captures/{id}/refund` | Listed |
+
+### confirm-payment-source repeated
+
+No `PayPal-Request-Id`, because the schema lists none for this call. Order `11244302XF289323K`:
+
+| Call | Status | `debug_id` |
+|---|---|---|
+| `POST /v2/checkout/orders/{id}/confirm-payment-source` | 200 `APPROVED` | `f2314270e5726` |
+| The same request again | 200 `APPROVED` | `f3652166965c4` |
+| `GET /v2/checkout/orders/{id}` | 200 `APPROVED`, 0 captures | `f61568321259d` |
+| `POST /v2/checkout/orders/{id}/capture` | 201 `COMPLETED` | `f59804003dcad` |
+| `confirm-payment-source` after the capture | 422, issue `ORDER_ALREADY_CAPTURED` | `f4127311ced61` |
+
+A second run on order `6D664770UE0597442` returned the same statuses. Confirming an `APPROVED`
+order again approves it again and captures nothing, so the runner can repeat a confirm whose answer
+was lost. The runner confirms before the store captures, so the 422 after a capture does not occur
+in a run.
+
+### Refund repeated with the same key
+
+Order `4H274297V1152530X`, captured once:
+
+| Call | Status | `debug_id` |
+|---|---|---|
+| `POST /v2/payments/captures/{id}/refund`, key R | 201, refund `4AC48240EN136032W` `COMPLETED` | `f738105668f02` |
+| The same refund with key R again | 200, refund `4AC48240EN136032W` `COMPLETED` | `f548291b37495` |
+| The same refund with a new key | 422, issue `CAPTURE_FULLY_REFUNDED` | `f198367d94ccf` |
+| `GET /v2/checkout/orders/{id}` | 200, capture `REFUNDED` | `f5257917c2e7d` |
+
+A retry with the same key gets the original refund back with 200 instead of 201, as a capture replay
+does. A new key would read as a failed refund. The runner therefore keeps one key per refund across
+its attempts and accepts any 2xx.
+
+Documentation: [confirm payment source](https://developer.paypal.com/api/orders/v2/orders-confirm),
+[refund captured payment](https://developer.paypal.com/docs/api/payments/v2/#captures_refund).

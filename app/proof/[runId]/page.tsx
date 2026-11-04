@@ -6,6 +6,7 @@ import { z } from "zod";
 import { MODE_LABELS, type RunReport } from "../../_components/report";
 import { RunResults } from "../../_components/run-results";
 import { readReport } from "@/lib/proof/report";
+import { readStoreCode } from "@/lib/store/snippets";
 
 async function load(runId: string): Promise<RunReport | null> {
   if (!z.uuid().safeParse(runId).success) return null;
@@ -23,6 +24,7 @@ export async function generateMetadata({ params }: PageProps<"/proof/[runId]">):
 export default async function RunPage({ params }: PageProps<"/proof/[runId]">) {
   const report = await load((await params).runId);
   if (!report) notFound();
+  const code = await readStoreCode();
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6">
@@ -37,7 +39,7 @@ export default async function RunPage({ params }: PageProps<"/proof/[runId]">) {
           </Link>
         </p>
       </header>
-      <RunResults initial={report} />
+      <RunResults initial={report} code={code} />
     </div>
   );
 }

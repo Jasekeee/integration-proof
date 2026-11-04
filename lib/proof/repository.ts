@@ -128,7 +128,15 @@ export async function updateScenario(
   values: Partial<
     Pick<
       RunScenarioRow,
-      "status" | "verdict" | "reason" | "headline" | "error" | "startedAt" | "finishedAt" | "waitingSince"
+      | "status"
+      | "verdict"
+      | "reason"
+      | "headline"
+      | "harm"
+      | "error"
+      | "startedAt"
+      | "finishedAt"
+      | "waitingSince"
     >
   >,
 ): Promise<void> {

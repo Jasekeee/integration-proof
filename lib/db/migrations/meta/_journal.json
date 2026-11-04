@@ -36,6 +36,13 @@
       "when": 1793780793050,
       "tag": "0004_headlines_and_fresh_analysis",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793806173767,
+      "tag": "0005_scenario_harms",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 // JSON shapes the runs API returns. The scenarios' run keys are never part of them.
 import { AnalysisSchema } from "../ai/analyst";
 import type { AnalysisRow, RunRow, RunScenarioRow, ScenarioStatus, TraceStepRow, Verdict } from "../db/schema";
+import { consequences } from "./harms";
 import { WEBHOOK_DEADLINE_MS } from "./runner";
 import { SCENARIOS, ScenarioIdSchema } from "./scenarios";
 
@@ -67,6 +68,8 @@ export function runView(run: RunRow, stored: RunScenarioRow[], analyses: Analysi
     status: run.status,
     error: run.error,
     summary: summarize(scenarios),
+    /** What the run's failures cost, counted: ["1 cart charged twice", "1 sale lost"]. */
+    consequences: consequences(scenarios),
     config: {
       storeTimeoutMs: run.storeTimeoutMs,
       proxyHoldMs: run.proxyHoldMs,
@@ -89,6 +92,7 @@ export function runView(run: RunRow, stored: RunScenarioRow[], analyses: Analysi
         verdict: row.verdict,
         reason: row.reason,
         headline: row.headline,
+        harm: row.harm,
         error: row.error,
         startedAt: row.startedAt,
         finishedAt: row.finishedAt,

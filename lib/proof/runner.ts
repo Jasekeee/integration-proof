@@ -25,6 +25,7 @@ import { getAccessToken } from "../paypal/token";
 import { analyzeScenario } from "../ai/jobs";
 import { INCONCLUSIVE_HEADLINE, inconclusiveReason } from "./assertions";
 import { redact, traceBody } from "./redact";
+import { attemptNote, exhaustedMessage, withRetries } from "./retry";
 import {
   findAcknowledgedDelivery,
   markRunFinished,
@@ -132,6 +133,7 @@ async function runScenario(run: RunRow, row: RunScenarioRow, analyses: Promise<v
       verdict: result.verdict,
       reason: result.reason,
       headline: result.headline,
+      harm: result.harm,
       finishedAt: new Date(),
     });
     // Claude explains a failure after the verdict is recorded; the scenario does not wait for it.
@@ -206,7 +208,8 @@ async function refundCaptures(ctx: ScenarioContext, paypal: PayPalOrderTruth[]):
       { method: "POST", path: `${CAPTURES_PATH}/${capture.id}/refund`, body: {}, requestId },
       (call) => refundCapture(call, { captureId: capture.id, requestId }),
     );
-    if (refunded.kind !== "response" || refunded.status !== 201) {
+    // 201 is a new refund; 200 is PayPal answering a retry with the refund an earlier attempt made.
+    if (refunded.kind !== "response" || refunded.status < 200 || refunded.status >= 300) {
       throw new ScenarioAbort(`PayPal did not refund capture ${capture.id}.`);
     }
   }
@@ -465,27 +468,53 @@ async function callStore(
   return { status, body: responseBody };
 }
 
+/**
+ * One of the runner's own PayPal calls, each attempt a trace step. A 5xx, a timeout or a network
+ * error is retried with backoff; `send` carries the same PayPal-Request-Id on every attempt. When
+ * every attempt fails the scenario ends in ERROR, because the sandbox, not the store, stopped it.
+ */
 async function callPayPal(
   ctx: ScenarioContext,
   actor: Actor,
   request: { method: "GET" | "POST"; path: string; body?: unknown; requestId?: string },
   send: (call: CallContext) => Promise<PayPalResponse>,
 ): Promise<PayPalResponse> {
-  const call = { baseUrl: SANDBOX_API_BASE, token: await getAccessToken(), timeoutMs: PAYPAL_TIMEOUT_MS };
-  const span = await openStep(ctx);
-  const response = await send(call);
-  await closeStep(ctx, span, {
-    actor,
-    method: request.method,
-    path: request.path,
-    httpStatus: response.kind === "response" ? response.status : null,
-    debugId: response.kind === "response" ? response.debugId : null,
-    paypalRequestId: request.requestId ?? null,
-    requestBody: request.body === undefined ? null : redact(request.body),
-    responseBody: response.kind === "response" ? redact(response.body) : null,
-    note: response.kind === "no_response" ? `No response from PayPal (${response.reason}): ${response.message}` : null,
+  const result = await withRetries(async (attempt) => {
+    const span = await openStep(ctx);
+    const response = await sendWithToken(send);
+    const lost = response.kind === "no_response" ? `No response from PayPal (${response.reason}): ${response.message}` : null;
+    await closeStep(ctx, span, {
+      actor,
+      method: request.method,
+      path: request.path,
+      httpStatus: response.kind === "response" ? response.status : null,
+      debugId: response.kind === "response" ? response.debugId : null,
+      paypalRequestId: request.requestId ?? null,
+      requestBody: request.body === undefined ? null : redact(request.body),
+      responseBody: response.kind === "response" ? redact(response.body) : null,
+      note: [attemptNote(attempt, response), lost].filter(Boolean).join(" ") || null,
+    });
+    return response;
   });
-  return response;
+  if (result.exhausted) throw new ScenarioAbort(exhaustedMessage(request, result));
+  return result.response;
+}
+
+/** A token that cannot be fetched is an attempt without a response, so it is retried like one. */
+async function sendWithToken(send: (call: CallContext) => Promise<PayPalResponse>): Promise<PayPalResponse> {
+  const startedMs = performance.now();
+  let token: string;
+  try {
+    token = await getAccessToken();
+  } catch (error) {
+    return {
+      kind: "no_response",
+      reason: "network",
+      message: `no access token: ${describe(error)}`,
+      durationMs: Math.round(performance.now() - startedMs),
+    };
+  }
+  return send({ baseUrl: SANDBOX_API_BASE, token, timeoutMs: PAYPAL_TIMEOUT_MS });
 }
 
 const ActorSchema = z.enum(ACTORS);

@@ -527,3 +527,75 @@ time out on a call PayPal had answered in two seconds.
 
 **Consequence:** a lost connection now costs a scenario at most a few seconds and ends in an error
 the page shows, not a run stuck in RUNNING.
+
+## A passing card shows the code that passed
+
+**Decision:** a PASS card shows "How the hardened store handles it": the three to six lines of
+`lib/store/hardened.ts` that decide the scenario, with the store's own comment as the caption, the
+line numbers, and a link to the same lines on GitHub at the deployed commit. The naive store's one
+pass, S1, shows its own lines the same way.
+
+**How:** a comment that starts with a scenario id marks the code, for example
+`// [S3] Fix: no answer is not a failure.` The snippet is the code after the comment, up to the next
+blank line or the end of the block. `lib/store/snippets.ts` reads the store files at runtime, once
+per process. A test fails when a scenario of the hardened store has no marker, two markers, fewer
+than three or more than six lines, or lines without the identifiers that decide it, such as
+`isEventProcessed` for S4.
+
+**Why:**
+
+- A pass needs as much evidence as a failure. Next to a failed card with Claude's analysis, an empty
+  passing card says nothing about why the hardened store passed.
+- Read from the file, the snippet cannot drift from the code that ran. A copy in the UI would.
+- The markers sit where the "Fix:" comments already were, so the file reads as before.
+
+**Consequence:** markers are part of the store code. A change to `hardened.ts` that moves the
+deciding lines moves the marker with them; the test says which scenario lost its marker.
+
+## A run states what its failures cost
+
+**Decision:** under a store's score, a finished run lists what its failures cost: "This run: 1 cart
+charged twice · 1 order shipped twice · 1 refund shown as paid · 1 forged refund accepted · 1 sale
+lost". Each assertion returns a harm with its verdict and headline, from the same facts, and the run
+counts them. A run where every scenario passed says "all 6 failures handled, nothing charged or
+shipped twice". The score is red with any failure, green when every scenario passed and amber
+otherwise; each scenario card has a thin stripe in its verdict's color.
+
+**Why:** the line answers "so what?" for the whole run in one glance, and it can only claim what
+happened. A failure that never reached the behaviour it tests, such as a replay missing from the
+trace, records no harm, and INCONCLUSIVE records none.
+
+**Consequence:** `run_scenarios.harm` holds the key of the harm, from `HARMS` in
+`lib/proof/harms.ts`. Runs recorded before it existed show no line. The status colors pass WCAG AA
+on the page background in both themes: at least 6.8:1 in the light theme and 10.4:1 in the dark one.
+
+## The runner retries its own PayPal calls
+
+**Decision:** the runner's own PayPal calls, the buyer's `confirm-payment-source`, the merchant's
+refund and the runner's `GET /v2/checkout/orders/{id}`, get up to three attempts. A 5xx, a timeout,
+a network error or a token that cannot be fetched is retried after 500 ms and then 1 s; a 2xx or a
+4xx ends the call. Only when every attempt failed does the scenario end in ERROR, with the reason
+"PayPal sandbox did not respond after 3 attempts", the call and its last answer. Every attempt is a
+trace step whose note says which attempt it was.
+
+**Why:**
+
+- These calls are not under test. A slow or failing sandbox on one of them says nothing about the
+  store, and a scenario that ends in ERROR for it hides a verdict the run could have reached.
+- The store's calls through the proxy are not retried by the runner. How the store handles a failed
+  call is what S1 to S3 measure.
+
+**Retrying safely:**
+
+- A refund keeps one `PayPal-Request-Id` across its attempts, and the runner accepts any 2xx: PayPal
+  answers a repeated key with the original refund and 200, where a new key would get 422
+  `CAPTURE_FULLY_REFUNDED`.
+- `confirm-payment-source` gets no key, because the Orders schema lists none for it. A repeated
+  confirm on an `APPROVED` order returns 200 `APPROVED` and captures nothing, so it is safe to
+  repeat.
+- A GET changes nothing and needs no key.
+
+**Consequence:** a scenario can take up to three times a call's 30-second timeout longer when the
+sandbox is down, and still ends in ERROR then.
+
+**References:** [retries of the runner's own calls](sandbox-findings.md#retries-of-the-runners-own-calls-2026-11-04).

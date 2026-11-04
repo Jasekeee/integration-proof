@@ -38,6 +38,7 @@ export const naiveStore: Store = {
       await captureOrder(await paypal(context), { orderId: order.paypalOrderId }),
     );
 
+    // [S1] A decline is recorded as DECLINED and the buyer is told so.
     let result: CaptureResult;
     if (outcome.kind === "settled") result = outcome.result;
     else if (outcome.kind === "declined") result = { status: "DECLINED", captureId: null };

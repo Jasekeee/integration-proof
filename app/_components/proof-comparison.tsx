@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useNow, useRunReport } from "./hooks";
-import { isRunActive, SCENARIO_TITLES, type Mode, type RunReport } from "./report";
+import { isRunActive, SCENARIO_TITLES, type Mode, type RunReport, type StoreCode } from "./report";
 import { RunHeader } from "./run-header";
 import { ScenarioCard } from "./scenario-card";
 
@@ -19,7 +19,15 @@ function sleep(ms: number) {
  * Both stores side by side. On wide screens each scenario is one row, so S3 of the naive store sits
  * next to S3 of the hardened one; on narrow screens the two columns stack.
  */
-export function ProofComparison({ initial, fresh }: { initial: Record<Mode, RunReport | null>; fresh: boolean }) {
+export function ProofComparison({
+  initial,
+  fresh,
+  code,
+}: {
+  initial: Record<Mode, RunReport | null>;
+  fresh: boolean;
+  code: StoreCode;
+}) {
   const [runIds, setRunIds] = useState<Record<Mode, string | null>>({
     naive: initial.naive?.id ?? null,
     hardened: initial.hardened?.id ?? null,
@@ -132,7 +140,7 @@ export function ProofComparison({ initial, fresh }: { initial: Record<Mode, RunR
           return (
             <Fragment key={mode}>
               <div
-                className={`${COLUMN[mode]} lg:[grid-row:1] ${mode === "hardened" ? "max-lg:mt-6" : ""}`}
+                className={`${COLUMN[mode]} min-w-0 lg:[grid-row:1] ${mode === "hardened" ? "max-lg:mt-6" : ""}`}
               >
                 <RunHeader
                   mode={mode}
@@ -153,14 +161,16 @@ export function ProofComparison({ initial, fresh }: { initial: Record<Mode, RunR
               {SCENARIO_IDS.map((id, index) => (
                 <div
                   key={`${mode}-${id}`}
-                  className={`${COLUMN[mode]} lg:[grid-row:var(--row)]`}
+                  className={`${COLUMN[mode]} min-w-0 lg:[grid-row:var(--row)]`}
                   style={{ "--row": index + 2 } as React.CSSProperties}
                 >
                   <ScenarioCard
                     id={id}
+                    mode={mode}
                     scenario={report?.scenarios.find((scenario) => scenario.id === id) ?? null}
                     now={now}
                     deadlineMs={deadlineMs}
+                    code={code}
                   />
                 </div>
               ))}

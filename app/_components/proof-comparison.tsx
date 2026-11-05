@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useNow, useRunReport } from "./hooks";
 import { isRunActive, SCENARIO_TITLES, type Mode, type RunReport, type StoreCode } from "./report";
 import { RunHeader } from "./run-header";
@@ -11,8 +11,38 @@ const SCENARIO_IDS = Object.keys(SCENARIO_TITLES);
 const COLUMN = { naive: "lg:col-start-1", hardened: "lg:col-start-2" } as const;
 const DEFAULT_DEADLINE_MS = 150_000;
 
+/** While following someone else's run: how often the list of runs is read. */
+const FOLLOW_POLL_MS = 3000;
+/** Polls with no live run before the page calls it over; bridges the gap between their two stores. */
+const QUIET_POLLS = 2;
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Another visitor's run is live, so this one did not start. */
+class RunInProgress extends Error {}
+
+/** False on the server and until React has hydrated, so a click never lands on a dead button. */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+interface RunSummary {
+  id: string;
+  mode: Mode;
+  status: RunReport["status"];
+}
+
+/** The newest runs, newest first, or null when they could not be read this time. */
+async function latestRuns(): Promise<RunSummary[] | null> {
+  const response = await fetch("/api/runs", { cache: "no-store", signal: AbortSignal.timeout(15_000) }).catch(() => null);
+  const body = response?.ok ? await response.json().catch(() => null) : null;
+  return Array.isArray(body?.runs) ? (body.runs as RunSummary[]) : null;
 }
 
 /**
@@ -40,7 +70,10 @@ export function ProofComparison({
   };
   const [phase, setPhase] = useState<"idle" | Mode>("idle");
   const [error, setError] = useState<{ message: string; modes: Mode[] } | null>(null);
-  const busy = phase !== "idle" || MODES.some((mode) => isRunActive(reports[mode]));
+  /** Following another visitor's run, live, instead of starting one. */
+  const [following, setFollowing] = useState(false);
+  const hydrated = useHydrated();
+  const busy = !hydrated || following || phase !== "idle" || MODES.some((mode) => isRunActive(reports[mode]));
   const now = useNow(busy);
   const unmounted = useRef(false);
   useEffect(() => {
@@ -58,6 +91,7 @@ export function ProofComparison({
       signal: AbortSignal.timeout(30_000),
     }).catch(() => null);
     const body = response ? await response.json().catch(() => null) : null;
+    if (response?.status === 429 && body?.error === "run_in_progress") throw new RunInProgress();
     if (!response?.ok || !body?.id) {
       throw new Error(body?.message ?? "The run could not start. Check your connection and try again.");
     }
@@ -78,6 +112,30 @@ export function ProofComparison({
     }
   }
 
+  /**
+   * Shows another visitor's run as it happens: each column follows the newest run of its store,
+   * which picks up their hardened run after their naive one. Ends once no run has been live for a
+   * few polls in a row, and the page is free again.
+   */
+  async function follow() {
+    setFollowing(true);
+    let quiet = 0;
+    while (!unmounted.current && quiet < QUIET_POLLS) {
+      const runs = await latestRuns();
+      if (runs) {
+        const newest = (mode: Mode) => runs.find((candidate) => candidate.mode === mode)?.id ?? null;
+        setRunIds((current) => {
+          const next = { naive: newest("naive") ?? current.naive, hardened: newest("hardened") ?? current.hardened };
+          return next.naive === current.naive && next.hardened === current.hardened ? current : next;
+        });
+        const live = runs.some((candidate) => candidate.status === "QUEUED" || candidate.status === "RUNNING");
+        quiet = live ? 0 : quiet + 1;
+      }
+      if (quiet < QUIET_POLLS) await sleep(FOLLOW_POLL_MS);
+    }
+    if (!unmounted.current) setFollowing(false);
+  }
+
   /** One run at a time, as the service allows: the next store starts when the previous is done. */
   async function run(modes: Mode[]) {
     setError(null);
@@ -89,6 +147,11 @@ export function ProofComparison({
         if (unmounted.current) return;
       }
     } catch (cause) {
+      if (cause instanceof RunInProgress) {
+        setPhase("idle");
+        await follow();
+        return;
+      }
       setError({ message: cause instanceof Error ? cause.message : String(cause), modes });
     }
     setPhase("idle");
@@ -119,6 +182,13 @@ export function ProofComparison({
           {primaryLabel}
         </button>
       </div>
+
+      {following && (
+        <div role="status" className="rounded-lg border border-border-strong bg-surface p-4 text-sm leading-6">
+          Another visitor is running the proof right now, so yours did not start. Their run is shown below as it
+          happens; you can run it again as soon as it finishes.
+        </div>
+      )}
 
       {error && (
         <div role="alert" className="flex flex-col gap-3 rounded-lg border border-fail/40 bg-fail-bg p-4 text-fail sm:flex-row sm:items-center sm:justify-between">

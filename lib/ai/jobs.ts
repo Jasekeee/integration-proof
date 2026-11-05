@@ -5,7 +5,8 @@ import type { TraceStepRow } from "../db/schema";
 import { nextSeq, readRun, readTrace, writeStep } from "../proof/repository";
 import { SCENARIOS, ScenarioIdSchema } from "../proof/scenarios";
 import { analyzeOnce, type AnalysisCache, type AnalystClient, type ModelCall, type SelfCheck } from "./analyst";
-import { databaseCache, linkAnalysis } from "./repository";
+import { analysesPerDay } from "../proof/limits";
+import { databaseCache, linkAnalysis, reserveAnalysis } from "./repository";
 import { analysisKey, traceSignature } from "./signature";
 import { readStoreSources } from "./sources";
 
@@ -79,6 +80,8 @@ export async function analyzeScenario(runId: string, scenarioId: string, client:
       onClaim: async (claim) => {
         if (claim === "claimed") claimed = { key, cache };
         await linkAnalysis(runId, scenarioId, key, claim !== "claimed");
+        // A new model call, not one served from the cache: it counts against the daily ceiling.
+        if (claim === "claimed" && !(await reserveAnalysis(key, analysesPerDay()))) throw new DailyLimitReached(analysesPerDay());
       },
     });
     if (outcome.reused) {
@@ -92,12 +95,22 @@ export async function analyzeScenario(runId: string, scenarioId: string, client:
       return;
     }
   } catch (error) {
-    console.error(`Analysis of ${scenarioId} in run ${runId} failed`, error);
-    const reason = `The analysis stopped: ${error instanceof Error ? error.message : String(error)}`;
+    const limited = error instanceof DailyLimitReached;
+    if (!limited) console.error(`Analysis of ${scenarioId} in run ${runId} failed`, error);
+    const reason = limited ? error.message : `The analysis stopped: ${error instanceof Error ? error.message : String(error)}`;
     // A claimed row must not stay PENDING, or the page would show "Analyzing…" until it goes stale.
     const owned = claimed as { key: string; cache: AnalysisCache } | null;
     if (owned) await owned.cache.save(owned.key, { status: "UNAVAILABLE", reason, calls: [] }).catch(() => undefined);
     await recordNote(runId, scenarioId, reason).catch(() => undefined);
+  }
+}
+
+/** The daily ceiling on new analyses is reached. The verdict stands; the analysis is tried again tomorrow. */
+export class DailyLimitReached extends Error {
+  constructor(limit: number) {
+    // The page shows it as "Analysis unavailable: <this>. The verdict above stands."
+    super(`today's limit of ${limit} new analyses is reached; Claude analyses again tomorrow`);
+    this.name = "DailyLimitReached";
   }
 }
 

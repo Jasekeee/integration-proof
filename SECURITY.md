@@ -29,8 +29,8 @@ vulnerabilities. A way to make the hardened store behave like the naive one is i
 
 - The service works only with the PayPal sandbox; no real payment is ever made. Use only PayPal's
   published [sandbox test cards](https://developer.paypal.com/tools/sandbox/card-testing/).
-- The demo runs one proof at a time for everyone, at most 20 per hour. Do not load-test it or try
-  to keep it busy.
+- The demo runs one proof at a time for everyone, with an hourly limit per visitor and overall. Do
+  not load-test it or try to keep it busy.
 - Access only data you created yourself.
 
 ## Supported versions

@@ -499,8 +499,9 @@ from the site's tokens, so it follows the light and dark themes.
 
 ## A demo can ask Claude again
 
-**Decision:** `POST /api/runs?fresh=1`, and `/proof?fresh=1` on the page, makes that run's analyses
-skip the cache. The run limits stay as they are.
+**Decision:** `POST /api/runs?fresh=<token>`, and `/proof?fresh=<token>` on the page, makes that
+run's analyses skip the cache. Revisited on 2026-11-05: only the operator's `FRESH_ANALYSIS_TOKEN`
+does this, see [the demo is protected from one visitor](#the-demo-is-protected-from-one-visitor).
 
 **Why:** a cached analysis appears at once. To show Claude working, from "Analyzing…" to the
 result, the analysis has to run again.
@@ -807,3 +808,34 @@ ten-minute rule ended such a run only when someone started a new one, and then a
 - During the first deploy with this change, the instance being replaced still runs the old code and
   renews no lease. A run it executes then reads as interrupted once the new instance starts, as it
   would have been when the old instance stopped.
+
+## The demo is protected from one visitor
+
+**Decision:**
+
+- **Live analysis only with the operator's token.** `?fresh=<FRESH_ANALYSIS_TOKEN>` skips the
+  analysis cache, compared in constant time. Any other value, or none, runs the proof from the cache
+  with no error and no change to the page.
+- **A daily ceiling on new Claude calls.** At most `ANALYSES_PER_DAY` (default 30) new analyses in
+  any 24 hours; cached analyses do not count. Past it, an analysis reads "Analysis unavailable:
+  today's limit of 30 new analyses is reached; Claude analyses again tomorrow. The verdict above
+  stands." and is tried again on a later run.
+- **Runs per visitor and overall.** A visitor may start `RUNS_PER_VISITOR_PER_HOUR` runs an hour
+  (default 6), all visitors together `RUNS_PER_HOUR` (default 60), and one run is live at a time.
+  The answer says which limit was reached and when the next run may start.
+
+**Why:** the audit of 2026-11-05 found that anyone could start fresh runs, each a new analysis of
+five failures at about $0.27, and that one visitor could use up the whole hourly limit of 20 and
+block everyone else for an hour.
+
+**The visitor is an address.** Render runs behind Cloudflare: responses carry `server: cloudflare`.
+Cloudflare sets `CF-Connecting-IP` to "the client IP address connecting to Cloudflare", and it
+appends to an existing `X-Forwarded-For` rather than replacing it, so entries on its left can be
+written by the client ([Cloudflare HTTP headers](https://developers.cloudflare.com/fundamentals/reference/http-headers/)).
+The limit therefore reads `CF-Connecting-IP`, and without it only the rightmost `X-Forwarded-For`
+entry. Render's documentation does not describe its headers, so the source in use is logged once
+per process, without the address, to be confirmed on the deployed service. Only a hash of the
+address is stored, in `runs.visitor`.
+
+**Consequence:** visitors behind one address, such as one office, share its six runs an hour. Live
+analysis for a recording needs the token in the URL.

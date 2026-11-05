@@ -21,11 +21,12 @@ function sleep(ms: number) {
  */
 export function ProofComparison({
   initial,
-  fresh,
+  freshToken,
   code,
 }: {
   initial: Record<Mode, RunReport | null>;
-  fresh: boolean;
+  /** The operator's token for live analysis, already checked by the server; null otherwise. */
+  freshToken: string | null;
   code: StoreCode;
 }) {
   const [runIds, setRunIds] = useState<Record<Mode, string | null>>({
@@ -50,7 +51,7 @@ export function ProofComparison({
   }, []);
 
   async function start(mode: Mode): Promise<string | null> {
-    const response = await fetch(`/api/runs${fresh ? "?fresh=1" : ""}`, {
+    const response = await fetch(`/api/runs${freshToken ? `?fresh=${encodeURIComponent(freshToken)}` : ""}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode }),
@@ -103,7 +104,7 @@ export function ProofComparison({
           <p className="text-sm text-muted">
             Runs the naive store, then the hardened one: one run at a time, about a minute each.
           </p>
-          {fresh && (
+          {freshToken && (
             <p className="text-sm text-muted">
               Fresh analysis is on: Claude analyses every failure again instead of reusing an earlier analysis.
             </p>

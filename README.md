@@ -166,7 +166,8 @@ against the live sandbox; the full report is in [docs/ai-fixes-report.md](docs/a
   committed files, in a process with no secrets, and in CI with no network.
 - **Per-scenario secret tokens.** Each scenario gets a random 256-bit key that routes the store
   through the proxy. Run ids are public; keys are never returned by the API.
-- **Rate limits.** One run at a time, and at most 20 runs per hour.
+- **Rate limits.** One live run at a time, six runs per visitor per hour and sixty for everyone together,
+  so one visitor cannot use up the demo. New Claude analyses are capped per day; cached ones are free.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 

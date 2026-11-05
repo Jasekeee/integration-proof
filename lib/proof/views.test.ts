@@ -32,6 +32,7 @@ describe("runView", () => {
       startedAt: now,
       finishedAt: now,
       lastHeartbeatAt: now,
+      visitor: null,
     };
     const scenario = {
       runId: run.id,

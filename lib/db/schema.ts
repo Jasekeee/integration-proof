@@ -82,7 +82,9 @@ export const runs = pgTable("runs", {
    * whose lease has lapsed lost its process, for example in a restart (lib/proof/lease.ts).
    */
   lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
-});
+  /** Who started the run, as a hash of their address, for the per-visitor limit (lib/proof/limits.ts). */
+  visitor: text("visitor"),
+}, (table) => [index("runs_visitor_created_at_idx").on(table.visitor, table.createdAt)]);
 
 /** One scenario of a run, with its own cart and its own key to the fault-injection proxy. */
 export const runScenarios = pgTable(

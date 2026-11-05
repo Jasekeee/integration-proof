@@ -26,6 +26,18 @@ describe("clientAddress", () => {
   it("falls back to one shared key when no address is known", () => {
     expect(clientAddress(new Headers())).toBe("unknown");
   });
+
+  it("logs each source once, with the number of X-Forwarded-For entries and never the address", async () => {
+    vi.resetModules();
+    const { clientAddress: fresh } = await import("./limits");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    fresh(new Headers({ "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "203.0.113.7, 172.70.1.1" }));
+    fresh(new Headers({ "cf-connecting-ip": "198.51.100.4" }));
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith("Rate limits read the visitor's address from: cf-connecting-ip (x-forwarded-for entries: 2)");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("203.0.113.7");
+    log.mockRestore();
+  });
 });
 
 describe("visitorKey", () => {

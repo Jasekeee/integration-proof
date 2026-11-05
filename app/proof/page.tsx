@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { ProofComparison } from "../_components/proof-comparison";
 import type { RunReport } from "../_components/report";
+import { freshAllowed } from "@/lib/proof/limits";
 import { latestRunIds, readReport } from "@/lib/proof/report";
 import { readStoreCode } from "@/lib/store/snippets";
 
@@ -18,7 +19,9 @@ async function loadReport(runId: string | null): Promise<RunReport | null> {
 }
 
 export default async function ProofPage({ searchParams }: PageProps<"/proof">) {
-  const fresh = (await searchParams).fresh === "1";
+  // Only the operator's token turns live analysis on; any other value leaves the page as it is.
+  const given = (await searchParams).fresh;
+  const freshToken = typeof given === "string" && freshAllowed(given) ? given : null;
   const code = await readStoreCode();
   let initial: Record<"naive" | "hardened", RunReport | null> = { naive: null, hardened: null };
   let loadError = false;
@@ -45,7 +48,7 @@ export default async function ProofPage({ searchParams }: PageProps<"/proof">) {
           The latest results could not be loaded. Running the proof still works; reload the page to try again.
         </p>
       )}
-      <ProofComparison initial={initial} fresh={fresh} code={code} />
+      <ProofComparison initial={initial} freshToken={freshToken} code={code} />
     </div>
   );
 }

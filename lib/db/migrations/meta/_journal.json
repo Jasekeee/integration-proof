@@ -50,6 +50,13 @@
       "when": 1793866977262,
       "tag": "0006_run_heartbeat",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793873754569,
+      "tag": "0007_run_visitor",
+      "breakpoints": true
     }
   ]
 }

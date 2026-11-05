@@ -62,7 +62,8 @@ flowchart TB
 ## A run, step by step
 
 1. `POST /api/runs` creates the run and one row per scenario, each with its own cart and a random
-   256-bit run key. One run may be active at a time, and at most 20 runs start per hour.
+   256-bit run key. One run may be live at a time; a visitor may start six runs an hour and all
+   visitors together sixty (lib/proof/limits.ts).
 2. The runner starts all scenarios at once. Scenarios share nothing but the database.
 3. As the buyer, the runner asks the store to create an order and passes the scenario's run key.
    The store then sends that order's PayPal calls to `/api/proxy/{runId}/{runKey}`, with the run's

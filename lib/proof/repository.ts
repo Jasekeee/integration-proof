@@ -12,12 +12,11 @@ import {
   type StoreMode,
   type TraceStepRow,
 } from "../db/schema";
+import { runsPerHour, runsPerVisitorPerHour } from "./limits";
 import { INTERRUPTED_HEADLINE, INTERRUPTED_REASON, LEASE_MS, OVERDUE_REASON, RUN_LIMIT_MS } from "./lease";
 import type { ScenarioId } from "./scenarios";
 import type { Actor } from "./types";
 
-/** Rule 7: one run at a time, and a bounded number per hour. */
-export const MAX_RUNS_PER_HOUR = 20;
 /** Any constant works; it only has to be the same for every caller. */
 const RUN_LOCK_KEY = 7_302_611;
 
@@ -27,7 +26,8 @@ const ACTIVE_SCENARIO = ["RUNNING", "WAITING_FOR_WEBHOOK"] as const;
 export type CreateRunResult =
   | { kind: "created"; run: RunRow; scenarios: RunScenarioRow[] }
   | { kind: "busy"; runId: string }
-  | { kind: "rate_limited"; retryAfterSeconds: number };
+  /** visitor: this visitor's hourly runs are used up; everyone: all visitors' together are. */
+  | { kind: "rate_limited"; scope: "visitor" | "everyone"; limit: number; retryAfterSeconds: number };
 
 export interface RunConfig {
   storeTimeoutMs: number;
@@ -123,11 +123,22 @@ export async function renewLease(runId: string): Promise<boolean> {
   return renewed.length > 0;
 }
 
-/** Creates a run and one row per scenario, each with its own cart, unless the limits say no. */
+/** When the oldest of `limit` runs in the last hour turns an hour old, in seconds from now. */
+function retryAfter(createdAt: Date[], limit: number, now: number): number {
+  const freesAt = createdAt[createdAt.length - limit].getTime() + 60 * 60_000;
+  return Math.max(1, Math.ceil((freesAt - now) / 1000));
+}
+
+/**
+ * Creates a run and one row per scenario, each with its own cart, unless the limits say no
+ * (rule 7): one live run at a time, a number of runs per visitor and hour, and a higher number for
+ * everyone together. `visitor` is a hash of the visitor's address, or null for scripts and tests.
+ */
 export async function createRun(
   mode: StoreMode,
   scenarioIds: readonly ScenarioId[],
   config: RunConfig,
+  visitor: string | null = null,
 ): Promise<CreateRunResult> {
   return getDb().transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(${RUN_LOCK_KEY})`);
@@ -138,18 +149,30 @@ export async function createRun(
     const [active] = await tx.select({ id: runs.id }).from(runs).where(inArray(runs.status, ACTIVE_RUN)).limit(1);
     if (active) return { kind: "busy", runId: active.id };
 
-    const hourAgo = new Date(Date.now() - 60 * 60_000);
+    const now = Date.now();
+    const hourAgo = new Date(now - 60 * 60_000);
+    if (visitor) {
+      const mine = await tx
+        .select({ createdAt: runs.createdAt })
+        .from(runs)
+        .where(and(eq(runs.visitor, visitor), gt(runs.createdAt, hourAgo)))
+        .orderBy(asc(runs.createdAt));
+      const limit = runsPerVisitorPerHour();
+      if (mine.length >= limit) {
+        return { kind: "rate_limited", scope: "visitor", limit, retryAfterSeconds: retryAfter(mine.map((row) => row.createdAt), limit, now) };
+      }
+    }
     const recent = await tx
       .select({ createdAt: runs.createdAt })
       .from(runs)
       .where(gt(runs.createdAt, hourAgo))
       .orderBy(asc(runs.createdAt));
-    if (recent.length >= MAX_RUNS_PER_HOUR) {
-      const freesAt = recent[recent.length - MAX_RUNS_PER_HOUR].createdAt.getTime() + 60 * 60_000;
-      return { kind: "rate_limited", retryAfterSeconds: Math.max(1, Math.ceil((freesAt - Date.now()) / 1000)) };
+    const limit = runsPerHour();
+    if (recent.length >= limit) {
+      return { kind: "rate_limited", scope: "everyone", limit, retryAfterSeconds: retryAfter(recent.map((row) => row.createdAt), limit, now) };
     }
 
-    const [run] = await tx.insert(runs).values({ mode, scenarioIds: [...scenarioIds], ...config }).returning();
+    const [run] = await tx.insert(runs).values({ mode, scenarioIds: [...scenarioIds], ...config, visitor }).returning();
     const scenarios = await tx
       .insert(runScenarios)
       .values(

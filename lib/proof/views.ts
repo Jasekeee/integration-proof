@@ -80,7 +80,6 @@ export function runView(run: RunRow, stored: RunScenarioRow[], analyses: Analysi
       storeTimeoutMs: run.storeTimeoutMs,
       proxyHoldMs: run.proxyHoldMs,
       webhookDeadlineMs: WEBHOOK_WAIT_MS,
-      freshAnalysis: run.freshAnalysis,
     },
     createdAt: run.createdAt,
     startedAt: run.startedAt,

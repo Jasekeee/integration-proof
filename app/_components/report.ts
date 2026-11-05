@@ -77,7 +77,7 @@ export interface RunReport {
   summary: { total: number; passed: number; failed: number; inconclusive: number; errors: number };
   /** What the run's failures cost, counted and worded by the server: "1 cart charged twice". */
   consequences: string[];
-  config: { storeTimeoutMs: number; proxyHoldMs: number; webhookDeadlineMs: number; freshAnalysis: boolean };
+  config: { storeTimeoutMs: number; proxyHoldMs: number; webhookDeadlineMs: number };
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;

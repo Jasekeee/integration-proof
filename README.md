@@ -49,7 +49,7 @@ flowchart TB
    through a fault-injection proxy, which declines a capture, fails it with a 500, or lets PayPal
    capture and holds the answer past the store's timeout. The runner also replays and forges real
    webhook deliveries.
-2. **Decide it with code.** Each scenario ends with a deterministic assertion that compares what the
+2. **Code decides the verdict.** Each scenario ends with a deterministic assertion that compares what the
    store believes with PayPal's own record of every order created for the buyer's cart. The model
    never decides a verdict.
 3. **Explain and fix with Claude.** For each failure, Claude reads the trace and the store's code,

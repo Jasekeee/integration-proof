@@ -52,7 +52,7 @@ import {
 const STORE_TIMEOUT_MS = 90_000;
 const PAYPAL_TIMEOUT_MS = 30_000;
 /** docs/decisions.md, "INCONCLUSIVE when PayPal does not deliver in time". */
-export const WEBHOOK_DEADLINE_MS = 150_000;
+export const WEBHOOK_WAIT_MS = 150_000;
 const WEBHOOK_POLL_MS = 3_000;
 const CAPTURE_COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
 const CAPTURE_REFUNDED = "PAYMENT.CAPTURE.REFUNDED";
@@ -116,7 +116,7 @@ async function runScenario(run: RunRow, row: RunScenarioRow, analyses: Promise<v
       await updateScenario(ctx.runId, ctx.scenarioId, {
         status: "COMPLETED",
         verdict: "INCONCLUSIVE",
-        reason: inconclusiveReason(settled.missing, WEBHOOK_DEADLINE_MS),
+        reason: inconclusiveReason(settled.missing, WEBHOOK_WAIT_MS),
         headline: INCONCLUSIVE_HEADLINE,
         finishedAt: new Date(),
       });
@@ -269,7 +269,7 @@ async function waitForWebhooks(
 
   await updateScenario(ctx.runId, ctx.scenarioId, { status: "WAITING_FOR_WEBHOOK", waitingSince: new Date() });
   const span = await openStep(ctx);
-  const deadline = Date.now() + WEBHOOK_DEADLINE_MS;
+  const deadline = Date.now() + WEBHOOK_WAIT_MS;
   let state: StoreState | null = null;
   let pending = expected;
   while (pending.length > 0 && Date.now() < deadline) {
@@ -286,7 +286,7 @@ async function waitForWebhooks(
     const delivery = state ? acknowledgement(state, event) : undefined;
     return delivery
       ? `${event.eventType} for order ${event.paypalOrderId} acknowledged: verification ${delivery.verification}, outcome ${delivery.outcome}.`
-      : `No acknowledged ${event.eventType} for order ${event.paypalOrderId} within ${WEBHOOK_DEADLINE_MS / 1000} s.`;
+      : `No acknowledged ${event.eventType} for order ${event.paypalOrderId} within ${WEBHOOK_WAIT_MS / 1000} s.`;
   });
   await closeStep(ctx, span, {
     actor: "runner",

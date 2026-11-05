@@ -74,6 +74,17 @@ export default function LandingPage() {
             View the source
           </a>
         </div>
+        <p className="text-sm text-muted">
+          Try the checkout yourself: pay through a real PayPal Checkout in the{" "}
+          <Link href="/store/naive" className="text-foreground underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring">
+            naive store
+          </Link>{" "}
+          or the{" "}
+          <Link href="/store/hardened" className="text-foreground underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring">
+            hardened store
+          </Link>
+          , and watch PayPal&apos;s webhook arrive.
+        </p>
       </section>
 
       <section className="flex flex-col gap-6" aria-labelledby="story">

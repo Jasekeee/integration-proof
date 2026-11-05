@@ -1,29 +1,31 @@
 {
-  "source": "https://integration-proof.onrender.com/proof/42001f64-55e7-4e73-91d8-96483c081d8d",
-  "runId": "42001f64-55e7-4e73-91d8-96483c081d8d",
-  "runFinishedAt": "2026-11-04T19:29:11.854Z",
+  "source": "https://integration-proof.onrender.com/proof/e28c50a6-a50a-4004-bcd3-05a9fb4c7718",
+  "runId": "e28c50a6-a50a-4004-bcd3-05a9fb4c7718",
+  "runFinishedAt": "2026-11-05T07:41:34.896Z",
   "target": "lib/store/naive.ts",
   "targetSha256": "72959de3d0c007e81e79ef63f7534b52f789055b083f20179f736c95455e6680",
+  "codeHash": "dfcfbc10ad8a2105e6519d252a4f6ca5e5d1c8bdb2355bc48c5e49299714611a",
+  "analysisFormat": 2,
   "scenarios": {
     "S2": {
       "patch": "S2.patch",
       "headline": "Sale lost on a transient error",
       "model": "claude-sonnet-5-5",
-      "analyzedAt": "2026-11-04T19:28:54.715Z",
+      "analyzedAt": "2026-11-05T07:41:32.797Z",
       "confidence": "high",
       "patchStatus": "applies",
-      "patchNote": "Claude's edits match lib/store/naive.ts exactly.",
+      "patchNote": "Claude's edits match lib/store/naive.ts exactly. Self-corrected after 1 check.",
       "selfCheck": {
-        "checks": 0,
+        "checks": 1,
         "matched": true
       },
-      "fixSummary": "Send one PayPal-Request-Id with the capture and retry a transient (5xx) outcome a few times with backoff, reusing the same request id so a retry can never capture twice."
+      "fixSummary": "Send the capture with a stable PayPal-Request-Id and retry a transient 5xx with backoff, reusing the same id so PayPal cannot capture twice. Only a final failure is recorded as FAILED."
     },
     "S3": {
       "patch": "S3.patch",
       "headline": "Buyer charged twice",
       "model": "claude-sonnet-5-5",
-      "analyzedAt": "2026-11-04T19:29:27.975Z",
+      "analyzedAt": "2026-11-05T07:41:49.149Z",
       "confidence": "high",
       "patchStatus": "applies",
       "patchNote": "Claude's edits match lib/store/naive.ts exactly.",
@@ -31,13 +33,13 @@
         "checks": 0,
         "matched": true
       },
-      "fixSummary": "When the capture call gives no usable answer, ask PayPal with GET order and take the result from reconciliationFrom instead of assuming failure. Only report FAILED if PayPal shows no capture or cannot be reached."
+      "fixSummary": "When the capture outcome is unknown (timeout or no usable answer), ask PayPal for the order with getOrder and use reconciliationFrom to take the real status and capture id. Report FAILED only if PayPal also shows no capture."
     },
     "S4": {
       "patch": "S4.patch",
       "headline": "Order shipped twice",
       "model": "claude-sonnet-5-5",
-      "analyzedAt": "2026-11-04T19:29:07.105Z",
+      "analyzedAt": "2026-11-05T07:41:45.037Z",
       "confidence": "high",
       "patchStatus": "applies",
       "patchNote": "Claude's edits match lib/store/naive.ts exactly.",
@@ -45,13 +47,13 @@
         "checks": 0,
         "matched": true
       },
-      "fixSummary": "Claim the event id and apply its effect in one step with applyEventOnce, and return outcome duplicate without fulfilling when the event was already processed."
+      "fixSummary": "Claim the event id and apply its effect atomically with applyEventOnce, and return outcome duplicate when the event was already processed. The primary key on event_id then stops a replay from fulfilling again, even under concurrent deliveries."
     },
     "S5": {
       "patch": "S5.patch",
       "headline": "Refunded order shown as paid",
       "model": "claude-sonnet-5-5",
-      "analyzedAt": "2026-11-04T19:29:22.075Z",
+      "analyzedAt": "2026-11-05T07:41:57.969Z",
       "confidence": "high",
       "patchStatus": "applies",
       "patchNote": "Claude's edits match lib/store/naive.ts exactly.",
@@ -59,13 +61,13 @@
         "checks": 0,
         "matched": true
       },
-      "fixSummary": "On each relevant event, read the order from PayPal with getOrder and derive the status from that response instead of from the event type. Apply it with applyEventOnce, so a replay of the same event id does nothing and fulfilment only happens when PayPal reports the capture as paid."
+      "fixSummary": "On each relevant event, fetch the order from PayPal and derive the status with statusFromPayPal. Apply it through applyEventOnce, which claims the event id so replays are ignored and fulfilment is recorded once. If PayPal cannot be reached, return 503 so PayPal redelivers the event."
     },
     "S6": {
       "patch": "S6.patch",
       "headline": "Forged refund accepted",
       "model": "claude-sonnet-5-5",
-      "analyzedAt": "2026-11-04T19:29:20.715Z",
+      "analyzedAt": "2026-11-05T07:41:44.147Z",
       "confidence": "high",
       "patchStatus": "applies",
       "patchNote": "Claude's edits match lib/store/naive.ts exactly.",
@@ -73,7 +75,7 @@
         "checks": 0,
         "matched": true
       },
-      "fixSummary": "Verify the delivery with verifyWebhookSignature, using the raw body, the transmission headers and PAYPAL_WEBHOOK_ID, before touching any state. Reject missing or failed verification with 4xx, answer 5xx when verification cannot be done so PayPal retries, and only then apply the event."
+      "fixSummary": "Verify the delivery with verifyWebhookSignature before touching the order. Reject missing headers or a failed check with a 400, and return a 503 when verification is unavailable so PayPal retries."
     }
   }
 }

@@ -731,3 +731,52 @@ about the code under test.
 page; its password is never stored in the repository. The client id is read at request time on the
 server, so a deploy needs no rebuild to change it. Webhooks reach only the deployed service, so a
 purchase made against a local server sees its webhook through the shared database.
+
+## The analyst's context is only what a fix can use
+
+**Decision:** the configuration in the analyst's context is the variables of `.env.example` that
+the store code reads: those whose names occur in a file of `lib/store` or `lib/paypal` that reads
+`process.env`, which also covers a zod schema parsed over `process.env`. Each comes with its comment
+from `.env.example` and no value. Today that is `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`,
+`PAYPAL_API_BASE` and `PAYPAL_WEBHOOK_ID`.
+
+**Why:** the context is part of the analysis cache key. When it held all of `.env.example`, adding
+`SANDBOX_BUYER_EMAIL` for the checkout page changed every key. The next naive run would then have
+written new analyses, with patches no committed fixture covers, and the page would have lost its
+"Fix verified" badges for a change no fix can use.
+
+**Consequence:** a variable read only by a page or a script leaves the context, and the cache, as
+they are; a test adds one to a copy of the checkout and expects the same context. A variable the
+store code starts to read changes the context, as it should.
+
+## Changing the store or the analyst's context: export and verify again
+
+**Decision:** `fixtures/ai-fixes/meta.json` records the code hash the fixes were written for: the
+store file under test, the declarations and configuration in the analyst's context, and the analysis
+format. The CI job `verify-ai-fixes` computes the same hash for the checkout, offline, and fails with
+"analyst context changed: re-run export and verify" when they differ.
+
+**Why:** the live page shows "Fix verified offline" only for a patch whose hash matches a verified
+fixture. A change to the code hash makes the next live run write new analyses and new patches. If
+nothing caught it, the badges would disappear after a deploy with no failing check.
+
+**Procedure,** after any change to `lib/store/naive.ts`, to the exported declarations of `lib/store`
+or `lib/paypal`, to a variable they read, or to the analysis format:
+
+1. `npm run analyst:context` when the declarations or the configuration changed, and commit the
+   result.
+2. Run a naive proof on that code: locally with `npm run dev` and `/proof?fresh=1`, or on the
+   deployed service after the merge.
+3. `npx tsx scripts/export-ai-fixes.ts`. It takes the newest naive run whose analysis keys match the
+   checkout, so analyses of other code are never exported.
+4. `npx tsx scripts/verify-ai-fixes.ts`, which writes `docs/ai-fixes-report.md` and
+   `public/ai-fixes.json`. Record what it finds, a fix that does not pass included.
+5. Commit the fixtures, the report and the JSON with the change, so CI and the deployed page agree.
+
+Running the proof locally before the merge keeps the badges on the deployed page: the deploy then
+reuses the analyses already in the shared database, whose patches are the verified ones, as long as
+its trace looks the same.
+
+**Result on 2026-11-05,** run `e28c50a6`, with the context narrowed as above: 5 of 5 fixes verified
+offline. S2's edits did not match the file on the first check and matched after the self-check
+round, the first time that round was needed in a live run; the other four matched at once.

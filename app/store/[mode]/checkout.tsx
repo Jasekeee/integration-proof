@@ -12,6 +12,7 @@ import {
 } from "@paypal/react-paypal-js/sdk-v6";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
+import { CodeScroller } from "../../_components/code-scroller";
 import type { Mode } from "../../_components/report";
 
 const POLL_MS = 3000;
@@ -289,8 +290,9 @@ function TransactionTrace({ mode, state }: { mode: Mode; state: StoreState }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">Trace</p>
-      <div className="overflow-x-auto rounded-md border border-border">
-        <table className="w-full min-w-[34rem] border-collapse font-mono text-xs">
+      {/* Scrolls sideways inside itself, with a shadow on the edge that hides columns, like a code block. */}
+      <CodeScroller label="Trace of this transaction" className="rounded-md border border-border">
+        <table className="w-full min-w-[30rem] border-collapse font-mono text-xs">
           <thead className="bg-surface-2 text-left text-muted">
             <tr>
               <th className="px-3 py-2 font-medium">#</th>
@@ -305,14 +307,14 @@ function TransactionTrace({ mode, state }: { mode: Mode; state: StoreState }) {
               <tr key={index} className="border-t border-border align-top">
                 <td className="px-3 py-2 text-muted">{index + 1}</td>
                 <td className="px-3 py-2">{row.actor}</td>
-                <td className="px-3 py-2 break-all">{row.call}</td>
+                <td className="min-w-[10rem] px-3 py-2 break-all">{row.call}</td>
                 <td className="px-3 py-2">{row.status}</td>
-                <td className="px-3 py-2 text-muted">{row.detail}</td>
+                <td className="min-w-[11rem] px-3 py-2 break-words text-muted">{row.detail}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </CodeScroller>
     </div>
   );
 }

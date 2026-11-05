@@ -26,6 +26,24 @@ import { applyPatch, createTwoFilesPatch, parsePatch } from "diff";
 import { z } from "zod";
 import type { BenchRun } from "../bench/harness";
 import { checkPatch } from "../lib/ai/patch";
+import { ANALYSIS_FORMAT } from "../lib/ai/signature";
+import { readStoreSources } from "../lib/ai/sources";
+
+/**
+ * Whether the fixtures were written for the store code and analyst context of this checkout. The
+ * analysis cache key hashes both, so when they differ, the next live run writes new analyses that
+ * no fixture covers and the page loses its verified badges. Offline: it only reads files.
+ */
+async function contextChange(meta: { codeHash?: string; analysisFormat?: number }): Promise<string | null> {
+  const { hash } = await readStoreSources("naive");
+  if (meta.codeHash === hash && meta.analysisFormat === ANALYSIS_FORMAT) return null;
+  return (
+    "analyst context changed: re-run export and verify. " +
+    `The fixtures were written for code hash ${meta.codeHash ?? "unknown"} and analysis format ` +
+    `${meta.analysisFormat ?? "unknown"}; this checkout has ${hash} and format ${ANALYSIS_FORMAT}. ` +
+    "Run a naive proof, then npx tsx scripts/export-ai-fixes.ts and npx tsx scripts/verify-ai-fixes.ts."
+  );
+}
 
 const run = promisify(execFile);
 
@@ -56,6 +74,8 @@ const MetaSchema = z.object({
   runFinishedAt: z.string().nullable(),
   target: z.literal(TARGET),
   targetSha256: z.string(),
+  codeHash: z.string().optional(),
+  analysisFormat: z.number().optional(),
   scenarios: z.record(
     z.string(),
     z.object({
@@ -188,6 +208,11 @@ function sideEffects(before: BenchRun, after: BenchRun, target: string): string[
 
 async function verify(): Promise<{ report: string; json: string; problems: string[] }> {
   const meta = MetaSchema.parse(JSON.parse(readFileSync(path.join(REPO, FIXTURES, "meta.json"), "utf8")));
+  const changed = await contextChange(meta);
+  if (changed) {
+    console.error(changed);
+    process.exit(1);
+  }
   const source = readFileSync(path.join(REPO, TARGET), "utf8");
   const work = mkdtempSync(path.join(tmpdir(), "verify-ai-fixes-"));
   const problems: string[] = [];

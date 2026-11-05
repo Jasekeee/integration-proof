@@ -1,7 +1,7 @@
 {
   "method": "Offline bench: the real runner and assertions on a deterministic PayPal model built from sandbox observations.",
   "report": "https://github.com/Jasekeee/integration-proof/blob/main/docs/ai-fixes-report.md",
-  "runId": "42001f64-55e7-4e73-91d8-96483c081d8d",
+  "runId": "e28c50a6-a50a-4004-bcd3-05a9fb4c7718",
   "controls": {
     "naive": "1/6",
     "hardened": "6/6",
@@ -11,8 +11,8 @@
   "total": 5,
   "scenarios": {
     "S2": {
-      "patchSha256": "7105453ad572800bce74c3a8a7ddd4b696f366de2fc3d3b146f90e99f3148290",
-      "edits": "matched on the first check",
+      "patchSha256": "e268616da4696d5a0fa12e9a11e6154f2fd29e4472ab62b8703dce1c1612aad8",
+      "edits": "matched after 1 self-check",
       "verified": true,
       "applies": true,
       "typechecks": true,
@@ -22,7 +22,7 @@
       "confidence": "high"
     },
     "S3": {
-      "patchSha256": "46259aacc82390ee0373dc6b7090a25e8b378551b4108358728a591592a4e012",
+      "patchSha256": "3fb6f9b27a65b6e9507208239931d979444f1cda17ab60d1a6257bf20ae504db",
       "edits": "matched on the first check",
       "verified": true,
       "applies": true,
@@ -33,7 +33,7 @@
       "confidence": "high"
     },
     "S4": {
-      "patchSha256": "787d558283fea3124811e37148b1cf084bcc50e532121c7f79be9b3a1ed1b3d8",
+      "patchSha256": "1ed20d498a70d76c2f802eab377d38836dd2cb6617d8c4b3d674d4d2e0c2f6d6",
       "edits": "matched on the first check",
       "verified": true,
       "applies": true,
@@ -46,7 +46,7 @@
       "confidence": "high"
     },
     "S5": {
-      "patchSha256": "79bd2e6dcca0fe35425b7402abab8a7f2001a7ee343fbfc9dcd955f637602124",
+      "patchSha256": "417fd100de693833a9a8001f9c5592bd74d8dc118c032192a9c8354627638f66",
       "edits": "matched on the first check",
       "verified": true,
       "applies": true,
@@ -59,7 +59,7 @@
       "confidence": "high"
     },
     "S6": {
-      "patchSha256": "e46512ded9fd5093795c1f8348a3f2be9440e4db8e843caf63d53b3c351d5e0e",
+      "patchSha256": "fb19c1f3bdeda58f55be989595b6db9f2ba156c1093f68f6e9075527dba4f0cf",
       "edits": "matched on the first check",
       "verified": true,
       "applies": true,

@@ -38,6 +38,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:reset": "tsx scripts/db-reset.ts",
+    "db:clean-manual": "tsx scripts/db-clean-manual-orders.ts",
     "analyst:context": "tsx scripts/analyst-context.ts"
   },
   "dependencies": {

@@ -28,23 +28,21 @@ sandbox, and shows what the store did.
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
+  page["Proof page"] -->|"Run both"| runner
   subgraph app["Integration Proof · Next.js"]
-    page["Proof page"] -->|"start a run"| runner["Runner<br/>headless buyer"]
-    runner -->|"create order, capture"| stores["Reference stores<br/>naive · hardened"]
+    runner["Runner<br/>plays the buyer"] -->|"create order, capture"| stores["Reference stores<br/>naive · hardened"]
     stores -->|"Orders v2 calls"| proxy["Fault-injection proxy"]
-    router["Webhook router"] -->|"dispatch by order mode"| stores
-    runner --> assertions["Deterministic assertions<br/>PASS · FAIL · INCONCLUSIVE"]
+    router["Webhook router"] -->|"by order mode"| stores
+    runner -->|"facts from PayPal and the store"| assertions["Deterministic assertions<br/>PASS · FAIL · INCONCLUSIVE"]
     assertions -->|"FAIL or INCONCLUSIVE"| analyst["Claude analyst"]
   end
-  proxy -->|"declined, 500, or answer held"| paypal[("PayPal sandbox")]
+  proxy -->|"decline, 500, or answer held"| paypal[("PayPal sandbox")]
   runner -->|"confirm card, refund, GET order"| paypal
   paypal -->|"webhooks"| router
   analyst -->|"Messages API"| claude["Claude"]
-  runner --- db[("Postgres<br/>orders, deliveries, traces, analyses")]
-  router --- db
-  analyst --- db
-  analyst -.->|"fixes, committed"| bench["Offline fix verification<br/>PayPal model + in-memory Postgres, in CI"]
+  app --- db[("Postgres<br/>orders, deliveries, traces, analyses")]
+  analyst -.->|"fixes, committed"| bench["Offline fix verification in CI<br/>PayPal model + in-memory Postgres"]
 ```
 
 1. **Inject a failure.** The runner plays the buyer. The store under test sends its PayPal calls

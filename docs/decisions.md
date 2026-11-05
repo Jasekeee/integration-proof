@@ -834,7 +834,8 @@ appends to an existing `X-Forwarded-For` rather than replacing it, so entries on
 written by the client ([Cloudflare HTTP headers](https://developers.cloudflare.com/fundamentals/reference/http-headers/)).
 The limit therefore reads `CF-Connecting-IP`, and without it only the rightmost `X-Forwarded-For`
 entry. Render's documentation does not describe its headers, so the source in use is logged once
-per process, without the address, to be confirmed on the deployed service. Only a hash of the
+per process, without the address but with the number of `X-Forwarded-For` entries. `/api/health`
+logs it too, so the monitor's pings put the line in the logs soon after every deploy, before any run. Only a hash of the
 address is stored, in `runs.visitor`.
 
 **Consequence:** visitors behind one address, such as one office, share its six runs an hour. Live

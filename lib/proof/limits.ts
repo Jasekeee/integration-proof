@@ -31,17 +31,22 @@ const loggedSources = new Set<string>();
  * client and are never trusted. The source used is logged once per process, without the address.
  */
 export function clientAddress(headers: Headers): string {
+  const forwarded = headers.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean) ?? [];
   const cloudflare = headers.get("cf-connecting-ip")?.trim();
-  if (cloudflare) return logSource("cf-connecting-ip", cloudflare);
-  const forwarded = headers.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean);
-  if (forwarded && forwarded.length > 0) return logSource("x-forwarded-for, rightmost entry", forwarded[forwarded.length - 1]);
-  return logSource("none", "unknown");
+  if (cloudflare) return logSource("cf-connecting-ip", forwarded.length, cloudflare);
+  if (forwarded.length > 0) return logSource("x-forwarded-for, rightmost entry", forwarded.length, forwarded[forwarded.length - 1]);
+  return logSource("none", 0, "unknown");
 }
 
-function logSource(source: string, address: string): string {
+/**
+ * Logs, once per process and source, where the address came from and how many proxies
+ * X-Forwarded-For lists, never the address. /api/health calls it too, so the line appears soon
+ * after every deploy without a proof run.
+ */
+function logSource(source: string, forwardedEntries: number, address: string): string {
   if (!loggedSources.has(source)) {
     loggedSources.add(source);
-    console.log(`Rate limits read the visitor's address from: ${source}`);
+    console.log(`Rate limits read the visitor's address from: ${source} (x-forwarded-for entries: ${forwardedEntries})`);
   }
   return address;
 }

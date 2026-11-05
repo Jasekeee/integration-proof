@@ -2,6 +2,29 @@
   "name": "integration-proof",
   "version": "0.1.0",
   "private": true,
+  "description": "Prove your PayPal integration survives a bad day: controlled failures in the PayPal sandbox, deterministic verdicts, and Claude's root cause and verified fix for each failure.",
+  "license": "MIT",
+  "homepage": "https://integration-proof.onrender.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jasekeee/integration-proof.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Jasekeee/integration-proof/issues"
+  },
+  "keywords": [
+    "paypal",
+    "payments",
+    "checkout",
+    "webhooks",
+    "idempotency",
+    "fault-injection",
+    "testing",
+    "nextjs",
+    "typescript",
+    "claude",
+    "anthropic"
+  ],
   "engines": {
     "node": "24.x"
   },

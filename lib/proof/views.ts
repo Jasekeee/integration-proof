@@ -3,7 +3,7 @@ import { AnalysisSchema } from "../ai/analyst";
 import { fixCheck } from "../ai/fix-check";
 import type { AnalysisRow, RunRow, RunScenarioRow, ScenarioStatus, TraceStepRow, Verdict } from "../db/schema";
 import { consequences } from "./harms";
-import { WEBHOOK_DEADLINE_MS } from "./runner";
+import { WEBHOOK_WAIT_MS } from "./runner";
 import { SCENARIOS, ScenarioIdSchema } from "./scenarios";
 
 export const SCENARIO_STATUS_LABELS: Record<ScenarioStatus, string> = {
@@ -79,7 +79,7 @@ export function runView(run: RunRow, stored: RunScenarioRow[], analyses: Analysi
     config: {
       storeTimeoutMs: run.storeTimeoutMs,
       proxyHoldMs: run.proxyHoldMs,
-      webhookDeadlineMs: WEBHOOK_DEADLINE_MS,
+      webhookDeadlineMs: WEBHOOK_WAIT_MS,
       freshAnalysis: run.freshAnalysis,
     },
     createdAt: run.createdAt,

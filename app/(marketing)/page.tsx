@@ -18,7 +18,7 @@ const STEPS = [
       "or captures and holds the answer. The runner replays and forges real webhook deliveries.",
   },
   {
-    title: "Judge it with code",
+    title: "Code decides the verdict",
     body:
       "Every request, response and webhook goes into a trace. Deterministic assertions compare the store's state with " +
       "PayPal's own record of each order and decide PASS or FAIL. The model never decides a verdict.",

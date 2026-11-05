@@ -65,6 +65,7 @@ bench/                                                 offline bench: in-memory 
 fixtures/ai-fixes/                                     Claude's committed fixes for S2..S6 (scripts/export-ai-fixes.ts)
 public/ai-fixes.json, docs/ai-fixes-report.md          offline verification of those fixes (scripts/verify-ai-fixes.ts)
 scripts/                                               one-off tooling (e.g. sandbox capability checks)
+docs/architecture.md                                   components, a run step by step, data model
 docs/decisions.md                                      engineering decisions and their reasoning
 docs/sandbox-findings.md                               observed PayPal sandbox behavior
 ```

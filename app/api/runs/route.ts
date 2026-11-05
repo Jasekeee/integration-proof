@@ -2,7 +2,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { errorResponse, invalidRequest, jsonError } from "@/lib/http";
-import { createRun, listRuns } from "@/lib/proof/repository";
+import { createRun, listRuns, recoverInterruptedRunsLazily } from "@/lib/proof/repository";
 import { executeRun } from "@/lib/proof/runner";
 import { SCENARIO_IDS, ScenarioIdSchema } from "@/lib/proof/scenarios";
 import { runView } from "@/lib/proof/views";
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
+    await recoverInterruptedRunsLazily();
     const runs = await listRuns(20);
     return Response.json(
       {

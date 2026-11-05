@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "last_heartbeat_at" timestamp with time zone;

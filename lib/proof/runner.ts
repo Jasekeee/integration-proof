@@ -25,6 +25,7 @@ import { getAccessToken } from "../paypal/token";
 import { analyzeScenario } from "../ai/jobs";
 import { INCONCLUSIVE_HEADLINE, inconclusiveReason } from "./assertions";
 import { redact, traceBody } from "./redact";
+import { HEARTBEAT_MS } from "./lease";
 import { attemptNote, exhaustedMessage, withRetries } from "./retry";
 import {
   findAcknowledgedDelivery,
@@ -32,6 +33,7 @@ import {
   markRunStarted,
   nextSeq,
   readTrace,
+  renewLease,
   updateScenario,
   writeStep,
   type StepRecord,
@@ -68,8 +70,31 @@ interface ScenarioContext {
 /** A scenario that cannot reach a verdict, for example because PayPal could not be read. */
 class ScenarioAbort extends Error {}
 
+const ACTIVE_GLOBAL = "integrationProofActiveRuns";
+
+/**
+ * The runs this process is executing. Kept on globalThis because instrumentation.ts, which ends them
+ * on SIGTERM, is bundled apart from the routes that start them.
+ */
+export function activeRuns(): Set<string> {
+  const store = globalThis as typeof globalThis & { [ACTIVE_GLOBAL]?: Set<string> };
+  store[ACTIVE_GLOBAL] ??= new Set();
+  return store[ACTIVE_GLOBAL];
+}
+
+/** Renews the run's lease every HEARTBEAT_MS until stopped. A failed renewal is retried next beat. */
+export function startHeartbeat(runId: string, everyMs = HEARTBEAT_MS): () => void {
+  const timer = setInterval(() => {
+    renewLease(runId).catch((error: unknown) => console.error(`Could not renew the lease of run ${runId}`, error));
+  }, everyMs);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
 /** Runs every scenario of a queued run and records the outcome. Never throws. */
 export async function executeRun(runId: string): Promise<void> {
+  activeRuns().add(runId);
+  const stopHeartbeat = startHeartbeat(runId);
   try {
     const { run, scenarios } = await markRunStarted(runId);
     // Each scenario has its own cart, so they cannot interfere and the run lasts as long as the
@@ -77,11 +102,16 @@ export async function executeRun(runId: string): Promise<void> {
     const analyses: Promise<void>[] = [];
     await Promise.all(scenarios.map((row) => runScenario(run, row, analyses)));
     await markRunFinished(runId, null);
+    stopHeartbeat();
+    activeRuns().delete(runId);
     // The run is finished for its viewers; analyses carry on, and this keeps the process on them.
     await Promise.allSettled(analyses);
   } catch (error) {
     console.error(`Run ${runId} failed`, error);
     await markRunFinished(runId, describe(error)).catch((cause: unknown) => console.error(cause));
+  } finally {
+    stopHeartbeat();
+    activeRuns().delete(runId);
   }
 }
 

@@ -158,6 +158,17 @@ export function proposedEdits(edits: NonNullable<AnalysisResult["fix"]["edits"]>
     .join("\n");
 }
 
+/**
+ * The live label of a scenario waiting for PayPal's webhooks. The count never passes the limit: once
+ * the wait is over the runner records the result within seconds, and a run whose process died is
+ * ended by the server, so the card says what it is waiting for instead of counting on.
+ */
+export function waitLabel(waitedMs: number, limitMs: number): string {
+  const limit = Math.round(limitMs / 1000);
+  if (waitedMs >= limitMs) return `PayPal did not deliver within ${limit} s · recording the result`;
+  return `Waiting for PayPal webhook · ${Math.max(0, Math.floor(waitedMs / 1000))} s of ${limit} s`;
+}
+
 export const MODE_LABELS: Record<Mode, { name: string; blurb: string }> = {
   naive: { name: "Naive store", blurb: "The common integration mistakes, left in." },
   hardened: { name: "Hardened store", blurb: "The same store with each mistake fixed." },

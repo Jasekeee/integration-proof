@@ -31,6 +31,7 @@ describe("runView", () => {
       createdAt: now,
       startedAt: now,
       finishedAt: now,
+      lastHeartbeatAt: now,
     };
     const scenario = {
       runId: run.id,

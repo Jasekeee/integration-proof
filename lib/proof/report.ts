@@ -1,10 +1,12 @@
 // The full report of a run, as the report API returns it and the result pages render it.
 import { readAnalyses } from "../ai/repository";
 import type { StoreMode } from "../db/schema";
-import { listRuns, readRun, readTrace } from "./repository";
+import { listRuns, readRun, readTrace, recoverInterruptedRunsLazily } from "./repository";
 import { runView, stepView } from "./views";
 
 export async function readReport(runId: string) {
+  // A run whose process died reads as ended, never as running forever.
+  await recoverInterruptedRunsLazily();
   const found = await readRun(runId);
   if (!found) return null;
   const steps = await readTrace(runId);
@@ -23,6 +25,7 @@ export type Report = NonNullable<Awaited<ReturnType<typeof readReport>>>;
 
 /** The most recent run of each store, for the comparison page's first paint. */
 export async function latestRunIds(): Promise<Record<StoreMode, string | null>> {
+  await recoverInterruptedRunsLazily();
   const runs = await listRuns(20);
   return {
     naive: runs.find((run) => run.mode === "naive")?.id ?? null,

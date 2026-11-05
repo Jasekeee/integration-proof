@@ -33,6 +33,7 @@ app/
   api/runs/[runId]/route.ts                            poll status
   api/runs/[runId]/report/route.ts                     fetch report
   api/health/route.ts                                  liveness check and deployed commit, no DB call
+instrumentation.ts                                     on server start: end interrupted runs, handle SIGTERM
 lib/
   origin.ts                                            the app's own address inside its process (PORT)
   paypal/token.ts                                      OAuth token cache
@@ -49,6 +50,7 @@ lib/
   proof/harms.ts                                       what a failure cost, counted for a run's "This run:" line
   proof/runner.ts                                      runs a run's scenarios in parallel and writes the trace
   proof/retry.ts                                       retries of the runner's own PayPal calls, never the store's
+  proof/lease.ts, proof/lifecycle.ts                   the runner's lease; ending runs on startup, on reads and on SIGTERM
   proof/proxy.ts, proof/context.ts                     what the proxy forwards; which base URL a store uses
   proof/repository.ts, proof/views.ts                  runs, scenarios and trace steps in the DB; API JSON
   proof/redact.ts, proof/types.ts                      redaction before a body is traced; shared shapes

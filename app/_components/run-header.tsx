@@ -71,6 +71,13 @@ export function RunHeader({
         {!report && "Not run yet."}
         {report && active && `Running · ${elapsed} s`}
         {report && !active && report.status === "ERROR" && `The run stopped: ${report.error ?? "unknown error"}`}
+        {/* A run the server ended after its process died: finished, with why. */}
+        {report && report.status === "COMPLETED" && report.error && (
+          <>
+            <span className="text-warn">{report.error}</span>
+            <br />
+          </>
+        )}
         {report && report.status === "COMPLETED" && (
           <>
             {report.summary.failed} failed

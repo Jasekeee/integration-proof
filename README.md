@@ -192,6 +192,20 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 3. Click **Run both** to run the six failures again: the naive store, then the hardened one, about a
    minute each. The demo runs one proof at a time for everyone.
 
+## Try the checkout yourself
+
+[/store/naive](https://integration-proof.onrender.com/store/naive) and
+[/store/hardened](https://integration-proof.onrender.com/store/hardened) sell one item through a real
+PayPal Checkout, rendered with the PayPal JS SDK v6. The buttons call the store's own create and
+capture routes, the same code the proof runs. After payment the page shows the store's answer, then
+the order once PayPal's webhook has been applied (`PAID`, one fulfilment), as a short trace with a
+link to come back to.
+
+- **Pay with PayPal** as the sandbox buyer whose email the page shows. The login and password are
+  given in the project description; they are not in this repository.
+- **Pay with a card** without logging in, where PayPal shows that option, using PayPal's published
+  [sandbox test card](https://developer.paypal.com/tools/sandbox/card-testing/) shown on the page.
+
 ## Quick start
 
 You need Node.js 24, a PayPal sandbox REST app, a Postgres database (Neon works) and, for the

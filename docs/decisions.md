@@ -711,3 +711,23 @@ corrected.
 included. Every edit matched the store file on the first check, so this run did not need the
 self-check round; the tests cover the round with an ambiguous quote, with an indentation mismatch
 that is corrected, and with one that is not.
+
+## A person can pay through the reference stores
+
+**Decision:** `/store/naive` and `/store/hardened` render a real PayPal Checkout with the JS SDK v6
+(`@paypal/react-paypal-js`, `sdk-v6` entry, as in PayPal's Next.js guide): `PayPalProvider` with
+`environment="sandbox"`, `PayPalOneTimePaymentButton`, and `PayPalGuestPaymentButton` for paying by
+card without logging in. The buttons call the store's own routes, `POST /api/store/[mode]/orders`
+and `.../capture`, so a person's payment runs the same `createOrder` and `captureOrder` as the proof
+runner's headless buyer. After the capture the page reads `/api/store/[mode]/state` for the cart
+until the `PAYMENT.CAPTURE.COMPLETED` webhook has been applied, for at most 150 seconds, and shows
+the store's record as a short trace at a link of its own, `?cart=<cartId>`.
+
+**Why:** the proof shows what a store does under failure; paying by hand shows that the same code
+takes a real payment end to end, webhook included. A separate payment path would prove nothing
+about the code under test.
+
+**Consequence:** the sandbox buyer's email is configuration (`SANDBOX_BUYER_EMAIL`), shown on the
+page; its password is never stored in the repository. The client id is read at request time on the
+server, so a deploy needs no rebuild to change it. Webhooks reach only the deployed service, so a
+purchase made against a local server sees its webhook through the shared database.

@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
+    "@paypal/react-paypal-js": "10.6.0",
     "ag-grid-community": "^36.2.0",
     "ag-grid-react": "^36.2.0",
     "diff": "^9.0.0",

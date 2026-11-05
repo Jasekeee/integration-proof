@@ -8,23 +8,19 @@
  import {
    insertCreatedOrder,
    recordFulfilment,
-@@ -48,14 +49,28 @@
+@@ -48,14 +49,26 @@
      return result;
    },
  
 -  async handleWebhook({ order, event }) {
--    // Mistakes: no signature verification, no event-id dedupe, and each event's status is applied
--    // in the order deliveries arrive.
 +  async handleWebhook({ order, event, rawBody, transmission }) {
-+    // Signature is now verified. Remaining mistakes: no event-id dedupe, and each event's status
-+    // is applied in the order deliveries arrive.
+     // Mistakes: no signature verification, no event-id dedupe, and each event's status is applied
+     // in the order deliveries arrive.
 +    if (!transmission) return { httpStatus: 400, outcome: "rejected", verification: "MISSING_HEADERS" };
-+    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-+    if (!webhookId) return { httpStatus: 503, outcome: "verification_unavailable", verification: "UNAVAILABLE" };
 +    const check = await verifyWebhookSignature({
 +      transmission,
 +      rawBody,
-+      webhookId,
++      webhookId: process.env.PAYPAL_WEBHOOK_ID ?? "",
 +      token: await getAccessToken(),
 +    });
 +    if (check.status === "UNAVAILABLE") {

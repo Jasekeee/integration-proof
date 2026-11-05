@@ -21,7 +21,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
-import { analysisKey, traceSignature, type SignatureStep } from "../lib/ai/signature";
+import { ANALYSIS_FORMAT, analysisKey, traceSignature, type SignatureStep } from "../lib/ai/signature";
 import { readStoreSources } from "../lib/ai/sources";
 
 const SCENARIOS = ["S2", "S3", "S4", "S5", "S6"] as const;
@@ -238,6 +238,10 @@ async function main(): Promise<void> {
         target: TARGET,
         // The analyses were written for exactly this file: their cache keys match it.
         targetSha256: createHash("sha256").update(readFileSync(TARGET, "utf8")).digest("hex"),
+        // The store code and the analyst's context they were written for, and the analysis format.
+        // verify-ai-fixes compares both with the checkout, offline.
+        codeHash,
+        analysisFormat: ANALYSIS_FORMAT,
         scenarios: meta,
       },
       null,

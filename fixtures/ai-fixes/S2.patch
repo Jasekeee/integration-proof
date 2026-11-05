@@ -1,16 +1,15 @@
 --- a/lib/store/naive.ts
 +++ b/lib/store/naive.ts
-@@ -9,8 +9,10 @@
+@@ -9,7 +9,9 @@
    setOrderStatus,
  } from "./repository";
  import {
 +  backoffMs,
    classifyCapture,
-   PAYPAL_CALL_TIMEOUT_MS,
 +  sleep,
+   PAYPAL_CALL_TIMEOUT_MS,
    PRODUCT,
    statusFromEventType,
-   type CaptureResult,
 @@ -34,9 +36,16 @@
    async captureOrder(order, context) {
      // Mistakes: no PayPal-Request-Id, a 5xx is final, and a timeout is read as a failed payment
@@ -18,13 +17,13 @@
 -    const outcome = classifyCapture(
 -      await captureOrder(await paypal(context), { orderId: order.paypalOrderId }),
 -    );
-+    const requestId = randomUUID();
++    const requestId = order.captureRequestId ?? randomUUID();
 +    const attempt = async () =>
 +      classifyCapture(
 +        await captureOrder(await paypal(context), { orderId: order.paypalOrderId, requestId }),
 +      );
 +    let outcome = await attempt();
-+    for (let retry = 1; outcome.kind === "transient" && retry <= 3; retry++) {
++    for (let retry = 1; retry <= 3 && outcome.kind === "transient"; retry++) {
 +      await sleep(backoffMs(retry));
 +      outcome = await attempt();
 +    }

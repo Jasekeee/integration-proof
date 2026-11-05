@@ -16,7 +16,7 @@ committed patches; it never runs on the server.
 
 ## Source
 
-- Run: [42001f64-55e7-4e73-91d8-96483c081d8d](https://integration-proof.onrender.com/proof/42001f64-55e7-4e73-91d8-96483c081d8d), finished 2026-11-04T19:29:11.854Z
+- Run: [e28c50a6-a50a-4004-bcd3-05a9fb4c7718](https://integration-proof.onrender.com/proof/e28c50a6-a50a-4004-bcd3-05a9fb4c7718), finished 2026-11-05T07:41:34.896Z
 - Model: claude-sonnet-5-5
 - Patches: `fixtures/ai-fixes/`, against `lib/store/naive.ts`
 - `lib/store/naive.ts` is unchanged since the patches were written.
@@ -31,7 +31,7 @@ committed patches; it never runs on the server.
 
 | Scenario | Claude's edits | Patch applies | Types | Before | After | Other scenarios | Claude's confidence |
 |---|---|---|---|---|---|---|---|
-| S2 · Sale lost on a transient error | matched on the first check | yes | yes | FAIL | PASS ✓ | unchanged | high |
+| S2 · Sale lost on a transient error | matched after 1 self-check | yes | yes | FAIL | PASS ✓ | unchanged | high |
 | S3 · Buyer charged twice | matched on the first check | yes | yes | FAIL | PASS ✓ | unchanged | high |
 | S4 · Order shipped twice | matched on the first check | yes | yes | FAIL | PASS ✓ | S5 FAIL → PASS | high |
 | S5 · Refunded order shown as paid | matched on the first check | yes | yes | FAIL | PASS ✓ | S4 FAIL → PASS | high |

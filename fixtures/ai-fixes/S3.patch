@@ -16,18 +16,17 @@
    PAYPAL_CALL_TIMEOUT_MS,
    PRODUCT,
    statusFromEventType,
-@@ -42,7 +43,14 @@
+@@ -42,7 +43,13 @@
      let result: CaptureResult;
      if (outcome.kind === "settled") result = outcome.result;
      else if (outcome.kind === "declined") result = { status: "DECLINED", captureId: null };
 -    else result = { status: "FAILED", captureId: null };
 +    else if (outcome.kind === "unknown") {
-+      // No answer: PayPal may have captured. Ask before telling the buyer anything.
-+      const reconciled = reconciliationFrom(await getOrder(await paypal(context), order.paypalOrderId));
++      const state = reconciliationFrom(await getOrder(await paypal(context), order.paypalOrderId));
 +      result =
-+        reconciled === "not_captured" || reconciled === "unknown"
++        state === "unknown" || state === "not_captured"
 +          ? { status: "FAILED", captureId: null }
-+          : reconciled;
++          : state;
 +    } else result = { status: "FAILED", captureId: null };
  
      await saveCaptureResult(order.id, result);

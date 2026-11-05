@@ -143,7 +143,7 @@ an offline bench.
 
 | Scenario | Patch applies | Types | Before | After | Other scenarios |
 |---|---|---|---|---|---|
-| S2 · Sale lost on a transient error | yes | yes | FAIL | **PASS** | unchanged |
+| S2 · Sale lost on a transient error, edits self-corrected after 1 check | yes | yes | FAIL | **PASS** | unchanged |
 | S3 · Buyer charged twice | yes | yes | FAIL | **PASS** | unchanged |
 | S4 · Order shipped twice | yes | yes | FAIL | **PASS** | S5 FAIL → PASS |
 | S5 · Refunded order shown as paid | yes | yes | FAIL | **PASS** | S4 FAIL → PASS |
@@ -205,6 +205,10 @@ link to come back to.
   given in the project description; they are not in this repository.
 - **Pay with a card** without logging in, where PayPal shows that option, using PayPal's published
   [sandbox test card](https://developer.paypal.com/tools/sandbox/card-testing/) shown on the page.
+
+A checkout abandoned before approval leaves a `CREATED` order behind. `npm run db:clean-manual`
+lists the ones older than an hour, and `npm run db:clean-manual -- --yes` deletes them; proof runs
+are never touched.
 
 ## Quick start
 

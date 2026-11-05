@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useId, useState } from "react";
 import { AnalysisPanel } from "./analysis-panel";
 import { HandlingCode } from "./handling-code";
-import { FALLBACK_HEADLINES, SCENARIO_TITLES, seconds, verdictTone, type Mode, type ScenarioView, type StoreCode } from "./report";
+import { FALLBACK_HEADLINES, SCENARIO_TITLES, seconds, verdictTone, waitLabel, type Mode, type ScenarioView, type StoreCode } from "./report";
 import { VerdictBadge } from "./verdict-badge";
 
 /**
@@ -28,7 +28,7 @@ function liveHeadline(scenario: ScenarioView, now: number, deadlineMs: number): 
   const since = (iso: string | null) => (iso ? Math.max(0, Math.floor((now - Date.parse(iso)) / 1000)) : 0);
   if (scenario.status === "QUEUED") return "Queued";
   if (scenario.status === "WAITING_FOR_WEBHOOK") {
-    return `Waiting for PayPal webhook · ${since(scenario.waitingSince)} s of ${deadlineMs / 1000} s`;
+    return waitLabel(scenario.waitingSince ? now - Date.parse(scenario.waitingSince) : 0, deadlineMs);
   }
   if (scenario.status === "RUNNING") return `Running · ${since(scenario.startedAt)} s`;
   if (scenario.status === "ERROR") return "Could not run";

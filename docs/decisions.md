@@ -780,3 +780,30 @@ its trace looks the same.
 **Result on 2026-11-05,** run `e28c50a6`, with the context narrowed as above: 5 of 5 fixes verified
 offline. S2's edits did not match the file on the first check and matched after the self-check
 round, the first time that round was needed in a live run; the other four matched at once.
+
+## A run holds a lease, and a run without a process ends INCONCLUSIVE
+
+**Decision:** the runner renews a lease on its run every 5 seconds (`runs.last_heartbeat_at`). A run
+whose lease has not been renewed for 45 seconds lost its process; a run still beating after 10
+minutes is stuck. Either way it is ended: the run finishes with the reason, its unfinished scenarios
+end INCONCLUSIVE with "Run interrupted: the server restarted while waiting for PayPal. Run again."
+(or "Run stopped: it ran past its time limit. Run again."), and scenarios that had finished keep
+their verdicts. Recovery runs when the server starts (`instrumentation.ts`), on every read of a run,
+at most once every 5 seconds per process, and inside `createRun`. "One run at a time" is that lease:
+a run without a live process never blocks a new one. On SIGTERM the process ends its own runs at once.
+
+**Why:** on 2026-11-05 run `ae1a1618` started at 07:48:57 UTC, a minute after #21 was merged, on the
+instance that served traffic while Render built the new one. Its last trace step is from 07:49:13,
+while S3 to S6 waited for PayPal's webhooks. The instance was then replaced, the run lived only in
+its memory, and the database kept it RUNNING. The page counted "1788 s of 150 s", and the old
+ten-minute rule ended such a run only when someone started a new one, and then as an error.
+
+**Consequence:**
+
+- A process that comes back after its run was ended cannot undo it: scenario updates apply only
+  while the run is RUNNING, and finishing a run applies only while it is active.
+- The page's wait never counts past its limit; past it, the card says the result is being recorded
+  until the final status arrives.
+- During the first deploy with this change, the instance being replaced still runs the old code and
+  renews no lease. A run it executes then reads as interrupted once the new instance starts, as it
+  would have been when the old instance stopped.

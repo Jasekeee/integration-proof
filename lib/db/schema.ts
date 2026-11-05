@@ -77,6 +77,11 @@ export const runs = pgTable("runs", {
   createdAt: createdAt(),
   startedAt: timestamp("started_at", { withTimezone: true }),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
+  /**
+   * The runner's lease on the run, renewed every few seconds while the process executes it. A run
+   * whose lease has lapsed lost its process, for example in a restart (lib/proof/lease.ts).
+   */
+  lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
 });
 
 /** One scenario of a run, with its own cart and its own key to the fault-injection proxy. */

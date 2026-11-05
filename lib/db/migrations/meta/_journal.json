@@ -43,6 +43,13 @@
       "when": 1793806173767,
       "tag": "0005_scenario_harms",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793866977262,
+      "tag": "0006_run_heartbeat",
+      "breakpoints": true
     }
   ]
 }

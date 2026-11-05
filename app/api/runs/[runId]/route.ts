@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { errorResponse, jsonError } from "@/lib/http";
 import { readAnalyses } from "@/lib/ai/repository";
-import { readRun } from "@/lib/proof/repository";
+import { readRun, recoverInterruptedRunsLazily } from "@/lib/proof/repository";
 import { runView } from "@/lib/proof/views";
 
 export async function GET(_request: Request, context: RouteContext<"/api/runs/[runId]">) {
@@ -10,6 +10,7 @@ export async function GET(_request: Request, context: RouteContext<"/api/runs/[r
   if (!runId.success) return jsonError(404, "unknown_run", "No such run.");
 
   try {
+    await recoverInterruptedRunsLazily();
     const found = await readRun(runId.data);
     if (!found) return jsonError(404, "unknown_run", "No such run.");
     const analyses = await readAnalyses(found.scenarios.flatMap((row) => (row.analysisKey ? [row.analysisKey] : [])));

@@ -100,9 +100,15 @@ order row stores its `cartId`. All scenarios use the headless buyer above.
 | S1 | Capture declined | Proxy adds `PayPal-Mock-Response` `INSTRUMENT_DECLINED` to capture | Order not marked PAID; buyer sees a decline, not a crash; `chargesPerCart == 0` |
 | S2 | Transient 5xx on capture | Proxy adds `PayPal-Mock-Response` `INTERNAL_SERVER_ERROR` to the first capture attempt only | Order PAID with exactly one charge |
 | S3 | Lost response after successful capture | Proxy forwards the capture to PayPal, then holds the response past the store timeout | `chargesPerCart == 1` and order PAID |
-| S4 | Duplicate webhook | Same real `PAYMENT.CAPTURE.COMPLETED` delivered twice | Fulfilled once |
-| S5 | Out-of-order webhooks | Later-state event delivered first | Final state equals PayPal source of truth |
-| S6 | Forged webhook | Tampered body / invalid signature | Rejected with 4xx, state unchanged |
+| S4 | Duplicate webhook | After PayPal's real `PAYMENT.CAPTURE.COMPLETED` is applied, the runner replays the recorded delivery byte for byte with its transmission headers | Fulfilled once |
+| S5 | Out-of-order webhooks | The runner refunds the capture as the merchant right after it; once PayPal's deliveries are applied, it replays the earlier `PAYMENT.CAPTURE.COMPLETED`, which arrives after the refund | Final state equals PayPal source of truth |
+| S6 | Forged webhook | The runner resends the recorded `PAYMENT.CAPTURE.COMPLETED` with its original transmission headers and a body changed after signing: `event_type` `PAYMENT.CAPTURE.REFUNDED`, `resource.status` `REFUNDED` | Rejected with 4xx, state unchanged |
+
+The PASS column is `passWhen` in `lib/proof/scenarios/index.ts`, which the analyst reads; keep the
+two identical. S5 compares the store's status with the one PayPal's latest capture implies
+(`REFUNDED` after the refund). S4 to S6 need PayPal's real deliveries: when one has not reached the
+store within 150 seconds, the verdict is INCONCLUSIVE, not FAIL. Neither replay nor forgery uses the
+Webhooks Simulator (`docs/decisions.md`, "S4 and S5 replay real deliveries").
 
 **S2.** The naive store treats the 500 as final and marks the order FAILED: a lost sale from a buyer
 who was ready to pay. The hardened store retries with backoff and the same `PayPal-Request-Id`. The

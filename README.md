@@ -166,8 +166,10 @@ against the live sandbox; the full report is in [docs/ai-fixes-report.md](docs/a
   committed files, in a process with no secrets, and in CI with no network.
 - **Per-scenario secret tokens.** Each scenario gets a random 256-bit key that routes the store
   through the proxy. Run ids are public; keys are never returned by the API.
-- **Rate limits.** One live run at a time, six runs per visitor per hour and sixty for everyone together,
-  so one visitor cannot use up the demo. New Claude analyses are capped per day; cached ones are free.
+- **Rate limits.** One live run at a time and sixty runs an hour for the whole demo. Only the
+  operator's token makes Claude analyse a run anew, and new analyses are capped per day; cached ones
+  are free. The deployed service cannot yet tell visitors apart, so it has no separate limit per
+  visitor.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
@@ -252,6 +254,8 @@ npx tsx scripts/verify-ai-fixes.ts --check # Claude's committed fixes, verified 
 - **Proof in pull requests.** A GitHub Action that runs the proof against a preview deployment and
   comments the verdicts on the pull request.
 - **Fixes as pull requests.** Open a verified fix from Claude as a pull request against the store.
+- **Limits per visitor.** Find a source of the client address on the deployed service that tells
+  visitors apart, and turn the per-visitor run limit back on.
 
 ## License
 

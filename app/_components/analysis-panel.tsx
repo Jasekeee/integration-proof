@@ -2,7 +2,10 @@
 
 import { useId, useState } from "react";
 import { DiffView } from "./diff-view";
+import { FixMark } from "./fix-mark";
+import { Icon } from "./icon";
 import { proposedEdits, seconds, selfCheckLabel, type AnalysisView, type ScenarioView } from "./report";
+import { buttonSmall, buttonText, linkUtility } from "./ui";
 
 const PATCH_LABELS = { applies: "Patch applies to the store file", needs_review: "Patch needs review", none: null };
 
@@ -12,22 +15,21 @@ const PATCH_LABELS = { applies: "Patch applies to the store file", needs_review:
  */
 function FixBadge({ check }: { check: NonNullable<AnalysisView["fixCheck"]> }) {
   const checked = check.before !== null;
-  const style = check.verified ? "bg-pass-bg text-pass" : checked ? "bg-warn-bg text-warn" : "bg-surface-2 text-muted";
+  const style = checked ? "bg-warn-bg text-warn" : "bg-surface-2 text-muted";
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <p>
-        <span className={`inline-flex rounded-md px-2 py-1 font-mono text-xs font-semibold ${style}`}>
-          {check.verified ? `Fix verified offline: ${check.before} → ${check.after}` : "Fix not verified"}
-        </span>
+        {check.verified ? (
+          <FixMark before={check.before ?? "FAIL"} after={check.after ?? "PASS"} label="Fix verified offline" />
+        ) : (
+          <span className={`inline-flex h-6 items-center rounded-control px-2 font-mono text-xs font-semibold ${style}`}>Fix not verified</span>
+        )}
       </p>
-      <p className="text-xs leading-5 text-muted">
+      <p className="measure text-xs leading-5 text-muted">
         {check.verified
           ? "The patched store passed this scenario on a deterministic model of PayPal built from sandbox observations."
           : `Not verified: ${check.reason}. The offline check runs on a deterministic model of PayPal built from sandbox observations.`}{" "}
-        <a
-          href={check.report}
-          className="text-foreground underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring"
-        >
+        <a href={check.report} className={`rounded-sm ${linkUtility}`}>
           Report
         </a>
       </p>
@@ -47,7 +49,7 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
   const result = analysis?.status === "READY" ? analysis.result : null;
 
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-border bg-background p-3" aria-live="polite">
+    <section className="flex flex-col gap-3 rounded-control border border-border bg-background p-3 sm:p-4" aria-live="polite">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h4 className="text-sm font-semibold">{heading} — analyzed by Claude</h4>
         {result && analysis && (
@@ -74,14 +76,14 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
 
       {result && analysis && (
         <>
-          <p className="text-sm leading-6">{result.rootCause}</p>
+          <p className="measure text-sm leading-6 text-pretty">{result.rootCause}</p>
           {analysis.fixCheck && <FixBadge check={analysis.fixCheck} />}
           <button
             type="button"
             aria-expanded={open}
             aria-controls={detailsId}
             onClick={() => setOpen((value) => !value)}
-            className="-mx-2 min-h-10 self-start rounded-md px-2 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+            className={buttonText}
           >
             {open ? "Hide evidence and fix" : "Show evidence and fix"}
           </button>
@@ -90,7 +92,7 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
             <div id={detailsId} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">What it costs</h5>
-                <p className="text-sm leading-6">{result.businessImpact}</p>
+                <p className="measure text-sm leading-6 text-pretty">{result.businessImpact}</p>
               </div>
 
               <div className="flex flex-col gap-1">
@@ -101,12 +103,12 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
                       <button
                         type="button"
                         onClick={() => onStep(item.stepId)}
-                        className="min-h-10 shrink-0 self-start rounded-md border border-border-strong px-2 font-mono text-xs hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-ring"
+                        className={`${buttonSmall} shrink-0 self-start px-2 font-mono text-xs tabular-nums`}
                         aria-label={`Show step ${item.stepId} in the trace`}
                       >
                         #{item.stepId}
                       </button>
-                      <span className="pt-2">{item.observation}</span>
+                      <span className="measure pt-2">{item.observation}</span>
                     </li>
                   ))}
                 </ul>
@@ -114,7 +116,7 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
 
               <div className="flex flex-col gap-2">
                 <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">Fix</h5>
-                <p className="text-sm leading-6">{result.fix.summary}</p>
+                <p className="measure text-sm leading-6 text-pretty">{result.fix.summary}</p>
                 {(result.fix.patch || (result.fix.edits?.length ?? 0) > 0) && (
                   <>
                     <p className="font-mono text-xs text-muted">
@@ -133,9 +135,11 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
                           href={doc.url}
                           target="_blank"
                           rel="noreferrer noopener"
-                          className="underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring"
+                          className={`inline-flex items-center gap-1 rounded-sm ${linkUtility}`}
                         >
                           {doc.title}
+                          <Icon name="arrow-up-right" className="size-3.5 text-muted" />
+                          <span className="sr-only">(opens in a new tab)</span>
                         </a>
                       </li>
                     ))}
@@ -145,10 +149,10 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
 
               <div className="flex flex-col gap-1">
                 <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">Verify by</h5>
-                <p className="text-sm leading-6">{result.verifyBy}</p>
+                <p className="measure text-sm leading-6 text-pretty">{result.verifyBy}</p>
               </div>
 
-              <p className="font-mono text-xs text-muted">
+              <p className="font-mono text-xs tabular-nums text-muted">
                 {analysis.model} ·{" "}
                 {analysis.reused
                   ? "Same failure on the same code: cached analysis, no tokens spent"

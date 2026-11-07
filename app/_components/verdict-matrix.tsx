@@ -15,6 +15,7 @@ import {
   type RunReport,
   type ScenarioView,
 } from "./report";
+import { linkUtility } from "./ui";
 
 const MODES: Mode[] = ["naive", "hardened"];
 
@@ -74,20 +75,20 @@ function StoreHead({
   const total = report?.summary.total ?? 6;
   return (
     <div
-      className={`flex min-w-0 flex-col gap-0.5 p-3 sm:p-4 motion-safe:transition-opacity motion-safe:duration-200 ${previous ? "opacity-60" : ""}`}
+      className={`flex min-w-0 flex-col gap-1 p-3 transition-opacity duration-200 sm:p-4 ${previous ? "opacity-60" : ""}`}
     >
       <span className="font-semibold">{MODE_LABELS[mode].name}</span>
       {report && active ? (
-        <span className="py-1.5 font-mono text-sm font-semibold tabular-nums sm:text-base" suppressHydrationWarning>
+        <span className="flex min-h-10 items-center font-mono text-sm font-semibold tabular-nums sm:text-base" suppressHydrationWarning>
           {progressLabel(report, now)}
         </span>
       ) : (
-        <span className="font-mono text-3xl font-semibold leading-tight tracking-tight tabular-nums sm:text-4xl">
+        <span className="flex min-h-10 items-center font-mono text-3xl font-semibold leading-none tracking-tight tabular-nums sm:text-4xl">
           <span className={tone ? SCORE_COLORS[tone] : undefined}>{report ? report.summary.passed : "–"}</span>
           <span className="text-muted">/{total}</span>
         </span>
       )}
-      <span className="text-xs leading-5 text-muted" suppressHydrationWarning>
+      <span className="text-xs leading-5 tabular-nums text-muted" suppressHydrationWarning>
         {!report && "Not run yet"}
         {report && previous && <>Previous run · {runDate(report.createdAt, now)}</>}
         {report && !previous && (
@@ -99,10 +100,7 @@ function StoreHead({
             {!active && (
               <>
                 {" · "}
-                <Link
-                  href={`/proof/${report.id}`}
-                  className="text-foreground underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring"
-                >
+                <Link href={`/proof/${report.id}`} className={`rounded-sm ${linkUtility}`}>
                   share
                 </Link>
               </>
@@ -119,16 +117,16 @@ function Cell({ scenario, now, dimmed }: { scenario: ScenarioView | null; now: n
   const headline = cellHeadline(scenario, state);
   return (
     <span
-      className={`flex min-w-0 items-center gap-2.5 px-3 py-3 sm:px-4 motion-safe:transition-opacity motion-safe:duration-200 ${dimmed ? "opacity-60" : ""}`}
+      className={`flex min-w-0 items-center gap-3 px-3 py-3 transition-opacity duration-200 sm:px-4 ${dimmed ? "opacity-60" : ""}`}
     >
       <span
-        className={`shrink-0 rounded-[5px] px-[7px] py-[3px] font-mono text-[11px] font-semibold tabular-nums ${CHIP_STYLES[state]} transition-colors duration-200 motion-reduce:transition-none`}
+        className={`inline-flex h-6 shrink-0 items-center rounded-control px-2 font-mono text-label font-semibold tabular-nums ${CHIP_STYLES[state]} transition-colors duration-200`}
         suppressHydrationWarning
       >
         {chipLabel(scenario, state, now)}
       </span>
       {headline && (
-        <span className={`text-[13px] leading-snug max-md:hidden ${HEADLINE_STYLES[state] ?? "text-muted"}`}>{headline}</span>
+        <span className={`text-small max-md:hidden ${HEADLINE_STYLES[state] ?? "text-muted"}`}>{headline}</span>
       )}
     </span>
   );
@@ -164,9 +162,13 @@ export function VerdictMatrix({
   });
 
   return (
-    <section aria-label="Verdicts" className="overflow-hidden rounded-xl border border-border">
-      <div className="grid grid-cols-2 border-b border-border bg-surface md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] md:items-center">
-        <div className="p-4 font-mono text-xs text-muted max-md:hidden">Scenario</div>
+    <section aria-labelledby="verdicts" className="overflow-hidden rounded-panel border border-border">
+      {/* The section's heading for the outline; the column heads say the same thing on screen. */}
+      <h2 id="verdicts" className="sr-only">
+        Verdicts
+      </h2>
+      <div className="grid grid-cols-2 border-b border-border bg-surface md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] md:items-end">
+        <div className="p-4 text-xs leading-5 text-muted max-md:hidden">Scenario</div>
         {MODES.map((mode) => (
           <StoreHead key={mode} mode={mode} report={reports[mode]} now={now} previous={previous[mode]} />
         ))}
@@ -182,16 +184,14 @@ export function VerdictMatrix({
               <button
                 type="button"
                 onClick={() => onRow(id)}
-                className={`grid w-full grid-cols-2 items-center text-left hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] ${flag ? "bg-[linear-gradient(90deg,var(--brand-bg),transparent_60%)]" : ""}`}
+                className={`grid w-full grid-cols-2 items-center text-left transition-colors duration-150 hover:bg-surface focus-visible:-outline-offset-2 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] ${flag ? "bg-[linear-gradient(90deg,var(--flag-bg),transparent_60%)]" : ""}`}
               >
                 <span className="col-span-2 flex min-w-0 flex-wrap items-baseline gap-x-2 px-3 pt-3 sm:px-4 md:col-span-1 md:py-3">
-                  <span className="font-mono text-[11px] text-muted">{id}</span>
+                  <span className="font-mono text-label text-muted">{id}</span>
                   <span className="text-sm font-semibold">{SCENARIO_TITLES[id]}</span>
                   {open && (
-                    <span
-                      className="rounded border border-current px-1.5 font-mono text-[10px] leading-4 text-brand"
-                    >
-                      OPEN
+                    <span className="inline-flex h-5 items-center rounded-full bg-brand-bg px-2 text-label font-medium text-brand">
+                      Open
                     </span>
                   )}
                 </span>
@@ -205,7 +205,7 @@ export function VerdictMatrix({
       </ol>
 
       {(costs.length > 0 || fixes) && (
-        <div className="flex flex-wrap justify-between gap-x-5 gap-y-2 border-t border-border bg-surface px-3 py-3 text-[13px] leading-5 text-muted sm:px-4">
+        <div className="flex flex-wrap justify-between gap-x-6 gap-y-2 border-t border-border bg-surface px-3 py-3 text-small tabular-nums text-muted sm:px-4">
           {costs.map(({ mode, harms }) => (
             <span key={mode}>
               {MODE_LABELS[mode].name} cost in this run: <b className="font-semibold text-fail">{harms.join(" · ")}</b>
@@ -215,10 +215,7 @@ export function VerdictMatrix({
             <span>
               Claude&apos;s fixes:{" "}
               {fixReport ? (
-                <a
-                  href={fixReport}
-                  className="text-foreground underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring"
-                >
+                <a href={fixReport} className={`rounded-sm ${linkUtility}`}>
                   {fixes.verified}/{fixes.total} verified offline
                 </a>
               ) : (

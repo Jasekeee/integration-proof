@@ -1,6 +1,7 @@
 import { CodeScroller } from "./code-scroller";
 import type { Mode, StoreCode } from "./report";
 import { GITHUB_URL } from "./site";
+import { linkUtility } from "./ui";
 
 /**
  * The store's own lines that make a scenario pass, read from the store file at its markers, with
@@ -14,18 +15,18 @@ export function HandlingCode({ id, mode, code }: { id: string; mode: Mode; code:
   const lines = snippet.code.split("\n");
 
   return (
-    <section className="flex min-w-0 flex-col gap-2 rounded-md border border-border bg-background p-3">
+    <section className="flex min-w-0 flex-col gap-2 rounded-control border border-border bg-background p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h4 className="text-sm font-semibold">How the {mode} store handles it</h4>
         <a
           href={href}
-          className="rounded-sm font-mono text-xs text-muted underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+          className={`rounded-sm font-mono text-xs ${linkUtility} text-muted hover:text-foreground`}
         >
           {snippet.file}:{first}
         </a>
       </div>
-      <p className="text-sm leading-6 text-muted">{snippet.caption}</p>
-      <CodeScroller label={`${snippet.file}, lines ${first} to ${last}`} gutter className="rounded-md border border-border bg-surface">
+      <p className="measure text-sm leading-6 text-muted">{snippet.caption}</p>
+      <CodeScroller label={`${snippet.file}, lines ${first} to ${last}`} gutter className="rounded-control border border-border bg-surface">
         <pre className="py-2 font-mono text-xs leading-5">
           <code className="block min-w-max">
             {lines.map((line, index) => (

@@ -13,7 +13,7 @@ export function VerdictBadge({ scenario }: { scenario: Pick<ScenarioView, "verdi
   const style = scenario?.verdict ? STYLES[scenario.verdict] : STYLES.pending;
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-md px-2 py-1 font-mono text-xs font-semibold tracking-wide ${style}`}
+      className={`inline-flex h-6 shrink-0 items-center rounded-control px-2 font-mono text-xs font-semibold tracking-wide ${style}`}
     >
       {label}
     </span>

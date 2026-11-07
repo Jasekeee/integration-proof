@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { FocusModality } from "./_components/focus-modality";
+import { SiteNav } from "./_components/site-nav";
 import { GITHUB_URL } from "./_components/site";
+import { linkProse } from "./_components/ui";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,39 +34,27 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
-const navLink =
-  "rounded-md px-2 py-2 text-sm text-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring";
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
+        <FocusModality />
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:rounded-md focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-foreground"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-foreground"
         >
           Skip to content
         </a>
         <header className="border-b border-border">
           <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-            <Link href="/" className="flex min-h-10 items-center gap-2 rounded-md font-semibold focus-visible:outline-2 focus-visible:outline-ring">
+            <Link href="/" className="flex min-h-10 items-center gap-2 rounded-control font-semibold tracking-tight">
               <svg viewBox="0 0 32 32" className="size-6" aria-hidden="true">
                 <rect width="32" height="32" rx="7" className="fill-brand" />
                 <path d="M9 16.5l4.5 4.5L23 11.5" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="stroke-brand-foreground" />
               </svg>
               Integration Proof
             </Link>
-            <div className="flex items-center gap-1">
-              <Link href="/proof" className={navLink}>
-                Live proof
-              </Link>
-              <Link href="/#how-it-works" className={`${navLink} max-sm:hidden`}>
-                How it works
-              </Link>
-              <a href={GITHUB_URL} className={navLink}>
-                GitHub
-              </a>
-            </div>
+            <SiteNav />
           </nav>
         </header>
         <main id="main" className="flex flex-1 flex-col">
@@ -73,7 +64,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-muted sm:flex-row sm:justify-between sm:px-6">
             <p>PayPal sandbox only. No real payment is ever made.</p>
             <p>
-              <a href={GITHUB_URL} className="text-brand underline underline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring">
+              <a href={GITHUB_URL} className={linkProse}>
                 Source on GitHub
               </a>{" "}
               · MIT license

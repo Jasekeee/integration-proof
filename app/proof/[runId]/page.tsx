@@ -4,7 +4,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { MODE_LABELS, type RunReport } from "../../_components/report";
+import { Icon } from "../../_components/icon";
 import { RunResults } from "../../_components/run-results";
+import { linkProse } from "../../_components/ui";
 import { readReport } from "@/lib/proof/report";
 import { readStoreCode } from "@/lib/store/snippets";
 
@@ -51,15 +53,15 @@ export default async function RunPage({ params }: PageProps<"/proof/[runId]">) {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6">
       <header className="flex flex-col gap-2">
-        <p className="font-mono text-xs text-muted">
+        <p className="font-mono text-xs tabular-nums text-muted">
           Run {report.id.slice(0, 8)} · {new Date(report.createdAt).toUTCString()}
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">{MODE_LABELS[report.mode].name}: proof run</h1>
-        <p className="max-w-3xl leading-relaxed text-muted">
+        <p className="measure leading-relaxed text-pretty text-muted">
           Integration Proof runs six PayPal failures against a store in the sandbox. This is one run of the {report.mode}{" "}
           store.{" "}
-          <Link href="/proof" className="text-brand underline underline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring">
-            Compare with the {other} store <span aria-hidden="true">→</span>
+          <Link href="/proof" className={`inline-flex items-center gap-1 ${linkProse}`}>
+            Compare with the {other} store <Icon name="arrow-right" className="size-4" />
           </Link>
         </p>
       </header>

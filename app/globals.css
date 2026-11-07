@@ -46,6 +46,12 @@
   --key-3-bg: #e0f2fe;
   /* The edge of a code block with more code beyond it. */
   --scroll-shadow: rgba(23, 23, 23, 0.16);
+  /* The primary button under the pointer: the accent, a step toward the background. */
+  --accent-hover: color-mix(in srgb, var(--accent) 86%, var(--background));
+  /* The flagship scenario's row in the verdict matrix. */
+  --flag-bg: var(--brand-bg);
+  /* The one raised surface: the landing page's S3 race. */
+  --shadow-raised: 0 12px 40px -18px rgba(0, 0, 0, 0.18);
   color-scheme: light;
 }
 
@@ -84,6 +90,8 @@
     --key-3: #bae6fd;
     --key-3-bg: #082f49;
     --scroll-shadow: rgba(0, 0, 0, 0.85);
+    --flag-bg: color-mix(in srgb, #1e1b4b 62%, transparent);
+    --shadow-raised: 0 12px 40px -18px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
 }
@@ -113,6 +121,37 @@
   --color-brand: var(--brand);
   --color-brand-bg: var(--brand-bg);
   --color-brand-foreground: var(--brand-foreground);
+  --color-accent-hover: var(--accent-hover);
+  --color-flag-bg: var(--flag-bg);
+  --shadow-raised: var(--shadow-raised);
+
+  /*
+   * Type scale. Tailwind's xs 12, sm 14, base 16, lg 18 and up stay; these fill the gaps, so no
+   * size on the site is set by hand: label 11 for chips and ids, small 13 for captions, h2 28,
+   * display 40 / 52 for the landing headline.
+   */
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1rem;
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.25rem;
+  --text-h2: 1.75rem;
+  --text-h2--line-height: 2.125rem;
+  --text-display-sm: 2.5rem;
+  --text-display-sm--line-height: 1.1;
+  --text-display: 3.25rem;
+  --text-display--line-height: 1.08;
+  --tracking-display: -0.035em;
+  --tracking-label: 0.12em;
+
+  /* Three radii: controls and chips, cards and panels, the large containers (matrix, race). */
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-panel: 14px;
+
+  /* Motion: one curve for anything that appears or changes state, one for pulses. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -121,6 +160,86 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: var(--brand-bg);
+  color: var(--foreground);
+}
+
+/* Tailwind 4 leaves buttons with the arrow cursor; everything clickable here shows the hand. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
+}
+
+/*
+ * One focus ring for the whole site: 2 px in the ring color, 2 px out. Elements that clip their
+ * outside (matrix rows, code blocks) pull it inside with -outline-offset-2.
+ *
+ * The ring shows for keyboard use only. FocusModality (app/_components/focus-modality.tsx) marks
+ * the page data-input="pointer" after a click and drops the mark on Tab, Shift+Tab, Enter or any
+ * key inside the trace grid, so a click followed by a scroll key no longer lights up a ring.
+ */
+:where(a, button, summary, [tabindex], input, select, textarea):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+html[data-input="pointer"] :focus-visible {
+  outline: none !important;
+}
+
+html[data-input="pointer"] .ag-cell-focus,
+html[data-input="pointer"] .ag-header-cell:focus-visible::after,
+html[data-input="pointer"] .ag-cell:focus-visible::after {
+  border-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Prose never runs wider than a comfortable line, whatever its container. */
+.measure {
+  max-width: 68ch;
+}
+
+/* A spinner for live work: the button while a run is under way. Without motion it stands still. */
+.spinner {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  border-radius: 9999px;
+  border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/*
+ * A struck-through verdict: FAIL before Claude's fix, in the badge that says the fix was verified.
+ * Muted on surface-2 keeps AA contrast; the line is drawn, not a translucent red.
+ */
+.verdict-struck {
+  position: relative;
+}
+
+.verdict-struck::after {
+  content: "";
+  position: absolute;
+  left: 0.3rem;
+  right: 0.3rem;
+  top: 50%;
+  height: 1.5px;
+  background: currentColor;
 }
 
 /*
@@ -167,7 +286,7 @@ body {
 
 @media (prefers-reduced-motion: no-preference) {
   .trace-highlight {
-    transition: background-color 300ms ease-out;
+    transition: background-color 300ms var(--ease-out);
   }
 }
 
@@ -182,27 +301,9 @@ body {
   box-shadow: inset 3px 0 0 var(--foreground);
 }
 
-/*
- * The S3 race on the landing page: each step fades in at its own delay (--at), so the whole story
- * plays in about six seconds and then holds its final state. Without motion it starts at the end.
- */
-.race-step {
-  opacity: 0;
-  transform: translateY(4px);
-  animation: race-in 350ms ease-out forwards;
-  animation-delay: var(--at, 0s);
-}
-
-.race-pulse {
-  animation: race-pulse 1s ease-in-out 3;
-  animation-delay: var(--at, 0s);
-}
-
-@keyframes race-in {
-  to {
-    opacity: 1;
-    transform: none;
-  }
+/* The S3 race on the landing page: the held answer's dot pulses three times once its step lights up. */
+[data-lit] .race-pulse {
+  animation: race-pulse 1s var(--ease-in-out) 3;
 }
 
 @keyframes race-pulse {
@@ -212,10 +313,13 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .race-step,
-  .race-pulse {
-    animation: none;
-    opacity: 1;
-    transform: none;
+  /* Everything that moves stops: transitions end at once, a spinner stands still. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

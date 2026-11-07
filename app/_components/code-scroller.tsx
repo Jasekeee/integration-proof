@@ -50,7 +50,7 @@ export function CodeScroller({
         ref={ref}
         data-code-scroll=""
         data-scrolled={edges.left ? "" : undefined}
-        className="code-scroll overflow-x-auto overscroll-x-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        className="code-scroll overflow-x-auto overscroll-x-contain focus-visible:-outline-offset-2"
         tabIndex={overflowing ? 0 : undefined}
         role={overflowing ? "region" : undefined}
         aria-label={overflowing ? `${label}, scrolls sideways` : undefined}

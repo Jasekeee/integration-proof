@@ -4,7 +4,7 @@ import { CodeScroller } from "./code-scroller";
 export function DiffView({ patch }: { patch: string }) {
   const lines = patch.replace(/\n$/, "").split("\n");
   return (
-    <CodeScroller label="Patch" className="rounded-md border border-border bg-background">
+    <CodeScroller label="Patch" className="rounded-control border border-border bg-background">
       <pre className="py-2 font-mono text-xs leading-5">
         <code className="block min-w-max">
           {lines.map((line, index) => {

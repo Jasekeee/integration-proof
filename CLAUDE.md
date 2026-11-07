@@ -23,6 +23,7 @@ app/
   _components/                                         result views: verdict matrix, scenario cards, Claude analysis, AG Grid trace
   icon.svg, opengraph-image.png                        favicon and link preview (the README hero layout)
   not-found.tsx                                        the 404 page
+  proof/loading.tsx, proof/[runId]/loading.tsx         skeletons of the results while they load
   proof/[runId]/[scenarioId]/page.tsx                  redirects to that scenario's section of the run page
   store/[mode]/page.tsx                                reference store, mode = "naive" | "hardened" (both live)
   api/store/[mode]/orders/route.ts                     create order (Orders v2)

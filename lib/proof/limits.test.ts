@@ -7,7 +7,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reserveAnalysis } from "../ai/repository";
 import * as schema from "../db/schema";
-import { clientAddress, freshAllowed, visitorKey, waitFor } from "./limits";
+import { clientAddress, freshAllowed, rateLimitMessage, visitorKey, waitFor } from "./limits";
 import { createRun, markRunFinished, markRunStarted } from "./repository";
 
 const CONFIG = { storeTimeoutMs: 8000, proxyHoldMs: 10_000, freshAnalysis: false };
@@ -72,6 +72,30 @@ describe("waitFor", () => {
     expect(waitFor(30)).toBe("less than a minute");
     expect(waitFor(61)).toBe("2 minutes");
     expect(waitFor(60)).toBe("1 minute");
+  });
+});
+
+describe("rateLimitMessage", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("speaks of the demo's limit, not the visitor's runs, while both limits are equal", () => {
+    vi.stubEnv("RUNS_PER_VISITOR_PER_HOUR", "60");
+    vi.stubEnv("RUNS_PER_HOUR", "60");
+    const expected = "The demo has reached its limit of 60 runs this hour. Try again in 12 minutes.";
+    expect(rateLimitMessage("visitor", 60, 700)).toBe(expected);
+    expect(rateLimitMessage("everyone", 60, 700)).toBe(expected);
+    expect(rateLimitMessage("visitor", 60, 700)).not.toContain("You have started");
+  });
+
+  it("names the visitor's own runs only while their limit is below the overall one", () => {
+    vi.stubEnv("RUNS_PER_VISITOR_PER_HOUR", "6");
+    vi.stubEnv("RUNS_PER_HOUR", "60");
+    expect(rateLimitMessage("visitor", 6, 30)).toBe(
+      "You have started 6 proof runs in the last hour. Try again in less than a minute.",
+    );
+    expect(rateLimitMessage("everyone", 60, 60)).toBe(
+      "The demo has reached its limit of 60 runs this hour. Try again in 1 minute.",
+    );
   });
 });
 

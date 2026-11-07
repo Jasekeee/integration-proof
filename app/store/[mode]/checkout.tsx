@@ -169,6 +169,33 @@ export function Checkout({
           </p>
         </div>
 
+        <ol className="flex flex-col gap-3 rounded-md border border-border bg-background p-4 text-sm leading-6">
+          <li className="flex flex-col gap-1">
+            <p className="font-semibold">Fastest: pay by card, no login needed.</p>
+            <p className="text-muted">
+              Choose Debit or Credit Card below and enter PayPal&apos;s published sandbox test card:
+            </p>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 font-mono text-sm">
+              <dt className="text-muted">Card</dt>
+              <dd className="text-foreground">{testCard.number.replace(/(\d{4})(?=\d)/g, "$1 ")}</dd>
+              <dt className="text-muted">Expiry</dt>
+              <dd className="text-foreground">{testCard.expiry.split("-").reverse().join("/")}</dd>
+              <dt className="text-muted">CVV</dt>
+              <dd className="text-foreground">{testCard.securityCode}</dd>
+            </dl>
+          </li>
+          <li className="border-t border-border pt-3 text-muted">
+            Or pay with PayPal as the sandbox buyer
+            {buyerEmail ? (
+              <>
+                {" "}
+                <span className="break-all font-mono text-foreground">{buyerEmail}</span>
+              </>
+            ) : null}
+            . Its password is shared on request.
+          </li>
+        </ol>
+
         {clientId ? (
           <PayPalProvider clientId={clientId} environment="sandbox" components={[...components]} pageType="checkout">
             <div className="flex flex-col gap-3" aria-busy={phase.kind === "paying"}>
@@ -194,30 +221,27 @@ export function Checkout({
           </p>
         )}
 
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-4 text-sm leading-6">
-          <h3 className="font-semibold">Sandbox buyer</h3>
-          <p className="text-muted">
-            Pay with PayPal as the sandbox buyer
-            {buyerEmail ? (
-              <>
-                {" "}
-                <span className="font-mono text-foreground">{buyerEmail}</span>
-              </>
-            ) : null}
-            . The login and password are given in the project description.
-          </p>
-          <p className="text-muted">
-            Or, where PayPal shows the card option, pay without logging in with PayPal&apos;s published sandbox test card:{" "}
-            <span className="font-mono text-foreground">{testCard.number}</span>, expiry{" "}
-            <span className="font-mono text-foreground">{testCard.expiry.split("-").reverse().join("/")}</span>, security code{" "}
-            <span className="font-mono text-foreground">{testCard.securityCode}</span>.
-          </p>
-        </div>
       </section>
 
       <section className="flex min-w-0 flex-col gap-4 rounded-lg border border-border p-5" aria-labelledby="result" aria-live="polite">
         <h2 id="result" className="text-lg font-semibold">What the store did</h2>
-        {!cartId && <p className="text-sm text-muted">Pay on the left; the store&apos;s answer and PayPal&apos;s webhook show up here.</p>}
+        {!cartId && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted">What you will see here</p>
+            <ol className="flex flex-col gap-2">
+              {[
+                "The store's answer to the buyer",
+                "PayPal's webhook, when it arrives",
+                "The order as the store records it, with a short trace",
+              ].map((step, index) => (
+                <li key={step} className="flex items-center gap-3 rounded-md border border-dashed border-border px-3 py-2.5 text-sm text-muted">
+                  <span className="font-mono text-xs">{index + 1}</span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
 
         {phase.kind === "captured" && (
           <div className="flex flex-col gap-1">

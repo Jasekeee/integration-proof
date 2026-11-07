@@ -1,0 +1,1 @@
+Integration Proof: one lost response, and the buyer pays twice. Naive store 1 of 6, hardened store 6 of 6, Claude fixes verified offline 5 of 5.

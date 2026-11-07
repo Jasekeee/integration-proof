@@ -27,6 +27,18 @@
   --diff-del: #7f1d1d;
   --diff-del-bg: #fdecec;
   --highlight-bg: #e8f0fe;
+  /* The flagship scenario's row in the verdict matrix. */
+  --brand: #4338ca;
+  --brand-bg: #eef2ff;
+  /* A PayPal-Request-Id that repeats in a trace: each repeated key gets one of these pairs. */
+  --key-0: #3730a3;
+  --key-0-bg: #e0e7ff;
+  --key-1: #115e59;
+  --key-1-bg: #ccfbf1;
+  --key-2: #86198f;
+  --key-2-bg: #fae8ff;
+  --key-3: #075985;
+  --key-3-bg: #e0f2fe;
   /* The edge of a code block with more code beyond it. */
   --scroll-shadow: rgba(23, 23, 23, 0.16);
   color-scheme: light;
@@ -55,6 +67,16 @@
     --diff-del: #fecaca;
     --diff-del-bg: #2c0f0f;
     --highlight-bg: #172554;
+    --brand: #a5b4fc;
+    --brand-bg: #1e1b4b;
+    --key-0: #c7d2fe;
+    --key-0-bg: #1e1b4b;
+    --key-1: #99f6e4;
+    --key-1-bg: #042f2e;
+    --key-2: #f5d0fe;
+    --key-2-bg: #3b0a3f;
+    --key-3: #bae6fd;
+    --key-3-bg: #082f49;
     --scroll-shadow: rgba(0, 0, 0, 0.85);
     color-scheme: dark;
   }
@@ -82,6 +104,8 @@
   --color-diff-del: var(--diff-del);
   --color-diff-del-bg: var(--diff-del-bg);
   --color-highlight-bg: var(--highlight-bg);
+  --color-brand: var(--brand);
+  --color-brand-bg: var(--brand-bg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -138,4 +162,15 @@ body {
   .trace-highlight {
     transition: background-color 300ms ease-out;
   }
+}
+
+/* A repeated PayPal-Request-Id in the trace: the same key, the same color. */
+.request-key-0 { background: var(--key-0-bg); color: var(--key-0); }
+.request-key-1 { background: var(--key-1-bg); color: var(--key-1); }
+.request-key-2 { background: var(--key-2-bg); color: var(--key-2); }
+.request-key-3 { background: var(--key-3-bg); color: var(--key-3); }
+
+/* The trace row whose bodies are open below the grid. */
+.trace-selected {
+  box-shadow: inset 3px 0 0 var(--foreground);
 }

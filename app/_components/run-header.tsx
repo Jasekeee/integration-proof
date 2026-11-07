@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isRunActive, MODE_LABELS, runTone, seconds, timeAgo, type Mode, type RunReport } from "./report";
+import { isRunActive, MODE_LABELS, progressLabel, runTone, seconds, timeAgo, type Mode, type RunReport } from "./report";
 
 /** Status colors pass WCAG AA on the page background in both themes (globals.css). */
 const SCORE_COLORS = { pass: "text-pass", fail: "text-fail", warn: "text-warn" } as const;
@@ -44,7 +44,6 @@ export function RunHeader({
   const label = MODE_LABELS[mode];
   const active = isRunActive(report);
   const total = report?.summary.total ?? 6;
-  const elapsed = report?.startedAt ? Math.max(0, Math.floor((now - Date.parse(report.startedAt)) / 1000)) : 0;
   const tone = runTone(report);
 
   return (
@@ -57,19 +56,25 @@ export function RunHeader({
         {action}
       </div>
 
-      <div className="flex items-baseline gap-3">
-        <p className="font-mono text-5xl font-semibold tabular-nums tracking-tight sm:text-6xl">
-          <span className={tone ? SCORE_COLORS[tone] : undefined}>{report ? report.summary.passed : "–"}</span>
-          <span className="text-muted">/{total}</span>
+      {/* While the run is live, its progress stands where the score will be: a partial score reads as final. */}
+      {report && active ? (
+        <p className="font-mono text-xl font-semibold tabular-nums sm:text-2xl" aria-live="polite" suppressHydrationWarning>
+          {progressLabel(report, now)}
         </p>
-        <p className="text-sm text-muted">scenarios passed</p>
-      </div>
+      ) : (
+        <div className="flex items-baseline gap-3">
+          <p className="font-mono text-5xl font-semibold tabular-nums tracking-tight sm:text-6xl">
+            <span className={tone ? SCORE_COLORS[tone] : undefined}>{report ? report.summary.passed : "–"}</span>
+            <span className="text-muted">/{total}</span>
+          </p>
+          <p className="text-sm text-muted">scenarios passed</p>
+        </div>
+      )}
 
       {report && !active && <Consequences report={report} />}
 
       <p className="text-sm text-muted" aria-live="polite" suppressHydrationWarning>
         {!report && "Not run yet."}
-        {report && active && `Running · ${elapsed} s`}
         {report && !active && report.status === "ERROR" && `The run stopped: ${report.error ?? "unknown error"}`}
         {/* A run the server ended after its process died: finished, with why. */}
         {report && report.status === "COMPLETED" && report.error && (

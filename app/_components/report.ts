@@ -16,6 +16,9 @@ export interface StepView {
   debugId: string | null;
   paypalRequestId: string | null;
   fault: string | null;
+  /** Bodies as the trace stored them: redacted before they were written (lib/proof/redact.ts). */
+  requestBody?: unknown;
+  responseBody?: unknown;
   note: string | null;
 }
 
@@ -85,15 +88,21 @@ export interface RunReport {
   scenarios: ScenarioView[];
 }
 
-/** Six scenarios, in order, so a column has its rows before a run has any. */
+/**
+ * Six scenarios, in order, so a column has its rows before a run has any. These are the page's own
+ * plain-language titles; the scenario definitions the runner and the analyst read keep theirs.
+ */
 export const SCENARIO_TITLES: Record<string, string> = {
   S1: "Capture declined",
-  S2: "Transient 5xx on capture",
-  S3: "Lost response after a successful capture",
+  S2: "PayPal errors once (500)",
+  S3: "Lost response after capture",
   S4: "Duplicate webhook",
-  S5: "Late redelivery of COMPLETED after a refund",
+  S5: "Late event after a refund",
   S6: "Forged webhook",
 };
+
+/** The scenario the page opens on: PayPal captured, the store never heard, the buyer pays again. */
+export const FLAGSHIP_SCENARIO = "S3";
 
 /**
  * Headlines for runs recorded before the assertions wrote their own. New runs carry a headline
@@ -174,6 +183,100 @@ export const MODE_LABELS: Record<Mode, { name: string; blurb: string }> = {
   hardened: { name: "Hardened store", blurb: "The same store with each mistake fixed." },
 };
 
+/**
+ * How far a live run is: scenarios with a result out of all, and seconds since it started.
+ * "Running · 3 of 6 done · 24 s", never a partial score that reads like the final one.
+ */
+export function runProgress(report: RunReport, now: number): { done: number; total: number; elapsedS: number } {
+  const done = report.scenarios.filter((scenario) => scenario.status === "COMPLETED" || scenario.status === "ERROR").length;
+  const started = report.startedAt ?? report.createdAt;
+  const elapsedS = Math.max(0, Math.floor((now - Date.parse(started)) / 1000));
+  return { done, total: report.summary.total || report.scenarios.length || 6, elapsedS };
+}
+
+export function progressLabel(report: RunReport, now: number): string {
+  const { done, total, elapsedS } = runProgress(report, now);
+  return `Running · ${done} of ${total} done · ${elapsedS} s`;
+}
+
+/** When a run was made, short: "today 09:34" on the day itself, "Nov 5" before it. Local time. */
+export function runDate(iso: string, now: number): string {
+  const date = new Date(iso);
+  const today = new Date(now);
+  if (date.toDateString() === today.toDateString()) {
+    return `today ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+  return date.toLocaleDateString("en", { month: "short", day: "numeric" });
+}
+
+/** The state of one matrix cell: a verdict once there is one, the live status before. */
+export type CellState = Verdict | "QUEUED" | "RUNNING" | "WAITING" | "ERROR" | "NOT RUN";
+
+export function cellState(scenario: ScenarioView | null): CellState {
+  if (!scenario) return "NOT RUN";
+  if (scenario.verdict) return scenario.verdict;
+  if (scenario.status === "WAITING_FOR_WEBHOOK") return "WAITING";
+  if (scenario.status === "RUNNING") return "RUNNING";
+  if (scenario.status === "QUEUED") return "QUEUED";
+  return "ERROR";
+}
+
+/**
+ * Claude's fixes for a run's failures that the offline check verified, out of the failures that
+ * have a checked fix. Null when there is nothing to count.
+ */
+export function verifiedFixes(report: RunReport | null): { verified: number; total: number } | null {
+  if (!report || isRunActive(report)) return null;
+  const failed = report.scenarios.filter((scenario) => scenario.verdict === "FAIL");
+  if (failed.length === 0) return null;
+  const verified = failed.filter((scenario) => scenario.analysis?.fixCheck?.verified).length;
+  return { verified, total: failed.length };
+}
+
+/**
+ * PayPal-Request-Id values that occur on more than one step of a trace, each with a color slot in
+ * order of first use. A key seen once gets no slot: the color is there to pair repeats.
+ */
+export function repeatedRequestIds(steps: Pick<StepView, "paypalRequestId">[], slots = 4): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const step of steps) {
+    if (step.paypalRequestId) counts.set(step.paypalRequestId, (counts.get(step.paypalRequestId) ?? 0) + 1);
+  }
+  const colors = new Map<string, number>();
+  for (const [key, count] of counts) {
+    if (count > 1) colors.set(key, colors.size % slots);
+  }
+  return colors;
+}
+
+/** A PayPal-Request-Id short enough for a table cell; the full value is in the step's details. */
+export function shortRequestId(id: string): string {
+  return id.length > 10 ? `${id.slice(0, 8)}…` : id;
+}
+
+const CAPTURE_PATH = /\/v2\/checkout\/orders\/[^/]+\/capture$/;
+
+/**
+ * True when the store sent the same capture twice with one PayPal-Request-Id: a failed attempt, then
+ * the retry. PayPal answers a repeated key with the first result, so the retry cannot charge twice.
+ */
+export function retriedWithSameKey(steps: StepView[]): boolean {
+  const captures = steps.filter(
+    (step) => step.actor === "store" && step.method === "POST" && step.path && CAPTURE_PATH.test(step.path.split("?")[0]),
+  );
+  const byKey = new Map<string, StepView[]>();
+  for (const step of captures) {
+    if (!step.paypalRequestId) continue;
+    byKey.set(step.paypalRequestId, [...(byKey.get(step.paypalRequestId) ?? []), step]);
+  }
+  return [...byKey.values()].some(
+    (attempts) =>
+      attempts.length > 1 &&
+      attempts.some((step) => step.httpStatus === null || step.httpStatus >= 500) &&
+      attempts.some((step) => step.httpStatus !== null && step.httpStatus >= 200 && step.httpStatus < 300),
+  );
+}
+
 export function isRunActive(report: RunReport | null): boolean {
   return report !== null && (report.status === "QUEUED" || report.status === "RUNNING");
 }
@@ -216,6 +319,7 @@ export interface TraceRow {
   httpStatus: number | null;
   durationMs: number;
   debugId: string | null;
+  paypalRequestId: string | null;
   detail: string | null;
 }
 
@@ -233,7 +337,13 @@ const MISSING = /No acknowledged (PAYMENT\.CAPTURE\.[A-Z]+)/g;
  * deliveries, which have no request line of their own.
  */
 export function traceRow(step: StepView): TraceRow {
-  const base = { seq: step.seq, httpStatus: step.httpStatus, durationMs: step.durationMs, debugId: step.debugId };
+  const base = {
+    seq: step.seq,
+    httpStatus: step.httpStatus,
+    durationMs: step.durationMs,
+    debugId: step.debugId,
+    paypalRequestId: step.paypalRequestId,
+  };
   const request = step.method && step.path ? `${step.method} ${shortPath(step.path)}` : null;
 
   if (step.actor === "analyst") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { isSettled, type RunReport } from "./report";
 
 const POLL_MS = 2000;
@@ -62,4 +62,13 @@ export function useNow(active: boolean): number {
     return () => clearInterval(timer);
   }, [active]);
   return now;
+}
+
+/** False on the server and until React has hydrated; true from the first render after that. */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 }

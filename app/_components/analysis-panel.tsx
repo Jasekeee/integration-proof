@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { DiffView } from "./diff-view";
 import { FixMark } from "./fix-mark";
+import { usePlayOnce } from "./motion";
 import { Icon } from "./icon";
 import { proposedEdits, seconds, selfCheckLabel, type AnalysisView, type ScenarioView } from "./report";
 import { buttonSmall, buttonText, linkUtility } from "./ui";
@@ -14,11 +15,13 @@ const PATCH_LABELS = { applies: "Patch applies to the store file", needs_review:
  * deterministic model of PayPal built from sandbox observations, not the live sandbox.
  */
 function FixBadge({ check }: { check: NonNullable<AnalysisView["fixCheck"]> }) {
+  // The open card's badge plays once, the first time it is seen: the fail, the fix, the pass.
+  const [ref, phase] = usePlayOnce<HTMLParagraphElement>();
   const checked = check.before !== null;
   const style = checked ? "bg-warn-bg text-warn" : "bg-surface-2 text-muted";
   return (
     <div className="flex flex-col gap-1.5">
-      <p>
+      <p ref={ref} data-fix={check.verified ? phase : undefined}>
         {check.verified ? (
           <FixMark before={check.before ?? "FAIL"} after={check.after ?? "PASS"} label="Fix verified offline" />
         ) : (

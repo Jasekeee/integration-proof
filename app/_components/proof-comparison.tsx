@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useNow, useRunReport } from "./hooks";
+import { useEffect, useRef, useState } from "react";
+// useHydrated: false until React has hydrated, so a click never lands on a dead button.
+import { useHydrated, useNow, useRunReport } from "./hooks";
 import { FLAGSHIP_SCENARIO, isRunActive, MODE_LABELS, SCENARIO_TITLES, type Mode, type RunReport, type StoreCode } from "./report";
 import { ScenarioSection, sectionId } from "./scenario-section";
 import { buttonPrimary, buttonSmall } from "./ui";
@@ -25,15 +26,6 @@ function sleep(ms: number) {
 
 /** Another visitor's run is live, so this one did not start. */
 class RunInProgress extends Error {}
-
-/** False on the server and until React has hydrated, so a click never lands on a dead button. */
-function useHydrated(): boolean {
-  return useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
-}
 
 interface RunSummary {
   id: string;
@@ -282,12 +274,12 @@ export function ProofComparison({
       )}
 
       <div className="flex flex-col gap-3">
-        {/* The line keeps its place for the whole run, so the matrix does not jump when a wait begins. A wait is
-            normal, so the line is plain; the amber dot marks what is waiting, like the cells below. */}
-        <p role="status" className={`flex items-start gap-2 text-sm text-muted ${waiting || running ? "min-h-10 sm:min-h-5" : "sr-only"}`}>
+        {/* The line always keeps its place, so the matrix does not move when a wait begins or a run ends. A wait
+            is normal, so the line is plain; the amber dot marks what is waiting, like the cells below. */}
+        <p role="status" className="flex min-h-10 items-start gap-2 text-sm text-muted sm:min-h-5">
           {waiting && (
             <>
-              <span aria-hidden="true" className="mt-[7px] size-1.5 shrink-0 rounded-full bg-warn" />
+              <span aria-hidden="true" className="live-dot mt-[7px] size-1.5 shrink-0 rounded-full bg-warn" />
               Waiting for PayPal&apos;s real webhooks. They usually arrive in 7 to 60 seconds.
             </>
           )}

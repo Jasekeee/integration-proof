@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { Fragment } from "react";
+import { useHydrated } from "./hooks";
+import { Odometer, useChanges } from "./motion";
 import {
   cellState,
   FALLBACK_HEADLINES,
@@ -52,11 +57,40 @@ function cellHeadline(scenario: ScenarioView | null, state: CellState): string {
   return FALLBACK_HEADLINES[scenario.id]?.[state] ?? "";
 }
 
-function chipLabel(scenario: ScenarioView | null, state: CellState, now: number): string {
-  if (state === "WAITING" && scenario?.waitingSince) {
-    return `WAITING ${Math.max(0, Math.floor((now - Date.parse(scenario.waitingSince)) / 1000))} s`;
-  }
-  return state;
+/** Seconds a cell has been waiting for PayPal's webhook, or null when it is not waiting. */
+function waitedSeconds(scenario: ScenarioView | null, state: CellState, now: number): number | null {
+  if (state !== "WAITING" || !scenario?.waitingSince) return null;
+  return Math.max(0, Math.floor((now - Date.parse(scenario.waitingSince)) / 1000));
+}
+
+const VERDICTS: CellState[] = ["PASS", "FAIL", "INCONCLUSIVE"];
+
+/** A progress segment per state: live states are tinted, verdicts take their full color. */
+const SEGMENT_STYLES: Record<CellState, string> = {
+  PASS: "bg-pass",
+  FAIL: "bg-fail",
+  INCONCLUSIVE: "bg-warn",
+  WAITING: "bg-warn-bg shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--warn)_45%,transparent)]",
+  RUNNING: "bg-[color-mix(in_srgb,var(--brand)_32%,var(--surface-2))]",
+  QUEUED: "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border)]",
+  ERROR: "bg-border-strong",
+  "NOT RUN": "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border)]",
+};
+
+/** A live run's progress: one segment per scenario in its real state, and how many are done. */
+function Progress({ report, now }: { report: RunReport; now: number }) {
+  return (
+    <span className="flex min-h-10 flex-col justify-center gap-2">
+      <span className="grid max-w-56 grid-cols-6 gap-1" aria-hidden="true">
+        {report.scenarios.map((scenario) => (
+          <span key={scenario.id} className={`segment h-1.5 rounded-full ${SEGMENT_STYLES[cellState(scenario)]}`} />
+        ))}
+      </span>
+      <span className="font-mono text-xs font-semibold tabular-nums sm:text-small" suppressHydrationWarning>
+        {progressLabel(report, now)}
+      </span>
+    </span>
+  );
 }
 
 function StoreHead({
@@ -73,28 +107,39 @@ function StoreHead({
   const active = isRunActive(report);
   const tone = runTone(report);
   const total = report?.summary.total ?? 6;
+  // The score rolls up only when this page saw the run end; a page that loads with it shows it still.
+  const ended = useChanges(active) > 0 && !active;
+  // Times are local to the visitor: the server knows only its own time zone, so they appear once
+  // the page runs in the browser.
+  const hydrated = useHydrated();
+  const when = report && hydrated ? runDate(report.createdAt, now) : null;
   return (
     <div
       className={`flex min-w-0 flex-col gap-1 p-3 transition-opacity duration-200 sm:p-4 ${previous ? "opacity-60" : ""}`}
     >
       <span className="font-semibold">{MODE_LABELS[mode].name}</span>
       {report && active ? (
-        <span className="flex min-h-10 items-center font-mono text-sm font-semibold tabular-nums sm:text-base" suppressHydrationWarning>
-          {progressLabel(report, now)}
-        </span>
+        <Progress report={report} now={now} />
       ) : (
         <span className="flex min-h-10 items-center font-mono text-3xl font-semibold leading-none tracking-tight tabular-nums sm:text-4xl">
-          <span className={tone ? SCORE_COLORS[tone] : undefined}>{report ? report.summary.passed : "–"}</span>
-          <span className="text-muted">/{total}</span>
+          <span className={`inline-flex h-[1em] ${tone ? SCORE_COLORS[tone] : ""}`}>
+            {report ? <Odometer key={report.id} value={report.summary.passed} max={total} roll={ended} /> : "–"}
+          </span>
+          <span className="inline-flex h-[1em] text-muted">/{total}</span>
         </span>
       )}
-      <span className="text-xs leading-5 tabular-nums text-muted" suppressHydrationWarning>
+      <span className="text-xs leading-5 tabular-nums text-muted">
         {!report && "Not run yet"}
-        {report && previous && <>Previous run · {runDate(report.createdAt, now)}</>}
+        {report && previous && <>Previous run{when && <> · {when}</>}</>}
         {report && !previous && (
           <>
-            <span className="max-sm:hidden">{CAPTIONS[mode]} · </span>
-            {runDate(report.createdAt, now)}
+            <span className="max-sm:hidden">{CAPTIONS[mode]}</span>
+            {when && (
+              <>
+                <span className="max-sm:hidden"> · </span>
+                {when}
+              </>
+            )}
             {report.status === "COMPLETED" && report.durationMs !== null && <> · {seconds(report.durationMs)} run</>}
             {report.status === "ERROR" && <span className="text-warn"> · stopped</span>}
             {!active && (
@@ -112,21 +157,54 @@ function StoreHead({
   );
 }
 
-function Cell({ scenario, now, dimmed }: { scenario: ScenarioView | null; now: number; dimmed: boolean }) {
+/**
+ * One store's state for one scenario. A state that changes while the page is open enters: the chip's
+ * word slides in, a verdict settles, a FAIL leaves a fading red trace (the flagship scenario a ring).
+ * Cells further down the matrix start a beat later, so a poll that brings several reads like a board.
+ */
+function Cell({
+  scenario,
+  now,
+  dimmed,
+  row,
+  flagship,
+}: {
+  scenario: ScenarioView | null;
+  now: number;
+  dimmed: boolean;
+  row: number;
+  flagship: boolean;
+}) {
   const state = cellState(scenario);
   const headline = cellHeadline(scenario, state);
+  const changes = useChanges(state);
+  const live = changes > 0;
+  const verdict = VERDICTS.includes(state);
+  const waited = waitedSeconds(scenario, state, now);
+  const stagger = { "--stagger": `${row * 40}ms` } as React.CSSProperties;
   return (
     <span
-      className={`flex min-w-0 items-center gap-3 px-3 py-3 transition-opacity duration-200 sm:px-4 ${dimmed ? "opacity-60" : ""}`}
+      className={`relative isolate flex min-w-0 items-center gap-3 px-3 py-3 transition-opacity duration-200 sm:px-4 ${dimmed ? "opacity-60" : ""}`}
+      style={stagger}
     >
+      {live && state === "FAIL" && <span key={`trace-${changes}`} aria-hidden="true" className={flagship ? "cell-ring" : "cell-flash"} />}
       <span
-        className={`inline-flex h-6 shrink-0 items-center rounded-control px-2 font-mono text-label font-semibold tabular-nums ${CHIP_STYLES[state]} transition-colors duration-200`}
-        suppressHydrationWarning
+        key={`chip-${changes}`}
+        className={`inline-flex h-6 shrink-0 items-center gap-1.5 overflow-hidden rounded-control px-2 font-mono text-label font-semibold tabular-nums ${CHIP_STYLES[state]} transition-colors duration-200 ${live ? "chip-enter" : ""} ${verdict ? "chip-verdict" : ""}`}
       >
-        {chipLabel(scenario, state, now)}
+        {state === "RUNNING" && <span aria-hidden="true" className="spinner size-2.5" />}
+        {state === "WAITING" && <span aria-hidden="true" className="live-dot size-1.5 rounded-full bg-current" />}
+        <span className="chip-word" suppressHydrationWarning>
+          {waited === null ? state : `WAITING ${waited} s`}
+        </span>
       </span>
       {headline && (
-        <span className={`text-small max-md:hidden ${HEADLINE_STYLES[state] ?? "text-muted"}`}>{headline}</span>
+        <span
+          key={`headline-${changes}`}
+          className={`text-small max-md:hidden ${HEADLINE_STYLES[state] ?? "text-muted"} ${live ? "headline-enter" : ""}`}
+        >
+          {headline}
+        </span>
       )}
     </span>
   );
@@ -161,6 +239,8 @@ export function VerdictMatrix({
     return [{ mode, harms: report.consequences }];
   });
 
+  const costsArrived = useChanges(costs.length > 0) > 0;
+
   return (
     <section aria-labelledby="verdicts" className="overflow-hidden rounded-panel border border-border">
       {/* The section's heading for the outline; the column heads say the same thing on screen. */}
@@ -175,7 +255,7 @@ export function VerdictMatrix({
       </div>
 
       <ol>
-        {Object.keys(SCENARIO_TITLES).map((id) => {
+        {Object.keys(SCENARIO_TITLES).map((id, row) => {
           const flag = id === flagship;
           const open = openRows.has(id);
           const scenarioOf = (mode: Mode) => reports[mode]?.scenarios.find((scenario) => scenario.id === id) ?? null;
@@ -196,7 +276,7 @@ export function VerdictMatrix({
                   )}
                 </span>
                 {MODES.map((mode) => (
-                  <Cell key={mode} scenario={scenarioOf(mode)} now={now} dimmed={previous[mode]} />
+                  <Cell key={mode} scenario={scenarioOf(mode)} now={now} dimmed={previous[mode]} row={row} flagship={flag} />
                 ))}
               </button>
             </li>
@@ -208,7 +288,22 @@ export function VerdictMatrix({
         <div className="flex flex-wrap justify-between gap-x-6 gap-y-2 border-t border-border bg-surface px-3 py-3 text-small tabular-nums text-muted sm:px-4">
           {costs.map(({ mode, harms }) => (
             <span key={mode}>
-              {MODE_LABELS[mode].name} cost in this run: <b className="font-semibold text-fail">{harms.join(" · ")}</b>
+              {MODE_LABELS[mode].name} cost in this run:{" "}
+              <b className="font-semibold text-fail">
+                {harms.map((harm, index) => (
+                  // Seen live, the items arrive one by one after the score has rolled.
+                  <Fragment key={harm}>
+                    {index > 0 && " "}
+                    <span
+                      className={costsArrived ? "harm-enter inline-block" : undefined}
+                      style={costsArrived ? { animationDelay: `${700 + index * 110}ms` } : undefined}
+                    >
+                      {index > 0 && "· "}
+                      {harm}
+                    </span>
+                  </Fragment>
+                ))}
+              </b>
             </span>
           ))}
           {fixes && !previous.naive && (

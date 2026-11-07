@@ -25,6 +25,8 @@ const theme = themeQuartz.withParams({
   oddRowBackgroundColor: "var(--surface)",
   rowHoverColor: "var(--surface-2)",
   accentColor: "var(--ring)",
+  // An evidence link's row flashes in this color, then fades to the resting highlight.
+  valueChangeValueHighlightBackgroundColor: "color-mix(in srgb, var(--ring) 24%, var(--highlight-bg))",
   fontFamily: "var(--font-geist-sans)",
   fontSize: 13,
   headerFontSize: 12,
@@ -46,6 +48,7 @@ function RequestIdCell({ value, context }: ICellRendererParams<TraceRow, string 
   return (
     <span
       title={value}
+      data-request-key={slot === undefined ? undefined : value}
       className={slot === undefined ? "" : `request-key-${slot} rounded px-1.5 py-0.5 font-semibold`}
     >
       {shortRequestId(value)}
@@ -128,19 +131,39 @@ export default function TraceGrid({
     api?.redrawRows();
   }, [api, rowClassRules]);
 
-  // An evidence link scrolls its step into view and marks it.
+  // An evidence link scrolls its step into view and marks it; with motion the row flashes first, then
+  // keeps the resting highlight.
   useEffect(() => {
     if (!api || highlightSeq === null) return;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let flash: ReturnType<typeof setTimeout> | undefined;
     const frame = requestAnimationFrame(() => {
       const row = container.current?.querySelector(`.ag-row[row-id="${highlightSeq}"]`);
-      const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       row?.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+      const node = api.getRowNode(String(highlightSeq));
+      if (smooth && node) flash = setTimeout(() => api.flashCells({ rowNodes: [node], flashDuration: 500, fadeDuration: 900 }), 250);
     });
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      if (flash) clearTimeout(flash);
+    };
   }, [api, highlightSeq]);
 
+  /** Marks every cell that carries the same repeated PayPal-Request-Id, or clears the marks. */
+  function markKey(key: string | null) {
+    const root = container.current;
+    if (!root) return;
+    root.querySelectorAll(".key-hover").forEach((element) => element.classList.remove("key-hover"));
+    if (key) root.querySelectorAll(`[data-request-key="${CSS.escape(key)}"]`).forEach((element) => element.classList.add("key-hover"));
+  }
+
   return (
-    <div ref={container} className="w-full [&_.ag-row]:cursor-pointer">
+    <div
+      ref={container}
+      className="w-full [&_.ag-row]:cursor-pointer"
+      onPointerOver={(event) => markKey((event.target as Element).closest("[data-request-key]")?.getAttribute("data-request-key") ?? null)}
+      onPointerLeave={() => markKey(null)}
+    >
       <AgGridReact<TraceRow>
         theme={theme}
         rowData={rows}
@@ -151,6 +174,12 @@ export default function TraceGrid({
         domLayout="autoHeight"
         onGridReady={(event) => setApi(event.api)}
         onRowClicked={(event) => event.data && onSelect(event.data.seq)}
+        onCellFocused={(event) => {
+          // From the keyboard too: a focused Request-Id cell marks its twins.
+          const column = typeof event.column === "object" && event.column ? event.column.getColId() : null;
+          const row = event.rowIndex === null || event.rowIndex === undefined ? null : event.api.getDisplayedRowAtIndex(event.rowIndex);
+          markKey(column === "paypalRequestId" && context.keyColors.has(row?.data?.paypalRequestId ?? "") ? (row?.data?.paypalRequestId ?? null) : null);
+        }}
         onCellKeyDown={(event) => {
           const key = (event.event as KeyboardEvent | null)?.key;
           if ((key === "Enter" || key === " ") && event.data) onSelect(event.data.seq);

@@ -863,9 +863,10 @@ of 6 still applies wherever a real client address arrives.
   `ANALYSES_PER_DAY` in any 24 hours, whoever starts the runs.
 
 **Consequence:** one visitor can use up the hour's runs and make everyone else wait for the next
-one. That costs availability, not model spend. Because the visitor check runs first and both limits
-are 60, the answer at the limit can read as the visitor's own limit although it counts everyone's
-runs.
+one. That costs availability, not model spend. While the per-visitor limit is not below the overall
+one, the answer at either limit names the demo's limit: "The demo has reached its limit of 60 runs
+this hour. Try again in 12 minutes." It never says "You have started 60 runs" for runs that are
+everyone's (`rateLimitMessage` in `lib/proof/limits.ts`).
 
 **Revisit:** when a source of the client address that differs between networks is found on the
 deployed service, for example a header the platform documents or one set by a proxy the service

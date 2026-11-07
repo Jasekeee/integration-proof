@@ -2,7 +2,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { errorResponse, invalidRequest, jsonError } from "@/lib/http";
-import { clientAddress, freshAllowed, visitorKey, waitFor } from "@/lib/proof/limits";
+import { clientAddress, freshAllowed, rateLimitMessage, visitorKey } from "@/lib/proof/limits";
 import { createRun, listRuns, recoverInterruptedRunsLazily } from "@/lib/proof/repository";
 import { executeRun } from "@/lib/proof/runner";
 import { SCENARIO_IDS, ScenarioIdSchema } from "@/lib/proof/scenarios";
@@ -49,11 +49,7 @@ export async function POST(request: Request) {
       });
     }
     if (result.kind === "rate_limited") {
-      const wait = waitFor(result.retryAfterSeconds);
-      const message =
-        result.scope === "visitor"
-          ? `You have started ${result.limit} proof runs in the last hour. Try again in ${wait}.`
-          : `The demo has run ${result.limit} proofs in the last hour, its limit. Try again in ${wait}.`;
+      const message = rateLimitMessage(result.scope, result.limit, result.retryAfterSeconds);
       return Response.json(
         { error: "rate_limited", message, retryAfterSeconds: result.retryAfterSeconds },
         { status: 429, headers: { "Retry-After": String(result.retryAfterSeconds) } },

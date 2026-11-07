@@ -67,6 +67,20 @@ export function freshAllowed(given: string | null): boolean {
   return timingSafeEqual(digest(given), digest(expected));
 }
 
+/**
+ * The answer when a run hits an hourly limit. A visitor is told about their own runs only while
+ * their limit is below the overall one. Where it is not, as on the deployed service, which cannot
+ * tell visitors apart (docs/decisions.md), every visitor shares one count, so the answer speaks of
+ * the demo's limit.
+ */
+export function rateLimitMessage(scope: "visitor" | "everyone", limit: number, retryAfterSeconds: number): string {
+  const wait = waitFor(retryAfterSeconds);
+  if (scope === "visitor" && runsPerVisitorPerHour() < runsPerHour()) {
+    return `You have started ${limit} proof runs in the last hour. Try again in ${wait}.`;
+  }
+  return `The demo has reached its limit of ${runsPerHour()} runs this hour. Try again in ${wait}.`;
+}
+
 /** "4 minutes", "1 minute", "less than a minute". */
 export function waitFor(seconds: number): string {
   const minutes = Math.ceil(seconds / 60);

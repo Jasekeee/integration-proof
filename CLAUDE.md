@@ -20,7 +20,7 @@ app/
   (marketing)/page.tsx                                 landing
   proof/page.tsx                                       naive and hardened side by side; Run both
   proof/[runId]/page.tsx                               shareable results of one run
-  _components/                                         result views: scenario cards, Claude analysis, AG Grid trace
+  _components/                                         result views: verdict matrix, scenario cards, Claude analysis, AG Grid trace
   icon.svg, opengraph-image.tsx                        favicon and link preview
   proof/[runId]/[scenarioId]/page.tsx                  report for one scenario
   store/[mode]/page.tsx                                reference store, mode = "naive" | "hardened" (both live)

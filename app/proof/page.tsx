@@ -7,8 +7,9 @@ import { latestRunIds, readReport } from "@/lib/proof/report";
 import { readStoreCode } from "@/lib/store/snippets";
 
 export const metadata: Metadata = {
-  title: "Proof runs",
-  description: "Six PayPal failure scenarios against a naive and a hardened store, side by side.",
+  title: "Six failures, two stores",
+  description:
+    "The same six PayPal failures against a store with common mistakes and the same store fixed. Code decides every verdict; Claude explains each failure.",
 };
 
 /** Plain JSON, as the report API returns it, so the first paint and later polls match. */
@@ -36,19 +37,7 @@ export default async function ProofPage({ searchParams }: PageProps<"/proof">) {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Naive and hardened, side by side</h1>
-        <p className="max-w-3xl text-muted">
-          The same six failures against two stores in the PayPal sandbox. Code decides every verdict; Claude explains each
-          failure and proposes the fix.
-        </p>
-      </header>
-      {loadError && (
-        <p role="alert" className="rounded-lg border border-warn/40 bg-warn-bg p-4 text-sm text-warn">
-          The latest results could not be loaded. Running the proof still works; reload the page to try again.
-        </p>
-      )}
-      <ProofComparison initial={initial} freshToken={freshToken} code={code} />
+      <ProofComparison initial={initial} freshToken={freshToken} code={code} loadError={loadError} />
     </div>
   );
 }

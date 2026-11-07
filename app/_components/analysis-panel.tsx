@@ -151,7 +151,7 @@ export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; on
               <p className="font-mono text-xs text-muted">
                 {analysis.model} ·{" "}
                 {analysis.reused
-                  ? "reused from an earlier run that failed the same way, no tokens spent"
+                  ? "Same failure on the same code: cached analysis, no tokens spent"
                   : `${(analysis.tokens.input + analysis.tokens.cacheRead + analysis.tokens.cacheWrite).toLocaleString("en")} input tokens (${analysis.tokens.cacheRead.toLocaleString("en")} cached), ${analysis.tokens.output.toLocaleString("en")} output`}
               </p>
             </div>

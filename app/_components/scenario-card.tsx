@@ -1,10 +1,9 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { AnalysisPanel } from "./analysis-panel";
 import { HandlingCode } from "./handling-code";
-import { FALLBACK_HEADLINES, SCENARIO_TITLES, seconds, verdictTone, waitLabel, type Mode, type ScenarioView, type StoreCode } from "./report";
+import { FALLBACK_HEADLINES, MODE_LABELS, SCENARIO_TITLES, seconds, verdictTone, waitLabel, type Mode, type ScenarioView, type StoreCode } from "./report";
 import { VerdictBadge } from "./verdict-badge";
 
 /**
@@ -17,12 +16,6 @@ const STRIPES = {
   warn: "shadow-[inset_3px_0_0_0_var(--warn)]",
   error: "shadow-[inset_3px_0_0_0_var(--border-strong)]",
 } as const;
-
-// AG Grid needs the browser; it loads when a trace is first opened.
-const TraceGrid = dynamic(() => import("./trace-grid"), {
-  ssr: false,
-  loading: () => <div className="h-24 rounded-md bg-surface-2 motion-safe:animate-pulse" />,
-});
 
 function liveHeadline(scenario: ScenarioView, now: number, deadlineMs: number): string {
   const since = (iso: string | null) => (iso ? Math.max(0, Math.floor((now - Date.parse(iso)) / 1000)) : 0);
@@ -37,6 +30,23 @@ function liveHeadline(scenario: ScenarioView, now: number, deadlineMs: number): 
   return (scenario.verdict && FALLBACK_HEADLINES[scenario.id]?.[scenario.verdict]) ?? scenario.statusLabel;
 }
 
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className={`size-4 shrink-0 text-muted motion-safe:transition-transform motion-safe:duration-200 ${open ? "rotate-180" : ""}`}
+    >
+      <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * One store's result for one scenario. Folded, a PASS is one line and a FAIL its headline, one line
+ * of reason and whether Claude's fix was verified; unfolded, the analysis, the store's code and the
+ * trace button. The trace itself is drawn by the parent, as wide as the page.
+ */
 export function ScenarioCard({
   id,
   mode,
@@ -44,6 +54,13 @@ export function ScenarioCard({
   now,
   deadlineMs,
   code,
+  expanded,
+  onToggle,
+  traceOpen,
+  traceId,
+  onToggleTrace,
+  onStep,
+  dimmed = false,
 }: {
   id: string;
   mode: Mode;
@@ -51,64 +68,117 @@ export function ScenarioCard({
   now: number;
   deadlineMs: number;
   code: StoreCode;
+  expanded: boolean;
+  onToggle: () => void;
+  traceOpen: boolean;
+  /** The id of the trace section this card opens, for aria-controls. */
+  traceId: string;
+  onToggleTrace: () => void;
+  onStep: (seq: number) => void;
+  /** A previous run's result while a new run of this store is under way. */
+  dimmed?: boolean;
 }) {
-  const [traceOpen, setTraceOpen] = useState(false);
-  const [highlightSeq, setHighlightSeq] = useState<number | null>(null);
-  const traceId = useId();
+  const bodyId = useId();
   const steps = scenario?.steps ?? [];
   const failed = scenario?.verdict === "FAIL" || scenario?.verdict === "INCONCLUSIVE";
+  const passed = scenario?.verdict === "PASS";
   const tone = verdictTone(scenario?.verdict ?? null);
   const stripe = tone ? STRIPES[tone] : scenario?.status === "ERROR" ? STRIPES.error : "";
+  const headline = scenario ? liveHeadline(scenario, now, deadlineMs) : "Not run yet";
+  const reason = scenario?.reason ?? scenario?.error ?? null;
+  const fixVerified = scenario?.analysis?.fixCheck?.verified === true;
+  const foldable = scenario?.status === "COMPLETED" || scenario?.status === "ERROR";
+  const open = expanded || !foldable;
 
-  function showStep(seq: number) {
-    setTraceOpen(true);
-    setHighlightSeq(seq);
+  const toggle = foldable && (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      aria-controls={bodyId}
+      aria-label={`${expanded ? "Fold" : "Unfold"} ${id}, ${MODE_LABELS[mode].name}`}
+      onClick={onToggle}
+      className="-my-2 -mr-2 grid size-10 shrink-0 place-items-center rounded-md hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      <Chevron open={expanded} />
+    </button>
+  );
+
+  // A folded PASS: one line, the headline and the badge.
+  if (passed && !open) {
+    return (
+      <article
+        aria-label={`${id} · ${MODE_LABELS[mode].name}`}
+        className={`flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface px-4 py-2 pl-5 ${stripe} ${dimmed ? "opacity-60" : ""} motion-safe:transition-opacity motion-safe:duration-200`}
+      >
+        <p className="flex min-w-0 flex-1 items-baseline gap-2 text-sm">
+          <span className="shrink-0 font-mono text-xs text-muted">{id}</span>
+          <span className="truncate">{headline}</span>
+        </p>
+        <VerdictBadge scenario={scenario} />
+        {toggle}
+      </article>
+    );
   }
 
   return (
-    <article className={`flex h-full min-w-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4 pl-5 ${stripe}`}>
+    <article
+      aria-label={`${id} · ${MODE_LABELS[mode].name}`}
+      className={`flex h-full min-w-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4 pl-5 ${stripe} ${dimmed ? "opacity-60" : ""} motion-safe:transition-opacity motion-safe:duration-200`}
+    >
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <p className="font-mono text-xs text-muted">
-            {id} · {SCENARIO_TITLES[id] ?? scenario?.title}
+            {id} · {SCENARIO_TITLES[id] ?? scenario?.title} · {MODE_LABELS[mode].name}
           </p>
           <h3 className="text-base font-semibold leading-6" suppressHydrationWarning>
-            {scenario ? liveHeadline(scenario, now, deadlineMs) : "Not run yet"}
+            {headline}
           </h3>
         </div>
-        <VerdictBadge scenario={scenario} />
+        <div className="flex shrink-0 items-center gap-1">
+          <VerdictBadge scenario={scenario} />
+          {toggle}
+        </div>
       </header>
 
-      {(scenario?.reason ?? scenario?.error) && (
-        <p className="text-sm leading-6 text-muted">{scenario?.reason ?? scenario?.error}</p>
-      )}
-
-      {scenario && failed && <AnalysisPanel scenario={scenario} onStep={showStep} />}
-
-      {scenario?.verdict === "PASS" && <HandlingCode id={id} mode={mode} code={code} />}
-
-      {steps.length > 0 && (
+      {!open && !passed && (reason || fixVerified) && (
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            aria-expanded={traceOpen}
-            aria-controls={traceId}
-            onClick={() => setTraceOpen((value) => !value)}
-            className="-mx-2 min-h-10 self-start rounded-md px-2 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            {traceOpen ? "Hide trace" : `Show trace · ${steps.length} steps`}
-          </button>
-          {traceOpen && (
-            <div id={traceId}>
-              <TraceGrid steps={steps} highlightSeq={highlightSeq} />
-            </div>
+          {reason && <p className="line-clamp-1 text-sm leading-6 text-muted">{reason}</p>}
+          {fixVerified && (
+            <p>
+              <span className="inline-flex rounded-md bg-pass-bg px-2 py-1 font-mono text-xs font-semibold text-pass">
+                Fix verified
+              </span>
+            </p>
           )}
         </div>
       )}
 
-      {scenario?.durationMs !== null && scenario?.durationMs !== undefined && scenario.status === "COMPLETED" && (
-        <p className="mt-auto font-mono text-xs text-muted">Finished in {seconds(scenario.durationMs)}</p>
+      {open && (
+        <div id={bodyId} className="flex min-w-0 flex-col gap-3">
+          {reason && <p className="text-sm leading-6 text-muted">{reason}</p>}
+
+          {scenario && failed && <AnalysisPanel scenario={scenario} onStep={onStep} />}
+
+          {passed && <HandlingCode id={id} mode={mode} code={code} />}
+
+          {steps.length > 0 && (
+            <button
+              type="button"
+              aria-expanded={traceOpen}
+              aria-controls={traceId}
+              onClick={onToggleTrace}
+              className="-mx-2 min-h-10 self-start rounded-md px-2 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              {traceOpen ? "Hide trace" : `Show trace · ${steps.length} steps`}
+            </button>
+          )}
+
+          {scenario?.durationMs !== null && scenario?.durationMs !== undefined && scenario.status === "COMPLETED" && (
+            <p className="mt-auto font-mono text-xs text-muted">Finished in {seconds(scenario.durationMs)}</p>
+          )}
+        </div>
       )}
     </article>
   );
 }
+

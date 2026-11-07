@@ -822,7 +822,9 @@ ten-minute rule ended such a run only when someone started a new one, and then a
   stands." and is tried again on a later run.
 - **Runs per visitor and overall.** A visitor may start `RUNS_PER_VISITOR_PER_HOUR` runs an hour
   (default 6), all visitors together `RUNS_PER_HOUR` (default 60), and one run is live at a time.
-  The answer says which limit was reached and when the next run may start.
+  The answer says which limit was reached and when the next run may start. Revisited on 2026-11-07:
+  the deployed service cannot tell visitors apart, so its per-visitor limit equals the overall one,
+  see [the deployed service does not see a visitor's address](#the-deployed-service-does-not-see-a-visitors-address).
 
 **Why:** the audit of 2026-11-05 found that anyone could start fresh runs, each a new analysis of
 five failures at about $0.27, and that one visitor could use up the whole hourly limit of 20 and
@@ -840,3 +842,33 @@ address is stored, in `runs.visitor`.
 
 **Consequence:** visitors behind one address, such as one office, share its six runs an hour. Live
 analysis for a recording needs the token in the URL.
+
+## The deployed service does not see a visitor's address
+
+**Finding:** on Render the request carries no `CF-Connecting-IP`, and `X-Forwarded-For` holds a
+single entry that is the same for different networks. Proofs started from a Wi-Fi network and from a
+mobile network were stored under one `runs.visitor` hash. The address the per-visitor limit reads
+therefore identifies the platform's edge, not the visitor, and every visitor shares one count.
+
+**Decision:** until the service has a source that tells visitors apart, the deployed service sets
+`RUNS_PER_VISITOR_PER_HOUR=60`, equal to the overall `RUNS_PER_HOUR`. A per-visitor limit of 6 on a
+shared count would stop the whole demo after six runs an hour. The code is unchanged; the default
+of 6 still applies wherever a real client address arrives.
+
+**What still protects the demo:**
+
+- One run is live at a time, and all visitors together may start 60 runs an hour.
+- The model budget does not depend on telling visitors apart. Only the operator's
+  `FRESH_ANALYSIS_TOKEN` makes a run skip the analysis cache, and new analyses stop at
+  `ANALYSES_PER_DAY` in any 24 hours, whoever starts the runs.
+
+**Consequence:** one visitor can use up the hour's runs and make everyone else wait for the next
+one. That costs availability, not model spend. Because the visitor check runs first and both limits
+are 60, the answer at the limit can read as the visitor's own limit although it counts everyone's
+runs.
+
+**Revisit:** when a source of the client address that differs between networks is found on the
+deployed service, for example a header the platform documents or one set by a proxy the service
+controls. Then the per-visitor limit goes back to its default, and this record and
+[the demo is protected from one visitor](#the-demo-is-protected-from-one-visitor) are updated with
+the header and how it was verified.

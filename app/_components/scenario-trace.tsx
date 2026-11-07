@@ -101,7 +101,7 @@ export function ScenarioTrace({
     <section
       id={domId}
       aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-3"
+      className="trace-enter flex min-w-0 flex-col gap-3"
       style={{ "--trace-height": traceHeight(steps.length) } as React.CSSProperties}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">

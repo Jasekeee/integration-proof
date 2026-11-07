@@ -207,6 +207,7 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
 }
 
 /* A spinner for live work: the button while a run is under way. Without motion it stands still. */
+@layer components {
 .spinner {
   display: inline-block;
   width: 0.75rem;
@@ -216,6 +217,7 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
   border-top-color: currentColor;
   animation: spin 0.9s linear infinite;
+}
 }
 
 @keyframes spin {
@@ -291,6 +293,7 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
 }
 
 /* A repeated PayPal-Request-Id in the trace: the same key, the same color. */
+[data-request-key] { transition: box-shadow 150ms var(--ease-out); }
 .request-key-0 { background: var(--key-0-bg); color: var(--key-0); }
 .request-key-1 { background: var(--key-1-bg); color: var(--key-1); }
 .request-key-2 { background: var(--key-2-bg); color: var(--key-2); }
@@ -301,9 +304,204 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   box-shadow: inset 3px 0 0 var(--foreground);
 }
 
+/*
+ * The verdict matrix during a live run. A chip whose state changed enters: the word slides up into
+ * place (--stagger delays it by row), and a verdict settles with a short overshoot. A FAIL leaves a
+ * red trace in its cell that fades; the flagship scenario's FAIL gets a ring instead, once.
+ */
+.chip-enter > .chip-word {
+  animation: chip-word 250ms var(--ease-out) both;
+  animation-delay: var(--stagger, 0ms);
+}
+
+.chip-enter.chip-verdict {
+  animation: chip-settle 320ms var(--ease-out) both;
+  animation-delay: var(--stagger, 0ms);
+}
+
+@keyframes chip-word {
+  from {
+    opacity: 0;
+    transform: translateY(70%);
+  }
+}
+
+@keyframes chip-settle {
+  0% {
+    transform: scale(0.94);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+}
+
+.headline-enter {
+  animation: rise 350ms var(--ease-out) both;
+  animation-delay: calc(var(--stagger, 0ms) + 60ms);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.cell-flash {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--fail-bg);
+  opacity: 0;
+  animation: cell-flash 900ms var(--ease-out);
+  pointer-events: none;
+}
+
+@keyframes cell-flash {
+  from {
+    opacity: 0.9;
+  }
+}
+
+.cell-ring {
+  position: absolute;
+  inset: 5px 8px;
+  border-radius: var(--radius-card);
+  box-shadow: 0 0 0 1.5px var(--fail);
+  opacity: 0;
+  animation: cell-ring 1400ms var(--ease-out);
+  pointer-events: none;
+}
+
+@keyframes cell-ring {
+  0% {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+  20%,
+  70% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Only cells that are really waiting for PayPal pulse. */
+.live-dot {
+  animation: live-dot 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes live-dot {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* A run's progress: one segment per scenario, in its state's color. */
+.segment {
+  transition: background-color 250ms var(--ease-out), box-shadow 250ms var(--ease-out);
+}
+
+/* What the run cost: the items arrive one by one once the store is done. */
+.harm-enter {
+  animation: rise 350ms var(--ease-out) both;
+}
+
+/*
+ * Claude's verified fix, the first time it is seen: FAIL is struck through, the arrow draws, then
+ * PASS arrives. "armed" is the start, drawn only once JavaScript knows the badge will play.
+ */
+[data-fix="armed"] .verdict-struck::after {
+  transform: scaleX(0);
+}
+
+[data-fix="armed"] .fix-arrow path {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+}
+
+[data-fix="armed"] .fix-after {
+  opacity: 0;
+  transform: translateX(-6px);
+}
+
+[data-fix="play"] .verdict-struck::after {
+  transform-origin: left;
+  animation: strike 220ms var(--ease-out) both;
+}
+
+[data-fix="play"] .fix-arrow path {
+  stroke-dasharray: 20;
+  animation: draw 220ms var(--ease-out) 220ms both;
+}
+
+[data-fix="play"] .fix-after {
+  animation: fix-in 320ms var(--ease-out) 440ms both;
+}
+
+@keyframes strike {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes fix-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+/* Every cell with the PayPal-Request-Id under the pointer or in focus. */
+.key-hover {
+  box-shadow: 0 0 0 1.5px currentColor;
+}
+
+/* A trace as it opens below its card. */
+.trace-enter {
+  animation: rise 350ms var(--ease-out) both;
+}
+
 /* The S3 race on the landing page: the held answer's dot pulses three times once its step lights up. */
 [data-lit] .race-pulse {
   animation: race-pulse 1s var(--ease-in-out) 3;
+}
+
+.race-diverge {
+  position: relative;
+}
+
+.race-diverge::before {
+  content: "";
+  position: absolute;
+  inset: -4px -8px;
+  z-index: -1;
+  border-radius: var(--radius-control);
+  opacity: 0;
+  animation: race-diverge 1200ms var(--ease-out);
+}
+
+.race-diverge-bad::before {
+  background: var(--fail-bg);
+}
+
+.race-diverge-good::before {
+  background: var(--pass-bg);
+}
+
+@keyframes race-diverge {
+  0%,
+  45% {
+    opacity: 1;
+  }
 }
 
 @keyframes race-pulse {

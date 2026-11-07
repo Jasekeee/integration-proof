@@ -48,14 +48,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
             <Link href="/" className="flex min-h-10 items-center gap-2 rounded-md font-semibold focus-visible:outline-2 focus-visible:outline-ring">
               <svg viewBox="0 0 32 32" className="size-6" aria-hidden="true">
-                <rect width="32" height="32" rx="7" className="fill-foreground" />
-                <path d="M9 16.5l4.5 4.5L23 11.5" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="stroke-background" />
+                <rect width="32" height="32" rx="7" className="fill-brand" />
+                <path d="M9 16.5l4.5 4.5L23 11.5" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="stroke-brand-foreground" />
               </svg>
               Integration Proof
             </Link>
             <div className="flex items-center gap-1">
               <Link href="/proof" className={navLink}>
-                Proof runs
+                Live proof
+              </Link>
+              <Link href="/#how-it-works" className={`${navLink} max-sm:hidden`}>
+                How it works
               </Link>
               <a href={GITHUB_URL} className={navLink}>
                 GitHub
@@ -70,7 +73,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-muted sm:flex-row sm:justify-between sm:px-6">
             <p>PayPal sandbox only. No real payment is ever made.</p>
             <p>
-              <a href={GITHUB_URL} className="underline underline-offset-4 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring">
+              <a href={GITHUB_URL} className="text-brand underline underline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring">
                 Source on GitHub
               </a>{" "}
               · MIT license

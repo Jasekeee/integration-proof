@@ -15,7 +15,8 @@
   --border-strong: #c4c4c8;
   --accent: #171717;
   --accent-foreground: #ffffff;
-  --ring: #2563eb;
+  /* Focus follows the brand accent: 7.9:1 on the background. */
+  --ring: #4338ca;
   --pass: #166534;
   --pass-bg: #dcfce7;
   --fail: #991b1b;
@@ -27,9 +28,13 @@
   --diff-del: #7f1d1d;
   --diff-del-bg: #fdecec;
   --highlight-bg: #e8f0fe;
-  /* The flagship scenario's row in the verdict matrix. */
+  /*
+   * The one brand accent: the mark, links, step numbers, focus and the flagship scenario's row.
+   * Green and red stay with verdicts. 7.1:1 or better on every background token, both themes.
+   */
   --brand: #4338ca;
   --brand-bg: #eef2ff;
+  --brand-foreground: #ffffff;
   /* A PayPal-Request-Id that repeats in a trace: each repeated key gets one of these pairs. */
   --key-0: #3730a3;
   --key-0-bg: #e0e7ff;
@@ -55,7 +60,7 @@
     --border-strong: #3f3f43;
     --accent: #ededed;
     --accent-foreground: #0a0a0a;
-    --ring: #60a5fa;
+    --ring: #a5b4fc;
     --pass: #86efac;
     --pass-bg: #0b2e17;
     --fail: #fca5a5;
@@ -69,6 +74,7 @@
     --highlight-bg: #172554;
     --brand: #a5b4fc;
     --brand-bg: #1e1b4b;
+    --brand-foreground: #0a0a0a;
     --key-0: #c7d2fe;
     --key-0-bg: #1e1b4b;
     --key-1: #99f6e4;
@@ -106,6 +112,7 @@
   --color-highlight-bg: var(--highlight-bg);
   --color-brand: var(--brand);
   --color-brand-bg: var(--brand-bg);
+  --color-brand-foreground: var(--brand-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -173,4 +180,42 @@ body {
 /* The trace row whose bodies are open below the grid. */
 .trace-selected {
   box-shadow: inset 3px 0 0 var(--foreground);
+}
+
+/*
+ * The S3 race on the landing page: each step fades in at its own delay (--at), so the whole story
+ * plays in about six seconds and then holds its final state. Without motion it starts at the end.
+ */
+.race-step {
+  opacity: 0;
+  transform: translateY(4px);
+  animation: race-in 350ms ease-out forwards;
+  animation-delay: var(--at, 0s);
+}
+
+.race-pulse {
+  animation: race-pulse 1s ease-in-out 3;
+  animation-delay: var(--at, 0s);
+}
+
+@keyframes race-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes race-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .race-step,
+  .race-pulse {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { CodeScroller } from "../../_components/code-scroller";
 import type { Mode } from "../../_components/report";
+import { linkUtility } from "../../_components/ui";
 
 const POLL_MS = 3000;
 /** The proof waits as long for a webhook (WEBHOOK_WAIT_MS); deliveries took 7 to 60 s. */
@@ -161,15 +162,15 @@ export function Checkout({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <section className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-surface p-5" aria-labelledby="buy">
+      <section className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-surface p-5" aria-labelledby="buy">
         <div className="flex items-baseline justify-between gap-3">
           <h2 id="buy" className="text-lg font-semibold">{product.description}</h2>
-          <p className="font-mono text-lg font-semibold">
+          <p className="font-mono text-lg font-semibold tabular-nums">
             {product.amount.value} {product.amount.currency_code}
           </p>
         </div>
 
-        <ol className="flex flex-col gap-3 rounded-md border border-border bg-background p-4 text-sm leading-6">
+        <ol className="flex flex-col gap-3 rounded-control border border-border bg-background p-4 text-sm leading-6">
           <li className="flex flex-col gap-1">
             <p className="font-semibold">Fastest: pay by card, no login needed.</p>
             <p className="text-muted">
@@ -210,20 +211,20 @@ export function Checkout({
             </div>
           </PayPalProvider>
         ) : (
-          <p role="alert" className="rounded-md border border-warn/40 bg-warn-bg p-3 text-sm text-warn">
+          <p role="alert" className="rounded-control border border-warn/40 bg-warn-bg p-3 text-sm text-warn">
             The PayPal client id is not configured, so the buttons cannot load.
           </p>
         )}
 
         {phase.kind === "error" && (
-          <p role="alert" className="rounded-md border border-fail/40 bg-fail-bg p-3 text-sm text-fail">
+          <p role="alert" className="rounded-control border border-fail/40 bg-fail-bg p-3 text-sm text-fail">
             {phase.message}
           </p>
         )}
 
       </section>
 
-      <section className="flex min-w-0 flex-col gap-4 rounded-lg border border-border p-5" aria-labelledby="result" aria-live="polite">
+      <section className="flex min-w-0 flex-col gap-4 rounded-card border border-border p-5" aria-labelledby="result" aria-live="polite">
         <h2 id="result" className="text-lg font-semibold">What the store did</h2>
         {!cartId && (
           <div className="flex flex-col gap-3">
@@ -234,7 +235,7 @@ export function Checkout({
                 "PayPal's webhook, when it arrives",
                 "The order as the store records it, with a short trace",
               ].map((step, index) => (
-                <li key={step} className="flex items-center gap-3 rounded-md border border-dashed border-border px-3 py-2.5 text-sm text-muted">
+                <li key={step} className="flex items-center gap-3 rounded-control border border-dashed border-border px-3 py-2 text-sm leading-6 text-muted">
                   <span className="font-mono text-xs">{index + 1}</span>
                   {step}
                 </li>
@@ -245,7 +246,7 @@ export function Checkout({
 
         {phase.kind === "captured" && (
           <div className="flex flex-col gap-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">The store answered the buyer</p>
+            <p className="text-label font-semibold uppercase tracking-label text-muted">The store answered the buyer</p>
             <p className="text-sm">
               <span className="font-mono font-semibold">{phase.status}</span> · {phase.message}
             </p>
@@ -254,14 +255,14 @@ export function Checkout({
 
         {cartId && (order || polling) && (
           <div className="flex flex-col gap-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">After PayPal&apos;s webhook</p>
+            <p className="text-label font-semibold uppercase tracking-label text-muted">After PayPal&apos;s webhook</p>
             {order && delivered(state) ? (
               <p className="text-sm">
                 <span className="font-mono font-semibold text-pass">{order.status}</span> · fulfilments{" "}
                 <span className="font-mono font-semibold">{order.fulfilments}</span>
               </p>
             ) : polling ? (
-              <p className="text-sm text-muted" suppressHydrationWarning>
+              <p className="text-sm tabular-nums text-muted" suppressHydrationWarning>
                 Waiting for PayPal&apos;s webhook · {Math.round((now - polling.since) / 1000)} s of {WEBHOOK_WAIT_MS / 1000} s
               </p>
             ) : (
@@ -278,7 +279,7 @@ export function Checkout({
         {shareUrl && (
           <p className="text-sm text-muted">
             This transaction:{" "}
-            <a href={shareUrl} className="break-all font-mono text-xs text-foreground underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring">
+            <a href={shareUrl} className={`break-all rounded-sm font-mono text-xs ${linkUtility}`}>
               {shareUrl}
             </a>
           </p>
@@ -313,9 +314,9 @@ function TransactionTrace({ mode, state }: { mode: Mode; state: StoreState }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Trace</p>
+      <p className="text-label font-semibold uppercase tracking-label text-muted">Trace</p>
       {/* Scrolls sideways inside itself, with a shadow on the edge that hides columns, like a code block. */}
-      <CodeScroller label="Trace of this transaction" className="rounded-md border border-border">
+      <CodeScroller label="Trace of this transaction" className="rounded-control border border-border">
         <table className="w-full min-w-[30rem] border-collapse font-mono text-xs">
           <thead className="bg-surface-2 text-left text-muted">
             <tr>

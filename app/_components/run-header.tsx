@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { linkUtility } from "./ui";
 import { isRunActive, MODE_LABELS, progressLabel, runTone, seconds, timeAgo, type Mode, type RunReport } from "./report";
 
 /** Status colors pass WCAG AA on the page background in both themes (globals.css). */
@@ -12,7 +13,7 @@ function Consequences({ report }: { report: RunReport }) {
   const harms = report.consequences ?? [];
   if (harms.length > 0) {
     return (
-      <p className="text-sm font-medium leading-6 text-fail">
+      <p className="text-sm font-medium leading-6 tabular-nums text-fail">
         <span className="text-muted">This run: </span>
         {harms.join(" · ")}
       </p>
@@ -20,7 +21,7 @@ function Consequences({ report }: { report: RunReport }) {
   }
   if (report.status === "COMPLETED" && report.summary.passed === report.summary.total) {
     return (
-      <p className="text-sm font-medium leading-6 text-pass">
+      <p className="text-sm font-medium leading-6 tabular-nums text-pass">
         <span className="text-muted">This run: </span>
         all {report.summary.total} failures handled, nothing charged or shipped twice
       </p>
@@ -47,7 +48,7 @@ export function RunHeader({
   const tone = runTone(report);
 
   return (
-    <div className="flex h-full flex-col gap-4 rounded-lg border border-border p-4 sm:p-6">
+    <div className="flex h-full flex-col gap-4 rounded-panel border border-border p-4 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold">{label.name}</h2>
@@ -73,7 +74,7 @@ export function RunHeader({
 
       {report && !active && <Consequences report={report} />}
 
-      <p className="text-sm text-muted" aria-live="polite" suppressHydrationWarning>
+      <p className="text-sm tabular-nums text-muted" aria-live="polite" suppressHydrationWarning>
         {!report && "Not run yet."}
         {report && !active && report.status === "ERROR" && `The run stopped: ${report.error ?? "unknown error"}`}
         {/* A run the server ended after its process died: finished, with why. */}
@@ -88,10 +89,7 @@ export function RunHeader({
             {report.summary.failed} failed
             {report.summary.inconclusive > 0 ? ` · ${report.summary.inconclusive} inconclusive` : ""} · {seconds(report.durationMs)} run ·{" "}
             {timeAgo(report.createdAt, now)} ·{" "}
-            <Link
-              href={`/proof/${report.id}`}
-              className="text-foreground underline underline-offset-4 hover:text-muted focus-visible:outline-2 focus-visible:outline-ring"
-            >
+            <Link href={`/proof/${report.id}`} className={`rounded-sm ${linkUtility}`}>
               Share results
             </Link>
           </>

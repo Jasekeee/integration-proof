@@ -59,7 +59,7 @@ export function ScenarioSection({
     <section
       id={sectionId(id)}
       aria-label={id}
-      className={`grid scroll-mt-6 gap-4 ${side ? "lg:grid-cols-2 lg:gap-x-6" : ""}`}
+      className={`grid scroll-mt-6 gap-4 ${side ? "lg:grid-cols-2 lg:items-start lg:gap-x-6" : ""}`}
     >
       {modes.map((mode) => {
         const traceId = `${prefix}-${mode}-trace`;

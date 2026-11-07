@@ -2,8 +2,10 @@
 
 import { useId } from "react";
 import { AnalysisPanel } from "./analysis-panel";
+import { FixMark } from "./fix-mark";
 import { HandlingCode } from "./handling-code";
 import { FALLBACK_HEADLINES, MODE_LABELS, SCENARIO_TITLES, seconds, verdictTone, waitLabel, type Mode, type ScenarioView, type StoreCode } from "./report";
+import { buttonIcon, buttonText } from "./ui";
 import { VerdictBadge } from "./verdict-badge";
 
 /**
@@ -35,10 +37,19 @@ function Chevron({ open }: { open: boolean }) {
     <svg
       aria-hidden="true"
       viewBox="0 0 16 16"
-      className={`size-4 shrink-0 text-muted motion-safe:transition-transform motion-safe:duration-200 ${open ? "rotate-180" : ""}`}
+      className={`size-4 shrink-0 transition-transform duration-200 ease-(--ease-out) ${open ? "rotate-180" : ""}`}
     >
-      <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/** The line above a card's headline: the scenario id in mono, its title and the store in plain text. */
+function CardEyebrow({ id, title, store }: { id: string; title: string; store: string }) {
+  return (
+    <p className="text-xs text-muted">
+      <span className="font-mono">{id}</span> · {title} · {store}
+    </p>
   );
 }
 
@@ -86,7 +97,8 @@ export function ScenarioCard({
   const stripe = tone ? STRIPES[tone] : scenario?.status === "ERROR" ? STRIPES.error : "";
   const headline = scenario ? liveHeadline(scenario, now, deadlineMs) : "Not run yet";
   const reason = scenario?.reason ?? scenario?.error ?? null;
-  const fixVerified = scenario?.analysis?.fixCheck?.verified === true;
+  const fixCheck = scenario?.analysis?.fixCheck;
+  const fixVerified = fixCheck?.verified === true;
   const foldable = scenario?.status === "COMPLETED" || scenario?.status === "ERROR";
   const open = expanded || !foldable;
 
@@ -97,7 +109,7 @@ export function ScenarioCard({
       aria-controls={bodyId}
       aria-label={`${expanded ? "Fold" : "Unfold"} ${id}, ${MODE_LABELS[mode].name}`}
       onClick={onToggle}
-      className="-my-2 -mr-2 grid size-10 shrink-0 place-items-center rounded-md hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-ring"
+      className={`-my-2 -mr-2 ${buttonIcon}`}
     >
       <Chevron open={expanded} />
     </button>
@@ -108,10 +120,10 @@ export function ScenarioCard({
     return (
       <article
         aria-label={`${id} · ${MODE_LABELS[mode].name}`}
-        className={`flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface px-4 py-2 pl-5 ${stripe} ${dimmed ? "opacity-60" : ""} motion-safe:transition-opacity motion-safe:duration-200`}
+        className={`flex min-w-0 items-center gap-3 rounded-card border border-border bg-surface px-4 py-2 pl-5 transition-opacity duration-200 ${stripe} ${dimmed ? "opacity-60" : ""}`}
       >
         <p className="flex min-w-0 flex-1 items-baseline gap-2 text-sm">
-          <span className="shrink-0 font-mono text-xs text-muted">{id}</span>
+          <span className="shrink-0 font-mono text-label text-muted">{id}</span>
           <span className="truncate">{headline}</span>
         </p>
         <VerdictBadge scenario={scenario} />
@@ -123,14 +135,12 @@ export function ScenarioCard({
   return (
     <article
       aria-label={`${id} · ${MODE_LABELS[mode].name}`}
-      className={`flex h-full min-w-0 flex-col gap-3 rounded-lg border border-border bg-surface p-4 pl-5 ${stripe} ${dimmed ? "opacity-60" : ""} motion-safe:transition-opacity motion-safe:duration-200`}
+      className={`flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4 pl-5 transition-opacity duration-200 ${stripe} ${dimmed ? "opacity-60" : ""}`}
     >
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <p className="font-mono text-xs text-muted">
-            {id} · {SCENARIO_TITLES[id] ?? scenario?.title} · {MODE_LABELS[mode].name}
-          </p>
-          <h3 className="text-base font-semibold leading-6" suppressHydrationWarning>
+          <CardEyebrow id={id} title={SCENARIO_TITLES[id] ?? scenario?.title ?? ""} store={MODE_LABELS[mode].name} />
+          <h3 className="text-base font-semibold leading-6 tabular-nums" suppressHydrationWarning>
             {headline}
           </h3>
         </div>
@@ -142,12 +152,10 @@ export function ScenarioCard({
 
       {!open && !passed && (reason || fixVerified) && (
         <div className="flex flex-col gap-2">
-          {reason && <p className="line-clamp-1 text-sm leading-6 text-muted">{reason}</p>}
+          {reason && <p className="measure line-clamp-1 text-sm leading-6 text-muted">{reason}</p>}
           {fixVerified && (
             <p>
-              <span className="inline-flex rounded-md bg-pass-bg px-2 py-1 font-mono text-xs font-semibold text-pass">
-                Fix verified
-              </span>
+              <FixMark before={fixCheck?.before ?? "FAIL"} after={fixCheck?.after ?? "PASS"} label="Fix verified" size="sm" />
             </p>
           )}
         </div>
@@ -155,7 +163,7 @@ export function ScenarioCard({
 
       {open && (
         <div id={bodyId} className="flex min-w-0 flex-col gap-3">
-          {reason && <p className="text-sm leading-6 text-muted">{reason}</p>}
+          {reason && <p className="measure text-sm leading-6 text-pretty text-muted">{reason}</p>}
 
           {scenario && failed && <AnalysisPanel scenario={scenario} onStep={onStep} />}
 
@@ -167,14 +175,14 @@ export function ScenarioCard({
               aria-expanded={traceOpen}
               aria-controls={traceId}
               onClick={onToggleTrace}
-              className="-mx-2 min-h-10 self-start rounded-md px-2 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+              className={buttonText}
             >
               {traceOpen ? "Hide trace" : `Show trace · ${steps.length} steps`}
             </button>
           )}
 
           {scenario?.durationMs !== null && scenario?.durationMs !== undefined && scenario.status === "COMPLETED" && (
-            <p className="mt-auto font-mono text-xs text-muted">Finished in {seconds(scenario.durationMs)}</p>
+            <p className="font-mono text-xs tabular-nums text-muted">Finished in {seconds(scenario.durationMs)}</p>
           )}
         </div>
       )}

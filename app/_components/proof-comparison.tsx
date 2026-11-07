@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useNow, useRunReport } from "./hooks";
-import { FLAGSHIP_SCENARIO, isRunActive, SCENARIO_TITLES, type Mode, type RunReport, type StoreCode } from "./report";
+import { FLAGSHIP_SCENARIO, isRunActive, MODE_LABELS, SCENARIO_TITLES, type Mode, type RunReport, type StoreCode } from "./report";
 import { ScenarioSection, sectionId } from "./scenario-section";
+import { buttonPrimary, buttonSmall } from "./ui";
 import { VerdictMatrix } from "./verdict-matrix";
 
 const MODES: Mode[] = ["naive", "hardened"];
@@ -210,54 +211,70 @@ export function ProofComparison({
   }
 
   const running = phase !== "idle" || following || MODES.some((mode) => isRunActive(reports[mode]));
+  /** The store whose run is live now: this visitor's, or the one being followed. */
+  const liveMode = phase !== "idle" ? phase : MODES.find((mode) => isRunActive(reports[mode]));
+  const runLabel = liveMode ? `Running ${MODE_LABELS[liveMode].name.toLowerCase()}` : "Running…";
 
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div className="flex max-w-3xl flex-col gap-2">
+        <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">Six failures, two stores</h1>
-          <p className="leading-relaxed text-muted">
+          <p className="measure leading-relaxed text-pretty text-muted">
             The same PayPal failures, injected in the sandbox, against a store with common mistakes and the same store
             fixed. Code decides every verdict. Claude explains each failure.
           </p>
           {freshToken && (
-            <p className="text-sm text-muted">
+            <p className="measure text-sm text-muted">
               Fresh analysis is on: Claude analyses every failure again instead of reusing an earlier analysis.
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => run(MODES)}
-          disabled={busy}
-          className="min-h-11 shrink-0 self-start rounded-md bg-accent px-5 text-sm font-semibold text-accent-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
-        >
-          {running ? "Running…" : "Run both live"}
-          {!running && <span className="ml-1.5 font-normal opacity-70">≈ 90 s</span>}
-        </button>
+        {/* While a run is live the button is busy, not broken: it says which store is running. */}
+        {running ? (
+          <button
+            type="button"
+            disabled
+            aria-busy="true"
+            className="inline-flex min-h-11 shrink-0 cursor-progress items-center gap-2.5 self-start rounded-control border border-border-strong bg-surface px-5 text-sm font-semibold sm:self-auto"
+          >
+            <span className="spinner" aria-hidden="true" />
+            {runLabel}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => run(MODES)}
+            disabled={busy}
+            className={`${buttonPrimary} shrink-0 self-start sm:self-auto`}
+          >
+            Run both live
+            <span className="font-normal opacity-75">about 2–3 min</span>
+          </button>
+        )}
       </header>
 
       {loadError && (
-        <p role="alert" className="rounded-lg border border-warn/40 bg-warn-bg p-4 text-sm text-warn">
+        <p role="alert" className="rounded-card border border-warn/40 bg-warn-bg p-4 text-sm text-warn">
           The latest results could not be loaded. Running the proof still works; reload the page to try again.
         </p>
       )}
 
       {following && (
-        <div role="status" className="rounded-lg border border-border-strong bg-surface p-4 text-sm leading-6">
+        <div role="status" className="rounded-card border border-border-strong bg-surface p-4 text-sm leading-6">
           Another visitor is running the proof right now, so yours did not start. Their run is shown below as it
           happens; you can run it again as soon as it finishes.
         </div>
       )}
 
       {error && (
-        <div role="alert" className="flex flex-col gap-3 rounded-lg border border-fail/40 bg-fail-bg p-4 text-fail sm:flex-row sm:items-center sm:justify-between">
+        <div role="alert" className="flex flex-col gap-3 rounded-card border border-fail/40 bg-fail-bg p-4 text-fail sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm">{error.message}</p>
           <button
             type="button"
             onClick={() => run(error.modes)}
             disabled={busy}
-            className="min-h-10 shrink-0 self-start rounded-md border border-current px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 sm:self-auto"
+            className={`${buttonSmall} shrink-0 self-start border-current bg-transparent text-fail hover:border-current hover:bg-background/40 sm:self-auto`}
           >
             Try again
           </button>
@@ -265,9 +282,15 @@ export function ProofComparison({
       )}
 
       <div className="flex flex-col gap-3">
-        {/* The line keeps its place for the whole run, so the matrix does not jump when a wait begins. */}
-        <p role="status" className={`text-sm text-warn ${waiting || running ? "min-h-10 sm:min-h-5" : "sr-only"}`}>
-          {waiting ? "Waiting for PayPal's real webhooks. They usually arrive in 7 to 60 seconds." : ""}
+        {/* The line keeps its place for the whole run, so the matrix does not jump when a wait begins. A wait is
+            normal, so the line is plain; the amber dot marks what is waiting, like the cells below. */}
+        <p role="status" className={`flex items-start gap-2 text-sm text-muted ${waiting || running ? "min-h-10 sm:min-h-5" : "sr-only"}`}>
+          {waiting && (
+            <>
+              <span aria-hidden="true" className="mt-[7px] size-1.5 shrink-0 rounded-full bg-warn" />
+              Waiting for PayPal&apos;s real webhooks. They usually arrive in 7 to 60 seconds.
+            </>
+          )}
         </p>
         <VerdictMatrix
           reports={reports}

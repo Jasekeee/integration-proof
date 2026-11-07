@@ -20,7 +20,7 @@ cause and a fix that is verified before it is shown.
 
 ## Why it matters
 
-PayPal documents what a correct integration does. Nothing checks that yours does it.
+PayPal documents what a correct integration does. Integration Proof checks that yours does.
 
 - *"You can retry idempotent calls that fail with network timeouts or HTTP 5xx status codes…"*
   ([Idempotency](https://developer.paypal.com/api/rest/reference/idempotency/)) → S2, S3
@@ -210,7 +210,8 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
    the trace, and see the fix and its offline verdict. Click a trace row for its redacted request and
    response.
 3. Click **Run both live** to run the six failures again: the naive store, then the hardened one,
-   about a minute each. The demo runs one proof at a time for everyone.
+   one to two minutes each, about 2–3 minutes for both. The demo runs one proof at a time for
+   everyone.
 
 ## Try the checkout yourself
 

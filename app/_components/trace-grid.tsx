@@ -29,7 +29,7 @@ const theme = themeQuartz.withParams({
   fontSize: 13,
   headerFontSize: 12,
   spacing: 6,
-  wrapperBorderRadius: 8,
+  wrapperBorderRadius: 10,
 });
 
 const mono = { fontFamily: "var(--font-geist-mono)" };

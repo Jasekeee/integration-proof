@@ -21,8 +21,9 @@ app/
   proof/page.tsx                                       naive and hardened side by side; Run both
   proof/[runId]/page.tsx                               shareable results of one run
   _components/                                         result views: verdict matrix, scenario cards, Claude analysis, AG Grid trace
-  icon.svg, opengraph-image.tsx                        favicon and link preview
-  proof/[runId]/[scenarioId]/page.tsx                  report for one scenario
+  icon.svg, opengraph-image.png                        favicon and link preview (the README hero layout)
+  not-found.tsx                                        the 404 page
+  proof/[runId]/[scenarioId]/page.tsx                  redirects to that scenario's section of the run page
   store/[mode]/page.tsx                                reference store, mode = "naive" | "hardened" (both live)
   api/store/[mode]/orders/route.ts                     create order (Orders v2)
   api/store/[mode]/orders/[orderId]/capture/route.ts   capture order (Orders v2)

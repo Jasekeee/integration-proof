@@ -1,19 +1,33 @@
 # Integration Proof
 
-Prove your PayPal integration survives a bad day, before your customers find out.
+One lost response, and the buyer pays twice. Integration Proof breaks a PayPal Checkout
+integration on purpose in the sandbox, decides PASS or FAIL with code, and asks Claude for the root
+cause and a fix that is verified before it is shown.
+
+**[Live proof](https://integration-proof.onrender.com/proof) · [How it works](#how-it-works)**
 
 [![CI](https://github.com/Jasekeee/integration-proof/actions/workflows/ci.yml/badge.svg)](https://github.com/Jasekeee/integration-proof/actions/workflows/ci.yml)
 [![Verify AI fixes](https://github.com/Jasekeee/integration-proof/actions/workflows/verify-ai-fixes.yml/badge.svg)](https://github.com/Jasekeee/integration-proof/actions/workflows/verify-ai-fixes.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Live demo: [integration-proof.onrender.com/proof](https://integration-proof.onrender.com/proof)**
+![One lost response, and the buyer pays twice. The naive store passes 1 of 6 failures, the hardened store 6 of 6; Claude's fixes verified offline: 5/5](docs/screenshots/hero.png)
 
-![The same six failures against a naive and a hardened store: 1/6 and 6/6, with what each failure cost and Claude's verified fixes](docs/screenshots/proof-light.png)
+## Who it is for
 
-Integration Proof runs controlled failures against a PayPal Checkout integration in the PayPal
-sandbox. It records every request, response and webhook in a trace, decides PASS or FAIL for each
-scenario with deterministic code, and asks Claude for the root cause and a fix. Each fix is then
-checked offline: applied to the store, type-checked, and run against the same failure.
+- **Teams with a custom PayPal Checkout** that call Orders v2 and handle webhooks themselves.
+- **Plugin and platform authors**, whose one integration runs in thousands of stores.
+- **Anyone before a launch or a sale day**, when timeouts and retries actually happen.
+
+## Why it matters
+
+PayPal documents what a correct integration does. Nothing checks that yours does it.
+
+- *"You can retry idempotent calls that fail with network timeouts or HTTP 5xx status codes…"*
+  ([Idempotency](https://developer.paypal.com/api/rest/reference/idempotency/)) → S2, S3
+- *"Any non-2xx status code will cause PayPal to reattempt delivery up to 25 times over the course
+  of 3 days…"* ([Webhooks](https://developer.paypal.com/api/rest/webhooks/)) → S4, S5
+- *"If you do not verify a message, you will not have a way to validate that its sender was in fact
+  PayPal."* ([Webhooks](https://developer.paypal.com/api/rest/webhooks/)) → S6
 
 ## The problem
 
@@ -24,6 +38,27 @@ lost response, and the buyer paid twice.
 
 Nothing in a happy-path test catches this. Integration Proof makes it happen on purpose, in the
 sandbox, and shows what the store did.
+
+## Scenarios
+
+Two reference stores run side by side. The naive store keeps the common integration mistakes; the
+hardened store is the same store with each one fixed. In the live sandbox the naive store passes 1
+of 6, the hardened store 6 of 6.
+
+| | Failure | How it is produced | Naive store | Hardened store |
+|---|---|---|---|---|
+| S1 | Capture declined | The proxy adds `PayPal-Mock-Response: INSTRUMENT_DECLINED` to the capture | Shows a decline, charges nothing | Same |
+| S2 | Transient 5xx on capture | The first capture gets a mocked `500 INTERNAL_SERVER_ERROR` | Marks the order failed: a sale lost from a buyer ready to pay | Retries with backoff and the same `PayPal-Request-Id`; charged once |
+| S3 | Lost response after a successful capture | PayPal captures; the proxy holds the answer past the store's timeout | Says "Payment failed"; the buyer checks out again and is charged twice for one cart | Asks `GET /v2/checkout/orders/{id}`, sees the capture, marks the order paid |
+| S4 | Duplicate webhook | The same real `PAYMENT.CAPTURE.COMPLETED` is delivered twice | Ships the order twice | Dedupes by event id; ships once |
+| S5 | Late `COMPLETED` after a refund | The merchant refunds; a stale `COMPLETED` arrives last | Shows the refunded order as paid | Reads the order from PayPal; stays refunded |
+| S6 | Forged webhook | A recorded delivery with its body changed after PayPal signed it | Accepts the forged refund | Signature verification fails; answers 400 and changes nothing |
+
+PayPal allows one capture per order, so no store here can charge the same order twice. The harms the
+product shows are the ones that really happen: a lost sale (S2), a second charge on a second order
+for the same cart (S3), a double shipment (S4), and order states that disagree with PayPal (S5, S6).
+
+![The verdict matrix on the proof page: six failures against both stores, what the naive store cost, and Claude's fixes verified 5/5](docs/screenshots/proof-light.png)
 
 ## How it works
 
@@ -58,25 +93,6 @@ flowchart TB
    again on a deterministic model of PayPal, in CI.
 
 More detail in [docs/architecture.md](docs/architecture.md).
-
-## Scenarios
-
-Two reference stores run side by side. The naive store keeps the common integration mistakes; the
-hardened store is the same store with each one fixed. In the live sandbox the naive store passes 1
-of 6, the hardened store 6 of 6.
-
-| | Failure | How it is produced | Naive store | Hardened store |
-|---|---|---|---|---|
-| S1 | Capture declined | The proxy adds `PayPal-Mock-Response: INSTRUMENT_DECLINED` to the capture | Shows a decline, charges nothing | Same |
-| S2 | Transient 5xx on capture | The first capture gets a mocked `500 INTERNAL_SERVER_ERROR` | Marks the order failed: a sale lost from a buyer ready to pay | Retries with backoff and the same `PayPal-Request-Id`; charged once |
-| S3 | Lost response after a successful capture | PayPal captures; the proxy holds the answer past the store's timeout | Says "Payment failed"; the buyer checks out again and is charged twice for one cart | Asks `GET /v2/checkout/orders/{id}`, sees the capture, marks the order paid |
-| S4 | Duplicate webhook | The same real `PAYMENT.CAPTURE.COMPLETED` is delivered twice | Ships the order twice | Dedupes by event id; ships once |
-| S5 | Late `COMPLETED` after a refund | The merchant refunds; a stale `COMPLETED` arrives last | Shows the refunded order as paid | Reads the order from PayPal; stays refunded |
-| S6 | Forged webhook | A recorded delivery with its body changed after PayPal signed it | Accepts the forged refund | Signature verification fails; answers 400 and changes nothing |
-
-PayPal allows one capture per order, so no store here can charge the same order twice. The harms the
-product shows are the ones that really happen: a lost sale (S2), a second charge on a second order
-for the same cart (S3), a double shipment (S4), and order states that disagree with PayPal (S5, S6).
 
 ## How PayPal is used
 
@@ -190,10 +206,11 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 1. Open [integration-proof.onrender.com/proof](https://integration-proof.onrender.com/proof). The page
    opens with the latest results of both stores.
-2. Open a red card. Read Claude's root cause, click an evidence step to jump to it in the trace, and
-   see the fix and its offline verdict.
-3. Click **Run both** to run the six failures again: the naive store, then the hardened one, about a
-   minute each. The demo runs one proof at a time for everyone.
+2. Click the S3 row of the matrix. Read Claude's root cause, click an evidence step to jump to it in
+   the trace, and see the fix and its offline verdict. Click a trace row for its redacted request and
+   response.
+3. Click **Run both live** to run the six failures again: the naive store, then the hardened one,
+   about a minute each. The demo runs one proof at a time for everyone.
 
 ## Try the checkout yourself
 
@@ -204,10 +221,10 @@ capture routes, the same code the proof runs. After payment the page shows the s
 the order once PayPal's webhook has been applied (`PAID`, one fulfilment), as a short trace with a
 link to come back to.
 
-- **Pay with PayPal** as the sandbox buyer whose email the page shows. The login and password are
-  given in the project description; they are not in this repository.
-- **Pay with a card** without logging in, where PayPal shows that option, using PayPal's published
-  [sandbox test card](https://developer.paypal.com/tools/sandbox/card-testing/) shown on the page.
+- **Pay by card**, the fastest way, with no login: PayPal's published
+  [sandbox test card](https://developer.paypal.com/tools/sandbox/card-testing/), shown on the page.
+- **Pay with PayPal** as the sandbox buyer whose email the page shows. Its password is shared on
+  request; it is not in this repository.
 
 A checkout abandoned before approval leaves a `CREATED` order behind. `npm run db:clean-manual`
 lists the ones older than an hour, and `npm run db:clean-manual -- --yes` deletes them; proof runs

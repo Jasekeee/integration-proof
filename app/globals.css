@@ -539,6 +539,41 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   }
 }
 
+/*
+ * The landing page's two statements: the second payment arrives, the totals settle, and the final
+ * state stays. Each line holds its place from the first paint.
+ */
+.stmt-line {
+  animation: frame-in 500ms var(--ease-out) 1100ms both;
+}
+
+.stmt-before {
+  animation: fade-out 250ms var(--ease-out) 1450ms both;
+}
+
+.stmt-after {
+  animation: fade-in 400ms var(--ease-out) 1500ms both;
+}
+
+.stmt-settle {
+  animation: settle-pass 400ms var(--ease-out) 1500ms both;
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes settle-pass {
+  from {
+    color: var(--foreground);
+  }
+  to {
+    color: var(--pass);
+  }
+}
+
 /* A trace as it opens below its card. */
 .trace-enter {
   animation: rise 350ms var(--ease-out) both;

@@ -14,6 +14,8 @@ export interface FixtureOptions {
   asksPayPalAfterTimeout: boolean;
   /** The store's PayPal timeout in ms; null waits for as long as PayPal takes. */
   timeoutMs: number | null;
+  /** The store's sandbox app. The offline model accepts any, so tests leave it out. */
+  credentials?: { clientId: string; clientSecret: string };
 }
 
 type Status = "CREATED" | "PENDING" | "PAID" | "DECLINED" | "FAILED" | "REFUNDED";
@@ -47,12 +49,14 @@ function send(response: ServerResponse, status: number, value: unknown): void {
 
 export async function startFixtureStore(options: FixtureOptions): Promise<{ url: string; close: () => Promise<void> }> {
   const orders = new Map<string, Order>();
+  const { clientId, clientSecret } = options.credentials ?? { clientId: "fixture", clientSecret: "fixture" };
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
   async function paypal(method: string, path: string, init: { body?: unknown; requestId?: string } = {}) {
     const token = (await (
       await fetch(`${options.paypalBase}/v1/oauth2/token`, {
         method: "POST",
-        headers: { authorization: `Basic ${Buffer.from("fixture:fixture").toString("base64")}`, "content-type": "application/x-www-form-urlencoded" },
+        headers: { authorization: `Basic ${basic}`, "content-type": "application/x-www-form-urlencoded" },
         body: "grant_type=client_credentials",
       })
     ).json()) as { access_token: string };

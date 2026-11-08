@@ -44,16 +44,21 @@ const OWN_STORE_STEPS = [
 ];
 
 /**
- * The command from the README's "Prove your own store", split over lines as a shell reads it; on a
- * phone the URL gets a line of its own, so nothing is cut off.
+ * The command from the README's "Prove your own store", the opt-in Claude flags included, exactly
+ * as the README writes it. On a phone every flag gets a line of its own, so nothing is cut off.
  */
 const OWN_STORE_COMMAND = `npm run cli -- run \\
   --store http://localhost:4000/integration-proof \\
-  --env-file .env.cli`;
+  --env-file .env.cli \\
+  --explain --source examples/express-store \\
+  --write-patch claude-fix.patch`;
 const OWN_STORE_COMMAND_NARROW = `npm run cli -- run \\
   --store \\
   http://localhost:4000/integration-proof \\
-  --env-file .env.cli`;
+  --env-file .env.cli \\
+  --explain \\
+  --source examples/express-store \\
+  --write-patch claude-fix.patch`;
 
 const AUDIENCE = ["Teams with a custom PayPal Checkout", "Plugin and platform authors", "Anyone before a launch or a sale day"];
 

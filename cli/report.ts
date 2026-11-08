@@ -1,6 +1,7 @@
 // What a CLI run leaves behind: a line per scenario on the console, report.json with every step,
 // and a Markdown summary for a CI job page. Expectations (--expect) decide the exit code.
 import { CONTRACT_SCENARIOS, CONTRACT_VERSION, type ContractScenarioId } from "./contract";
+import type { Explanation } from "./explain";
 import type { CliVerdict, ScenarioResult } from "./run";
 
 export type Expectations = Partial<Record<ContractScenarioId, CliVerdict>>;
@@ -32,9 +33,11 @@ export interface Report {
   ok: boolean;
   expected: Expectations;
   scenarios: ScenarioResult[];
+  /** With --explain: Claude's analysis of each failure, and the model that wrote it. */
+  explanations?: { model: string; items: Explanation[] };
 }
 
-export function buildReport(input: Omit<Report, "contract" | "ok">): Report {
+export function buildReport(input: Omit<Report, "contract" | "ok" | "explanations">): Report {
   const ok = input.scenarios.every((scenario) => {
     const expected = input.expected[scenario.id];
     return expected ? scenario.verdict === expected : scenario.verdict === "PASS";
@@ -77,4 +80,58 @@ export function markdown(report: Report): string {
     report.ok ? "Every scenario as expected." : "**Not as expected.** The full trace of every scenario is in report.json.",
     "",
   ].join("\n");
+}
+
+/** Claude's analysis in a few lines per failure, for the console. */
+export function explanationLines(report: Report): string[] {
+  if (!report.explanations) return [];
+  const lines = [`Claude's analysis (${report.explanations.model}). Verdicts are decided by code; nothing below was applied or run.`];
+  for (const item of report.explanations.items) {
+    if (item.result.status !== "READY") {
+      lines.push(`${item.id}  unavailable: ${item.result.reason}`);
+      continue;
+    }
+    const { analysis } = item.result;
+    lines.push(`${item.id}  ${analysis.rootCause}`);
+    lines.push(`    Fix: ${analysis.fix.summary}`);
+    lines.push(`    Evidence: ${analysis.evidence.map((evidence) => `step ${evidence.stepId}`).join(", ")} · confidence ${analysis.confidence}`);
+    lines.push(`    Patch: ${item.patch ? "checked against the file, applies exactly" : (item.note ?? "none")}`);
+  }
+  return lines;
+}
+
+/** Claude's analysis as Markdown, after the verdict table. */
+export function explanationMarkdown(report: Report): string {
+  if (!report.explanations) return "";
+  const out = [
+    `### Claude's analysis`,
+    "",
+    `By ${report.explanations.model}. The verdicts above are decided by code, not by the model. The CLI never applied or ran the code below: review the patch before you apply it.`,
+    "",
+  ];
+  for (const item of report.explanations.items) {
+    const scenario = report.scenarios.find((candidate) => candidate.id === item.id);
+    out.push(`#### ${item.id} · ${scenario?.title ?? ""}`, "");
+    if (item.result.status !== "READY") {
+      out.push(`Analysis unavailable: ${item.result.reason}`, "");
+      continue;
+    }
+    const { analysis } = item.result;
+    out.push(
+      `**Root cause.** ${analysis.rootCause}`,
+      "",
+      `**What it costs.** ${analysis.businessImpact}`,
+      "",
+      "**Evidence in the trace.**",
+      "",
+      ...analysis.evidence.map((evidence) => `- Step ${evidence.stepId}: ${evidence.observation}`),
+      "",
+      `**Fix.** ${analysis.fix.summary}`,
+      "",
+    );
+    if (item.patch) out.push("```diff", item.patch.trimEnd(), "```", "");
+    else out.push(`No patch: ${item.note ?? "none proposed"}`, "");
+    out.push(`**Verify by.** ${analysis.verifyBy}`, "");
+  }
+  return out.join("\n");
 }

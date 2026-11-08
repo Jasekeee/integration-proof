@@ -296,6 +296,7 @@ npx tsx scripts/verify-ai-fixes.ts --check # Claude's committed fixes, verified 
 - [docs/sandbox-findings.md](docs/sandbox-findings.md): PayPal sandbox behaviour, as observed.
 - [docs/ai-fixes-report.md](docs/ai-fixes-report.md): Claude's fixes, verified offline.
 - [docs/store-contract.md](docs/store-contract.md): what a store implements to be proved by the CLI.
+- [docs/store-contract-sandbox-run.md](docs/store-contract-sandbox-run.md): the example store proved against the real sandbox.
 
 ## Roadmap
 

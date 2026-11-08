@@ -116,6 +116,8 @@ npm run cli -- run --store http://localhost:4000/integration-proof --env-file .e
 [examples/express-store](../examples/express-store) is a complete store that implements this
 contract, in plain Express, with two common mistakes. The workflow
 `.github/workflows/store-contract.yml` proves it on every pull request with `--paypal model`.
+[A sandbox run of the example store](store-contract-sandbox-run.md) shows the same proof against the
+real PayPal sandbox, step by step.
 
 ### Options
 

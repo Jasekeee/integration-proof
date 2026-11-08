@@ -199,7 +199,8 @@ export function Checkout({
 
         {clientId ? (
           <PayPalProvider clientId={clientId} environment="sandbox" components={[...components]} pageType="checkout">
-            <div className="flex flex-col gap-3" aria-busy={phase.kind === "paying"}>
+            {/* Holds the two buttons' height (45 px each and the gap) while the SDK draws them, so the page does not move. */}
+            <div className="flex min-h-[102px] flex-col gap-3" aria-busy={phase.kind === "paying"}>
               <PayPalOneTimePaymentButton
                 createOrder={createOrder}
                 onApprove={onApprove}

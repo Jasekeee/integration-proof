@@ -7,14 +7,32 @@ import { GITHUB_URL } from "./_components/site";
 import { linkProse } from "./_components/ui";
 import "./globals.css";
 
+/*
+ * Fonts never move the page once it is drawn.
+ *
+ * Geist is preloaded and "optional": it is used if it is there for the first paint, and otherwise
+ * the page stays in its fallback until the next load, with no swap and no shift. The fallback is
+ * Arial sized to Geist's measured widths, regular and bold apart (globals.css, "Geist Fallback
+ * Metric"), so the two look and wrap alike.
+ *
+ * Geist Mono falls back to monospace fonts with its own advance width (0.6 em: Courier New,
+ * Liberation Mono) and its vertical metrics ("Geist Mono Fallback Metric"), so a swap changes the
+ * letterforms but no line break and no line height. The generated fallback, Arial enlarged to the
+ * average width, wrapped code differently.
+ */
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "optional",
+  adjustFontFallback: false,
+  fallback: ["Geist Fallback Metric", "Arial", "Helvetica", "sans-serif"],
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  adjustFontFallback: false,
+  fallback: ["Geist Mono Fallback Metric", "Menlo", "monospace"],
 });
 
 const DESCRIPTION =

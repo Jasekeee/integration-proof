@@ -1,6 +1,5 @@
 "use client";
 
-import { useId, useState } from "react";
 import { DiffView } from "./diff-view";
 import { FixMark } from "./fix-mark";
 import { usePlayOnce } from "./motion";
@@ -40,22 +39,25 @@ function FixBadge({ check }: { check: NonNullable<AnalysisView["fixCheck"]> }) {
   );
 }
 
+const h5 = "text-small font-semibold text-muted";
+
 /**
- * Claude's explanation of a FAIL or INCONCLUSIVE verdict. The root cause is always visible; the
- * evidence and the fix open on demand. Evidence buttons point at steps of the trace below.
+ * Claude's explanation of a FAIL or INCONCLUSIVE verdict, inside the store's card: the root cause and
+ * whether the fix was verified. "Show evidence and fix" opens AnalysisDetails, which the scenario
+ * section draws as wide as both cards, so the evidence and the patch have room.
  */
 export function AnalysisPanel({
   scenario,
-  onStep,
-  defaultOpen = false,
+  detailsOpen,
+  detailsId,
+  onToggleDetails,
 }: {
   scenario: ScenarioView;
-  onStep: (seq: number) => void;
-  /** Opened from "Claude's full analysis": the evidence and the fix show at once. */
-  defaultOpen?: boolean;
+  detailsOpen: boolean;
+  /** The DOM id of the details block, for aria-controls. */
+  detailsId: string;
+  onToggleDetails: () => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-  const detailsId = useId();
   const analysis = scenario.analysis;
   const heading = scenario.verdict === "INCONCLUSIVE" ? "Why it is inconclusive" : "Why it failed";
   const result = analysis?.status === "READY" ? analysis.result : null;
@@ -90,90 +92,106 @@ export function AnalysisPanel({
         <>
           <p className="measure text-sm leading-6 text-pretty">{result.rootCause}</p>
           {analysis.fixCheck && <FixBadge check={analysis.fixCheck} />}
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls={detailsId}
-            onClick={() => setOpen((value) => !value)}
-            className={buttonText}
-          >
-            {open ? "Hide evidence and fix" : "Show evidence and fix"}
+          <button type="button" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={onToggleDetails} className={buttonText}>
+            {detailsOpen ? "Hide evidence and fix" : "Show evidence and fix"}
           </button>
-
-          {open && (
-            <div id={detailsId} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <h5 className="text-small font-semibold text-muted">What it costs</h5>
-                <p className="measure text-sm leading-6 text-pretty">{result.businessImpact}</p>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <h5 className="text-small font-semibold text-muted">Evidence in the trace</h5>
-                <ul className="flex flex-col gap-2">
-                  {result.evidence.map((item) => (
-                    <li key={`${item.stepId}-${item.observation}`} className="flex gap-3 text-sm leading-6">
-                      <button
-                        type="button"
-                        onClick={() => onStep(item.stepId)}
-                        className={`${buttonSmall} shrink-0 self-start px-2 font-mono text-xs tabular-nums`}
-                        aria-label={`Show step ${item.stepId} in the trace`}
-                      >
-                        #{item.stepId}
-                      </button>
-                      <span className="measure pt-2">{item.observation}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <h5 className="text-small font-semibold text-muted">Fix</h5>
-                <p className="measure text-sm leading-6 text-pretty">{result.fix.summary}</p>
-                {(result.fix.patch || (result.fix.edits?.length ?? 0) > 0) && (
-                  <>
-                    <p className="font-mono text-xs text-muted">
-                      {PATCH_LABELS[analysis.patchStatus ?? "none"] ?? "Patch"}
-                      {analysis.patchStatus === "needs_review" && analysis.patchNote ? `: ${analysis.patchNote}` : ""}
-                    </p>
-                    {/* A diff when the edits matched; otherwise the edits as Claude wrote them, for review. */}
-                    <DiffView patch={result.fix.patch || proposedEdits(result.fix.edits ?? [])} />
-                  </>
-                )}
-                {result.fix.docs.length > 0 && (
-                  <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                    {result.fix.docs.map((doc) => (
-                      <li key={doc.url}>
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className={`inline-flex items-center gap-1 rounded-sm ${linkUtility}`}
-                        >
-                          {doc.title}
-                          <Icon name="arrow-up-right" className="size-3.5 text-muted" />
-                          <span className="sr-only">(opens in a new tab)</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <h5 className="text-small font-semibold text-muted">Verify by</h5>
-                <p className="measure text-sm leading-6 text-pretty">{result.verifyBy}</p>
-              </div>
-
-              <p className="font-mono text-xs tabular-nums text-muted">
-                {analysis.model} ·{" "}
-                {analysis.reused
-                  ? "Same failure on the same code: cached analysis, no tokens spent"
-                  : `${(analysis.tokens.input + analysis.tokens.cacheRead + analysis.tokens.cacheWrite).toLocaleString("en")} input tokens (${analysis.tokens.cacheRead.toLocaleString("en")} cached), ${analysis.tokens.output.toLocaleString("en")} output`}
-              </p>
-            </div>
-          )}
         </>
       )}
+    </section>
+  );
+}
+
+/**
+ * The rest of Claude's analysis, as wide as the scenario: what the failure costs, the evidence in
+ * step order (each opens the trace at its step), the fix with its patch, and how to verify it.
+ */
+export function AnalysisDetails({
+  scenario,
+  store,
+  id,
+  onStep,
+}: {
+  scenario: ScenarioView;
+  /** The store's name, for the heading. */
+  store: string;
+  id: string;
+  onStep: (seq: number) => void;
+}) {
+  const analysis = scenario.analysis;
+  const result = analysis?.status === "READY" ? analysis.result : null;
+  if (!result || !analysis) return null;
+  const evidence = [...result.evidence].sort((a, b) => a.stepId - b.stepId);
+
+  return (
+    <section id={id} aria-label={`Claude's analysis, ${store}`} className="flex min-w-0 flex-col gap-6 rounded-card border border-border bg-background p-4 sm:p-6">
+      <h4 className="text-base font-semibold">
+        Claude&apos;s analysis · <span className="font-normal text-muted">{store}</span>
+      </h4>
+
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
+        <div className="flex flex-col gap-1">
+          <h5 className={h5}>What it costs</h5>
+          <p className="measure text-sm leading-6 text-pretty">{result.businessImpact}</p>
+        </div>
+        <div className="flex flex-col gap-1">
+          <h5 className={h5}>Verify by</h5>
+          <p className="measure text-sm leading-6 text-pretty">{result.verifyBy}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <h5 className={h5}>Evidence in the trace</h5>
+        <ul className="grid gap-x-10 gap-y-2 lg:grid-cols-2">
+          {evidence.map((item) => (
+            <li key={`${item.stepId}-${item.observation}`} className="flex gap-3 text-sm leading-6">
+              <button
+                type="button"
+                onClick={() => onStep(item.stepId)}
+                className={`${buttonSmall} shrink-0 self-start px-2 font-mono text-xs tabular-nums`}
+                aria-label={`Show step ${item.stepId} in the trace`}
+              >
+                #{item.stepId}
+              </button>
+              <span className="pt-2">{item.observation}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <h5 className={h5}>Fix</h5>
+        <p className="measure text-sm leading-6 text-pretty">{result.fix.summary}</p>
+        {(result.fix.patch || (result.fix.edits?.length ?? 0) > 0) && (
+          <>
+            <p className="font-mono text-xs text-muted">
+              {PATCH_LABELS[analysis.patchStatus ?? "none"] ?? "Patch"}
+              {analysis.patchStatus === "needs_review" && analysis.patchNote ? `: ${analysis.patchNote}` : ""}
+            </p>
+            {/* A diff when the edits matched; otherwise the edits as Claude wrote them, for review. */}
+            <DiffView patch={result.fix.patch || proposedEdits(result.fix.edits ?? [])} />
+          </>
+        )}
+        {result.fix.docs.length > 0 && (
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {result.fix.docs.map((doc) => (
+              <li key={doc.url}>
+                <a href={doc.url} target="_blank" rel="noreferrer noopener" className={`inline-flex items-center gap-1 rounded-sm ${linkUtility}`}>
+                  {doc.title}
+                  <Icon name="arrow-up-right" className="size-3.5 text-muted" />
+                  <span className="sr-only">(opens in a new tab)</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <p className="font-mono text-xs tabular-nums text-muted">
+        {analysis.model} ·{" "}
+        {analysis.reused
+          ? "Same failure on the same code: cached analysis, no tokens spent"
+          : `${(analysis.tokens.input + analysis.tokens.cacheRead + analysis.tokens.cacheWrite).toLocaleString("en")} input tokens (${analysis.tokens.cacheRead.toLocaleString("en")} cached), ${analysis.tokens.output.toLocaleString("en")} output`}
+      </p>
     </section>
   );
 }

@@ -1,12 +1,16 @@
 import { CodeScroller } from "./code-scroller";
 
-/** A unified diff with added and removed lines marked by color and by their + / - sign. */
+/**
+ * A unified diff with added and removed lines marked by color and by their + / - sign. On a narrow
+ * screen it scrolls sideways; from 1024 px a long line wraps under itself instead, so the patch reads
+ * without scrolling.
+ */
 export function DiffView({ patch }: { patch: string }) {
   const lines = patch.replace(/\n$/, "").split("\n");
   return (
     <CodeScroller label="Patch" className="rounded-control border border-border bg-background">
-      <pre className="py-2 font-mono text-xs leading-5">
-        <code className="block min-w-max">
+      <pre className="py-2 font-mono text-xs leading-5 lg:whitespace-pre-wrap">
+        <code className="block min-w-max lg:min-w-0">
           {lines.map((line, index) => {
             const kind = line.startsWith("+++") || line.startsWith("---")
               ? "file"
@@ -25,7 +29,7 @@ export function DiffView({ patch }: { patch: string }) {
               context: "text-foreground",
             }[kind];
             return (
-              <span key={index} className={`block pl-3 pr-8 ${style}`}>
+              <span key={index} className={`block pl-3 pr-8 lg:pl-7 lg:-indent-4 lg:break-words ${style}`}>
                 {line === "" ? " " : line}
               </span>
             );

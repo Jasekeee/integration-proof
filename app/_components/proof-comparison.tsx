@@ -204,7 +204,7 @@ export function ProofComparison({
 
   return (
     <div className="flex flex-col">
-      <header className="flex flex-col items-center pb-8 pt-12 text-center sm:pb-12 sm:pt-16">
+      <header className="flex flex-col items-center pb-5 pt-12 text-center sm:pb-6 sm:pt-16">
         <h1 className="text-[clamp(2.5rem,6vw,4.75rem)] font-semibold leading-[1.04] tracking-display text-balance">
           Six bad days. Two stores.
         </h1>
@@ -261,7 +261,7 @@ export function ProofComparison({
         </div>
 
         {/* The line keeps its place, so nothing moves when a wait begins or a run ends. */}
-        <p role="status" className="mt-4 flex min-h-10 items-start justify-center gap-2 text-sm text-muted sm:min-h-5">
+        <p role="status" className="mt-3 flex min-h-10 items-start justify-center gap-2 text-sm text-muted sm:min-h-5">
           {waiting && (
             <>
               <span aria-hidden="true" className="live-dot mt-[7px] size-1.5 shrink-0 rounded-full bg-warn" />

@@ -70,9 +70,10 @@ export function ScenarioCard({
   traceOpen,
   traceId,
   onToggleTrace,
-  onStep,
   dimmed = false,
-  analysisOpen = false,
+  detailsOpen,
+  detailsId,
+  onToggleDetails,
 }: {
   id: string;
   mode: Mode;
@@ -86,11 +87,12 @@ export function ScenarioCard({
   /** The id of the trace section this card opens, for aria-controls. */
   traceId: string;
   onToggleTrace: () => void;
-  onStep: (seq: number) => void;
   /** A previous run's result while a new run of this store is under way. */
   dimmed?: boolean;
-  /** Claude's analysis opens with its evidence and fix showing. */
-  analysisOpen?: boolean;
+  /** Claude's evidence and fix, drawn by the parent as wide as the scenario. */
+  detailsOpen: boolean;
+  detailsId: string;
+  onToggleDetails: () => void;
 }) {
   const bodyId = useId();
   const steps = scenario?.steps ?? [];
@@ -168,7 +170,7 @@ export function ScenarioCard({
         <div id={bodyId} className="flex min-w-0 flex-col gap-3">
           {reason && <p className="measure text-sm leading-6 text-pretty text-muted">{reason}</p>}
 
-          {scenario && failed && <AnalysisPanel scenario={scenario} onStep={onStep} defaultOpen={analysisOpen} />}
+          {scenario && failed && <AnalysisPanel scenario={scenario} detailsOpen={detailsOpen} detailsId={detailsId} onToggleDetails={onToggleDetails} />}
 
           {passed && <HandlingCode id={id} mode={mode} code={code} />}
 

@@ -461,26 +461,37 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
 }
 
 /*
- * The landing page's two statements: the second payment arrives, the totals settle, and the final
- * state stays. Each line holds its place from the first paint.
+ * The landing page's two statements. The page is drawn in its final state: two payments and $20 at
+ * the store that guessed, $10 in green at the one that asked. Only with scripting on and motion
+ * allowed does it play once on load: the second payment arrives at 0.2 s and the totals settle by
+ * 1.1 s. Without JavaScript, with reduced motion, or on scroll, nothing moves.
  */
-.stmt-line {
-  animation: frame-in 500ms var(--ease-out) 1100ms both;
-}
-
 .stmt-before {
-  animation: fade-out 250ms var(--ease-out) 1450ms both;
+  opacity: 0;
 }
 
-.stmt-after {
-  animation: fade-in 400ms var(--ease-out) 1500ms both;
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .stmt-line {
+    animation: frame-in 450ms var(--ease-out) 200ms both;
+  }
+
+  .stmt-before {
+    animation: stmt-out 200ms var(--ease-out) 650ms both;
+  }
+
+  .stmt-after {
+    animation: fade-in 350ms var(--ease-out) 750ms both;
+  }
+
+  .stmt-settle {
+    animation: settle-pass 350ms var(--ease-out) 750ms both;
+  }
 }
 
-.stmt-settle {
-  animation: settle-pass 400ms var(--ease-out) 1500ms both;
-}
-
-@keyframes fade-out {
+@keyframes stmt-out {
+  from {
+    opacity: 1;
+  }
   to {
     opacity: 0;
   }

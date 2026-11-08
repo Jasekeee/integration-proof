@@ -38,7 +38,7 @@ const STEPS = [
 const AUDIENCE = ["Teams with a custom PayPal Checkout", "Plugin and platform authors", "Anyone before a launch or a sale day"];
 
 const h2 = "text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-[1.05] tracking-display text-balance";
-const section = "flex flex-col py-20 sm:py-28";
+const section = "flex flex-col py-14 sm:py-20";
 
 /** The arrow of a button that moves on: it steps forward under the pointer. */
 const nudge = "transition-transform duration-150 ease-(--ease-out) group-hover:translate-x-0.5";
@@ -57,7 +57,7 @@ export default function LandingPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col px-4 sm:px-6">
-      <section className="grid items-center gap-12 pb-16 pt-14 sm:pt-20 lg:min-h-[min(42rem,calc(100svh-4.25rem))] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-14 lg:py-12">
+      <section className="grid items-center gap-10 pb-12 pt-10 sm:pt-14 lg:min-h-[min(37.5rem,calc(100svh-8.25rem))] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-14 lg:py-8">
         <div className="flex flex-col items-start">
           <h1 className="text-[clamp(2.75rem,3.7vw,3.5rem)] font-semibold leading-[1.04] tracking-display text-balance">
             One lost response. <span className="text-fail lg:block">The buyer pays twice.</span>
@@ -72,11 +72,37 @@ export default function LandingPage() {
         <Statements price={Number(PRODUCT.amount.value)} currency={PRODUCT.amount.currency_code} />
       </section>
 
+      <section className={`${section} border-t border-border`} aria-labelledby="decides">
+        <h2 id="decides" className={h2}>
+          Code decides. Not the AI.
+        </h2>
+        <ul className="mt-8 grid gap-8 text-center sm:mt-10 sm:grid-cols-3">
+          <li className="flex flex-col items-center">
+            <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">{scenarioCount}</b>
+            <span className="mt-3 text-balance text-muted">ways a checkout fails</span>
+          </li>
+          {fixes && (
+            <li className="flex flex-col items-center">
+              <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">
+                {fixes.verified}/{fixes.total}
+              </b>
+              <a href={fixes.report} className={`mt-3 rounded-sm text-muted ${linkProse.replace("text-brand", "")}`}>
+                Claude fixes proven to work
+              </a>
+            </li>
+          )}
+          <li className="flex flex-col items-center">
+            <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">0</b>
+            <span className="mt-3 text-balance text-muted">results decided by AI</span>
+          </li>
+        </ul>
+      </section>
+
       <section id="how-it-works" className={`${section} scroll-mt-4 border-t border-border`} aria-labelledby="how">
         <h2 id="how" className={h2}>
           How it works
         </h2>
-        <ol className="mt-12 grid gap-10 md:grid-cols-3 md:gap-12">
+        <ol className="mt-8 grid gap-8 sm:mt-10 md:grid-cols-3 md:gap-12">
           {STEPS.map((step, index) => (
             <li key={step.title} className="flex flex-col">
               <span className="font-semibold tabular-nums text-brand">{index + 1}</span>
@@ -91,7 +117,7 @@ export default function LandingPage() {
         <h2 id="guidance" className={h2}>
           PayPal documents the right behavior. Integration Proof checks it.
         </h2>
-        <ul className="mt-12 grid gap-8 md:grid-cols-3 md:gap-12">
+        <ul className="mt-8 grid gap-8 sm:mt-10 md:grid-cols-3 md:gap-12">
           {GUIDANCE.map((item) => (
             <li key={item.quote}>
               <figure className="m-0 flex flex-col gap-4">
@@ -110,33 +136,7 @@ export default function LandingPage() {
         </ul>
       </section>
 
-      <section className={`${section} border-t border-border`} aria-labelledby="decides">
-        <h2 id="decides" className={h2}>
-          Code decides. Not the AI.
-        </h2>
-        <ul className="mt-12 grid gap-10 text-center sm:grid-cols-3">
-          <li className="flex flex-col items-center">
-            <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-none tracking-[-0.05em] tabular-nums">{scenarioCount}</b>
-            <span className="mt-3 text-muted">ways a checkout fails</span>
-          </li>
-          {fixes && (
-            <li className="flex flex-col items-center">
-              <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-none tracking-[-0.05em] tabular-nums">
-                {fixes.verified}/{fixes.total}
-              </b>
-              <a href={fixes.report} className={`mt-3 rounded-sm text-muted ${linkProse.replace("text-brand", "")}`}>
-                Claude fixes proven to work
-              </a>
-            </li>
-          )}
-          <li className="flex flex-col items-center">
-            <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-none tracking-[-0.05em] tabular-nums">0</b>
-            <span className="mt-3 text-muted">results decided by AI</span>
-          </li>
-        </ul>
-      </section>
-
-      <section className="border-t border-border py-10" aria-labelledby="who">
+      <section className="border-t border-border py-7" aria-labelledby="who">
         <p className="flex flex-wrap items-baseline gap-x-3 gap-y-2 text-lg">
           <span id="who" className="font-semibold">
             Who it is for:
@@ -150,7 +150,7 @@ export default function LandingPage() {
         </p>
       </section>
 
-      <section className="flex flex-col items-center border-t border-border py-24 text-center sm:py-32" aria-labelledby="try">
+      <section className="flex flex-col items-center border-t border-border py-16 text-center sm:py-22" aria-labelledby="try">
         <h2 id="try" className={h2}>
           Is your checkout ready for a bad day?
         </h2>

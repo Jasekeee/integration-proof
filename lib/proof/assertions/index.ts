@@ -37,27 +37,29 @@ const STATUS_FROM_CAPTURE: Record<string, OrderStatus> = {
 };
 
 /**
- * The buyer's requests to the store, under whatever prefix the store serves them: the reference
- * stores use /api/store/{mode}, another store its own. PayPal's paths (/v1, /v2) never count, so
- * the buyer's own PayPal call, confirm-payment-source, is not mistaken for a checkout.
+ * The shape of the buyer's checkout and capture requests to the store, under whatever prefix the
+ * store serves them: /api/store/{mode} for the reference stores, /v1 or anything else for another.
+ * Which requests went to the store is decided by the step's target, not by the prefix.
  */
-const BUYER_CAPTURE_PATH = /^(?!\/v[12]\/)(?:\/[^/?#]+)*\/orders\/([A-Z0-9]+)\/capture$/;
-const BUYER_CREATE_PATH = /^(?!\/v[12]\/)(?:\/[^/?#]+)*\/orders$/;
+const BUYER_CAPTURE_PATH = /^(?:\/[^/?#]+)*\/orders\/([A-Z0-9]+)\/capture$/;
+const BUYER_CREATE_PATH = /^(?:\/[^/?#]+)*\/orders$/;
 const PAYPAL_CAPTURE_PATH = /^\/v2\/checkout\/orders\/[A-Z0-9]+\/capture$/;
 
 const BuyerAnswerSchema = z.object({ status: z.enum(ORDER_STATUSES), message: z.string() });
 const RouterAnswerSchema = z.object({ outcome: z.string() });
 
+/** A request the buyer sent to the store; the buyer's own PayPal calls never count. */
+function buyerToStore(step: TraceEntry): boolean {
+  return step.actor === "buyer" && step.method === "POST" && step.target !== "paypal";
+}
+
 /** The buyer's capture requests to the store, with the store's answers. */
 function buyerCaptures(trace: TraceEntry[]): TraceEntry[] {
-  return trace.filter(
-    (step) => step.actor === "buyer" && step.method === "POST" && BUYER_CAPTURE_PATH.test(step.path ?? ""),
-  );
+  return trace.filter((step) => buyerToStore(step) && BUYER_CAPTURE_PATH.test(step.path ?? ""));
 }
 
 function buyerCheckouts(trace: TraceEntry[]): number {
-  return trace.filter((step) => step.actor === "buyer" && step.method === "POST" && BUYER_CREATE_PATH.test(step.path ?? ""))
-    .length;
+  return trace.filter((step) => buyerToStore(step) && BUYER_CREATE_PATH.test(step.path ?? "")).length;
 }
 
 /** The store's capture requests to PayPal, as the proxy saw them. */

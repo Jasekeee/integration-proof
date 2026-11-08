@@ -1,5 +1,6 @@
 // What a CLI run leaves behind: a line per scenario on the console, report.json with every step,
 // and a Markdown summary for a CI job page. Expectations (--expect) decide the exit code.
+import { plainHeadline } from "../lib/proof/headlines";
 import { CONTRACT_SCENARIOS, CONTRACT_VERSION, type ContractScenarioId } from "./contract";
 import type { Explanation } from "./explain";
 import type { CliVerdict, ScenarioResult } from "./run";
@@ -66,7 +67,7 @@ const hasExpectations = (report: Report) => Object.keys(report.expected).length 
 export function consoleLines(report: Report): string[] {
   const lines = report.scenarios.map((scenario) => {
     const note = expectation(report, scenario);
-    return `${scenario.id}  ${scenario.verdict.padEnd(12)} ${scenario.headline}${note ? `  (${note})` : ""}\n    ${scenario.reason}`;
+    return `${scenario.id}  ${scenario.verdict.padEnd(12)} ${plainHeadline(scenario.headline)}${note ? `  (${note})` : ""}\n    ${scenario.reason}`;
   });
   // With --expect the result is measured against it; without, it is only counted.
   if (!hasExpectations(report)) lines.push(`Result: ${tally(report)}`);
@@ -79,7 +80,7 @@ const cell = (text: string) => text.replace(/\|/g, "\\|").replace(/\n/g, " ");
 export function markdown(report: Report): string {
   const expectations = hasExpectations(report);
   const rows = report.scenarios.map((scenario) => {
-    const base = `| ${scenario.id} · ${cell(scenario.title)} | **${scenario.verdict}** | ${cell(scenario.headline)} | ${cell(scenario.reason)} |`;
+    const base = `| ${scenario.id} · ${cell(scenario.title)} | **${scenario.verdict}** | ${cell(plainHeadline(scenario.headline))} | ${cell(scenario.reason)} |`;
     return expectations ? `${base} ${cell(expectation(report, scenario) || "—")} |` : base;
   });
   return [

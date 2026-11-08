@@ -178,6 +178,18 @@ describe("report", () => {
     expect(markdown(notAsExpected)).toContain("**Not as expected.**");
   });
 
+  it("shows a headline in the site's words on the console and in summary.md, and keeps it raw in report.json", () => {
+    const report = buildReport({
+      ...base,
+      expected: {},
+      scenarios: [{ ...scenario("S2", "FAIL"), headline: "Sale lost on a transient error" }],
+    });
+    expect(consoleLines(report)[0]).toContain("Sale lost on a temporary error");
+    expect(markdown(report)).toContain("| Sale lost on a temporary error |");
+    expect(`${consoleLines(report).join("\n")}\n${markdown(report)}`).not.toMatch(/transient/);
+    expect(JSON.parse(JSON.stringify(report)).scenarios[0].headline).toBe("Sale lost on a transient error");
+  });
+
   it("rejects an expectation outside contract v1", () => {
     expect(() => parseExpectations("S4=PASS")).toThrow(/S1..S3/);
     expect(() => parseExpectations("S1=MAYBE")).toThrow();

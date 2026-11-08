@@ -1,6 +1,8 @@
 // Shapes of the runs API on the client, and the small pure helpers the result views share.
 import type { Snippet } from "@/lib/store/snippets";
 
+export { plainHeadline } from "@/lib/proof/headlines";
+
 export type Mode = "naive" | "hardened";
 export type Verdict = "PASS" | "FAIL" | "INCONCLUSIVE";
 
@@ -117,27 +119,6 @@ export const FALLBACK_HEADLINES: Record<string, { PASS: string; FAIL: string }> 
   S5: { PASS: "Shows refunded, as PayPal does", FAIL: "Refunded order shown as paid" },
   S6: { PASS: "Forged notice rejected", FAIL: "Forged refund accepted" },
 };
-
-/**
- * A verdict's headline in the words of the first layer. The assertions write the headline when they
- * decide the verdict, and stored runs keep it; the few with a technical word are reworded here, as
- * the page's own titles are, and every other headline is shown as written.
- */
-const PLAIN_HEADLINES: Record<string, string> = {
-  "Sale lost on a transient error": "Sale lost on a temporary error",
-  "Capture never went through": "Payment never went through",
-  "Replay never delivered": "Repeated notice never delivered",
-  "Late event never delivered": "Late notice never delivered",
-  "Forgery never delivered": "Forged notice never delivered",
-  "Forged event accepted": "Forged notice accepted",
-  "Forged event changed the order": "Forged notice changed the order",
-  "Forged event not rejected": "Forged notice not rejected",
-  "Forged event rejected": "Forged notice rejected",
-};
-
-export function plainHeadline(headline: string): string {
-  return PLAIN_HEADLINES[headline] ?? headline;
-}
 
 /**
  * The marked lines of both store files, read on the server, and the commit they come from, so a

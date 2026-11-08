@@ -118,7 +118,7 @@ export default function LandingPage() {
           )}
           <li className="flex flex-col items-center">
             <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">Code</b>
-            <span className="mt-3 text-balance text-muted">decides every verdict. Claude only explains it.</span>
+            <span className="mt-3 text-balance text-muted">decides every verdict. Claude explains it and proposes the fix.</span>
           </li>
         </ul>
       </section>

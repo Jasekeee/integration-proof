@@ -8,7 +8,7 @@ function ProofSkeleton({ label, stores }: { label: string; stores: 1 | 2 }) {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-6xl flex-col px-4 pb-24 sm:px-6" role="status">
       <span className="sr-only">{label}</span>
-      <div className="flex flex-col items-center pb-8 pt-12 sm:pb-12 sm:pt-16" aria-hidden="true">
+      <div className="flex flex-col items-center pb-[4.5rem] pt-12 sm:pb-14 sm:pt-16" aria-hidden="true">
         <div className={`h-12 w-[min(42rem,90%)] sm:h-16 ${block}`} />
         <div className={`mt-5 h-6 w-80 max-w-[80%] ${block}`} />
         <div className={`mt-10 grid w-full max-w-2xl gap-4 ${stores === 2 ? "grid-cols-2" : ""}`}>

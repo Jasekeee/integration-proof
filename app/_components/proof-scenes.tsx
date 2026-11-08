@@ -105,7 +105,7 @@ function Frames({ told, play }: { told: Story; play: boolean }) {
         return (
           <li
             key={index}
-            className={`relative flex rounded-panel py-4 pl-10 pr-5 text-xl font-medium leading-tight tracking-tight text-balance sm:min-h-44 sm:items-end sm:p-6 sm:pt-12 lg:text-[1.375rem] ${tone} ${play ? "frame-enter" : ""}`}
+            className={`relative flex rounded-panel py-4 pl-10 pr-5 text-xl font-medium leading-tight tracking-tight text-balance sm:min-h-[8.25rem] sm:items-end sm:p-6 sm:pt-10 lg:text-[1.375rem] ${tone} ${play ? "frame-enter" : ""}`}
             style={play ? ({ "--i": index } as React.CSSProperties) : undefined}
           >
             <span aria-hidden="true" className={`absolute left-5 top-[1.6rem] size-2 rounded-full sm:left-6 sm:top-6 ${dot}`} />

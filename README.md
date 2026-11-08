@@ -256,6 +256,11 @@ npm run cli -- run --store http://localhost:4000/integration-proof --env-file .e
   - A Markdown summary for a CI job page.
   - Exit code 0 when the verdicts are as expected (`--expect S1=PASS,S2=FAIL,S3=FAIL`).
 
+[examples/express-store](examples/express-store) is a small Express store written from the contract,
+with two common mistakes. The [Store contract workflow](.github/workflows/store-contract.yml) proves
+it on every pull request with the offline model, expecting S1 to pass and S2 and S3 to fail. The
+verdicts appear on the job's summary page.
+
 The CLI runs from a clone of this repository; it is not published to npm. Contract version 1 covers
 S1–S3. The webhook scenarios need a public URL for PayPal's deliveries and are not part of it.
 

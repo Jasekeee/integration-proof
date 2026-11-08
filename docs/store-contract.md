@@ -113,6 +113,10 @@ npm run cli -- run --store http://localhost:4000/integration-proof --env-file .e
 
 `.env.cli` holds `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` of the store's sandbox app.
 
+[examples/express-store](../examples/express-store) is a complete store that implements this
+contract, in plain Express, with two common mistakes. The workflow
+`.github/workflows/store-contract.yml` proves it on every pull request with `--paypal model`.
+
 ### Options
 
 | Option | Default | Meaning |

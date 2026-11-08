@@ -6,7 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { MODE_LABELS } from "../../_components/report";
-import { eyebrow, linkProse } from "../../_components/ui";
+import { linkProse } from "../../_components/ui";
 import { Checkout } from "./checkout";
 import { SANDBOX_TEST_CARD } from "@/lib/paypal/test-cards";
 import { StoreModeSchema } from "@/lib/store";
@@ -33,11 +33,11 @@ export default async function StorePage({ params, searchParams }: PageProps<"/st
 
   return (
     // The site's grid: the left edge lines up with the header; the store keeps a narrower measure.
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6">
-      <header className="flex max-w-5xl flex-col gap-3">
-        <p className={eyebrow}>PayPal sandbox · {mode.data} store</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Try the checkout yourself</h1>
-        <p className="measure leading-relaxed text-pretty text-muted">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
+      <header className="flex max-w-5xl flex-col gap-4">
+        <p className="text-lg text-muted">PayPal sandbox · {label.name}</p>
+        <h1 className="text-[clamp(2.25rem,5vw,3.5rem)] font-semibold leading-[1.05] tracking-display text-balance">Try the checkout yourself</h1>
+        <p className="measure text-lg leading-relaxed text-pretty text-muted">
           Pay for one item through a real PayPal Checkout. The {label.name.toLowerCase()} creates and captures the order with
           the same code the proof runs, and the page follows the order until PayPal&apos;s webhook arrives. Sandbox only: no
           real money moves.{" "}

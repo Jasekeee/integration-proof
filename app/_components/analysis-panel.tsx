@@ -103,12 +103,12 @@ export function AnalysisPanel({
           {open && (
             <div id={detailsId} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">What it costs</h5>
+                <h5 className="text-small font-semibold text-muted">What it costs</h5>
                 <p className="measure text-sm leading-6 text-pretty">{result.businessImpact}</p>
               </div>
 
               <div className="flex flex-col gap-1">
-                <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">Evidence in the trace</h5>
+                <h5 className="text-small font-semibold text-muted">Evidence in the trace</h5>
                 <ul className="flex flex-col gap-2">
                   {result.evidence.map((item) => (
                     <li key={`${item.stepId}-${item.observation}`} className="flex gap-3 text-sm leading-6">
@@ -127,7 +127,7 @@ export function AnalysisPanel({
               </div>
 
               <div className="flex flex-col gap-2">
-                <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">Fix</h5>
+                <h5 className="text-small font-semibold text-muted">Fix</h5>
                 <p className="measure text-sm leading-6 text-pretty">{result.fix.summary}</p>
                 {(result.fix.patch || (result.fix.edits?.length ?? 0) > 0) && (
                   <>
@@ -160,7 +160,7 @@ export function AnalysisPanel({
               </div>
 
               <div className="flex flex-col gap-1">
-                <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">Verify by</h5>
+                <h5 className="text-small font-semibold text-muted">Verify by</h5>
                 <p className="measure text-sm leading-6 text-pretty">{result.verifyBy}</p>
               </div>
 

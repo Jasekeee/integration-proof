@@ -162,10 +162,10 @@ export function Checkout({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <section className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-surface p-5" aria-labelledby="buy">
+      <section className="flex min-w-0 flex-col gap-4 rounded-panel border border-border bg-surface p-5 sm:p-6" aria-labelledby="buy">
         <div className="flex items-baseline justify-between gap-3">
           <h2 id="buy" className="text-lg font-semibold">{product.description}</h2>
-          <p className="font-mono text-lg font-semibold tabular-nums">
+          <p className="shrink-0 text-lg font-semibold tabular-nums">
             {product.amount.value} {product.amount.currency_code}
           </p>
         </div>
@@ -225,7 +225,7 @@ export function Checkout({
 
       </section>
 
-      <section className="flex min-w-0 flex-col gap-4 rounded-card border border-border p-5" aria-labelledby="result" aria-live="polite">
+      <section className="flex min-w-0 flex-col gap-4 rounded-panel border border-border p-5 sm:p-6" aria-labelledby="result" aria-live="polite">
         <h2 id="result" className="text-lg font-semibold">What the store did</h2>
         {!cartId && (
           <div className="flex flex-col gap-3">
@@ -247,7 +247,7 @@ export function Checkout({
 
         {phase.kind === "captured" && (
           <div className="flex flex-col gap-1">
-            <p className="text-label font-semibold uppercase tracking-label text-muted">The store answered the buyer</p>
+            <p className="text-small text-muted">The store answered the buyer</p>
             <p className="text-sm">
               <span className="font-mono font-semibold">{phase.status}</span> · {phase.message}
             </p>
@@ -256,7 +256,7 @@ export function Checkout({
 
         {cartId && (order || polling) && (
           <div className="flex flex-col gap-1">
-            <p className="text-label font-semibold uppercase tracking-label text-muted">After PayPal&apos;s webhook</p>
+            <p className="text-small text-muted">After PayPal&apos;s webhook</p>
             {order && delivered(state) ? (
               <p className="text-sm">
                 <span className="font-mono font-semibold text-pass">{order.status}</span> · fulfilments{" "}
@@ -315,7 +315,7 @@ function TransactionTrace({ mode, state }: { mode: Mode; state: StoreState }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-label font-semibold uppercase tracking-label text-muted">Trace</p>
+      <p className="text-small text-muted">Trace</p>
       {/* Scrolls sideways inside itself, with a shadow on the edge that hides columns, like a code block. */}
       <CodeScroller label="Trace of this transaction" className="rounded-control border border-border">
         <table className="w-full min-w-[30rem] border-collapse font-mono text-xs">

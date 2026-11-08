@@ -20,7 +20,7 @@ function Body({ label, value }: { label: string; value: unknown }) {
   const text = value === null || value === undefined ? null : JSON.stringify(value, null, 2);
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <h5 className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</h5>
+      <h5 className="text-small font-semibold text-muted">{label}</h5>
       {text ? (
         <pre
           tabIndex={0}

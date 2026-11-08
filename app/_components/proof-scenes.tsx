@@ -48,14 +48,27 @@ const DOT: Partial<Record<CellState, string>> = {
  * One store's outcome in a row. The naive store's failures read red; the hardened store's passes
  * stay calm, with the green in the dot. A change seen live slides in.
  */
-function Outcome({ mode, scenario, now, dimmed }: { mode: Mode; scenario: ScenarioView | null; now: number; dimmed: boolean }) {
+function Outcome({
+  mode,
+  scenario,
+  now,
+  dimmed,
+  labelled,
+}: {
+  mode: Mode;
+  scenario: ScenarioView | null;
+  now: number;
+  dimmed: boolean;
+  /** Next to the other store's outcome, a phone row names the store. */
+  labelled: boolean;
+}) {
   const state = cellState(scenario);
   const changes = useChanges(state);
   const text = outcome(scenario, state, now);
   const color = state === "FAIL" ? "text-fail" : state === "INCONCLUSIVE" ? "text-warn" : state === "PASS" ? "text-foreground" : "text-muted";
   return (
     <span className={`flex min-w-0 items-baseline gap-2.5 transition-opacity duration-200 ${dimmed ? "opacity-60" : ""}`}>
-      <span className="w-[4.75rem] shrink-0 text-small text-muted md:sr-only">{MODE_LABELS[mode].name.split(" ")[0]}</span>
+      {labelled && <span className="w-[4.75rem] shrink-0 text-small text-muted md:sr-only">{MODE_LABELS[mode].name.split(" ")[0]}</span>}
       <span aria-hidden="true" className="relative top-[-1px] flex size-2 shrink-0 self-center">
         {state === "RUNNING" ? <span className="spinner size-2.5" /> : <span className={`size-2 rounded-full ${DOT[state] ?? "bg-border-strong"}`} />}
       </span>
@@ -119,6 +132,7 @@ function Frames({ told, play }: { told: Story; play: boolean }) {
  */
 function Scene({
   id,
+  modes,
   scenarios,
   now,
   deadlineMs,
@@ -127,6 +141,7 @@ function Scene({
   play,
 }: {
   id: string;
+  modes: Mode[];
   scenarios: Record<Mode, ScenarioView | null>;
   now: number;
   deadlineMs: Record<Mode, number>;
@@ -139,10 +154,10 @@ function Scene({
   const [analysisRequest, setAnalysisRequest] = useState(0);
   const [unfolded, setUnfolded] = useState<Record<Mode, boolean>>({ naive: true, hardened: true });
   const techRef = useRef<HTMLDivElement>(null);
-  const main = storyMode(scenarios);
-  const other: Mode = main === "naive" ? "hardened" : "naive";
+  const main = modes.length === 1 ? modes[0] : storyMode(scenarios);
+  const other: Mode | null = modes.length === 1 ? null : main === "naive" ? "hardened" : "naive";
   const told = story(scenarios[main]);
-  const otherTold = story(scenarios[other]);
+  const otherTold = other ? story(scenarios[other]) : null;
   const failed = scenarios[main]?.verdict === "FAIL";
   const bothPassed = scenarios.naive?.verdict === "PASS" && scenarios.hardened?.verdict === "PASS";
   const analysis = scenarios[main]?.analysis ?? null;
@@ -169,27 +184,35 @@ function Scene({
         <p className={`${panel} text-xl font-medium leading-snug tracking-tight`}>{outcome(scenarios[main], cellState(scenarios[main]), now)}</p>
       )}
 
-      <div className={`grid gap-2 sm:gap-3 ${cause ? "md:grid-cols-2" : ""} ${play ? "after-enter" : ""}`} style={play && told ? ({ "--i": told.frames.length } as React.CSSProperties) : undefined}>
-        <div className={panel}>
-          <p className="text-small text-muted">{MODE_LABELS[other].name}</p>
-          <p className="mt-2 text-xl font-medium leading-snug tracking-tight text-balance">
-            {otherTold ? (
-              <>
-                {otherTold.short.did} <span aria-hidden="true">→</span>
-                <span className="sr-only">, so:</span> <span className={otherTold.short.tone === "pass" ? "text-pass" : "text-fail"}>{otherTold.short.got}</span>
-              </>
-            ) : (
-              outcome(scenarios[other], cellState(scenarios[other]), now)
-            )}
-          </p>
+      {(other || cause) && (
+        <div
+          className={`grid gap-2 sm:gap-3 ${cause && other ? "md:grid-cols-2" : ""} ${play ? "after-enter" : ""}`}
+          style={play && told ? ({ "--i": told.frames.length } as React.CSSProperties) : undefined}
+        >
+          {other && (
+            <div className={panel}>
+              <p className="text-small text-muted">{MODE_LABELS[other].name}</p>
+              <p className="mt-2 text-xl font-medium leading-snug tracking-tight text-balance">
+                {otherTold ? (
+                  <>
+                    {otherTold.short.did} <span aria-hidden="true">→</span>
+                    <span className="sr-only">, so:</span>{" "}
+                    <span className={otherTold.short.tone === "pass" ? "text-pass" : "text-fail"}>{otherTold.short.got}</span>
+                  </>
+                ) : (
+                  outcome(scenarios[other], cellState(scenarios[other]), now)
+                )}
+              </p>
+            </div>
+          )}
+          {cause && (
+            <div className={panel}>
+              <p className="text-small text-muted">{failed ? "Why it happened" : "Why it worked"}</p>
+              <p className="mt-2 text-xl leading-snug tracking-tight text-balance">{cause}</p>
+            </div>
+          )}
         </div>
-        {cause && (
-          <div className={panel}>
-            <p className="text-small text-muted">{failed ? "Why it happened" : "Why it worked"}</p>
-            <p className="mt-2 text-xl leading-snug tracking-tight text-balance">{cause}</p>
-          </div>
-        )}
-      </div>
+      )}
 
       <div className={`flex flex-wrap items-center justify-between gap-3 pt-2 ${play ? "after-enter" : ""}`} style={play && told ? ({ "--i": told.frames.length } as React.CSSProperties) : undefined}>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -234,7 +257,7 @@ function Scene({
             <ScenarioSection
               key={analysisRequest}
               id={id}
-              modes={MODES}
+              modes={modes}
               scenarios={scenarios}
               now={now}
               deadlineMs={deadlineMs}
@@ -257,6 +280,7 @@ function Scene({
  */
 export function ScenarioRows({
   ids,
+  modes = MODES,
   scenariosOf,
   now,
   deadlineMs,
@@ -264,6 +288,8 @@ export function ScenarioRows({
   dimmed,
 }: {
   ids: string[];
+  /** Both stores side by side, or the one store of a run's own page. */
+  modes?: Mode[];
   scenariosOf: (id: string) => Record<Mode, ScenarioView | null>;
   now: number;
   deadlineMs: Record<Mode, number>;
@@ -271,6 +297,8 @@ export function ScenarioRows({
   dimmed: Record<Mode, boolean>;
 }) {
   const [open, setOpen] = useState<{ id: string; play: boolean } | null>(null);
+  const both = modes.length > 1;
+  const columns = both ? "md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1fr)_1rem]" : "md:grid-cols-[minmax(0,1.25fr)_minmax(0,2fr)_1rem]";
 
   // A link to a scenario (#S3, or the run page's #scenario-S3) opens its scene, still.
   useEffect(() => {
@@ -289,10 +317,11 @@ export function ScenarioRows({
 
   return (
     <section aria-label="Scenarios" className="border-t border-border">
-      <div aria-hidden="true" className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1fr)_1rem] gap-6 border-b border-border px-5 py-3.5 text-small text-muted max-md:hidden">
+      <div aria-hidden="true" className={`grid gap-6 border-b border-border px-5 py-3.5 text-small text-muted max-md:hidden ${columns}`}>
         <span>What goes wrong</span>
-        <span>{MODE_LABELS.naive.name}</span>
-        <span>{MODE_LABELS.hardened.name}</span>
+        {modes.map((mode) => (
+          <span key={mode}>{both ? MODE_LABELS[mode].name : "What came of it"}</span>
+        ))}
         <span />
       </div>
       <ul>
@@ -307,21 +336,21 @@ export function ScenarioRows({
                 aria-expanded={expanded}
                 aria-controls={sceneId(id)}
                 onClick={() => toggle(id)}
-                className={`grid w-full scroll-mt-4 grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 gap-y-1.5 px-1 py-5 text-left transition-colors duration-150 hover:bg-surface focus-visible:-outline-offset-2 sm:px-5 sm:py-6 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1fr)_1rem] md:gap-6 ${expanded ? "bg-surface" : ""}`}
+                className={`grid w-full scroll-mt-4 grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 gap-y-1.5 px-1 py-5 text-left transition-colors duration-150 hover:bg-surface focus-visible:-outline-offset-2 sm:px-5 sm:py-6 md:gap-6 ${columns} ${expanded ? "bg-surface" : ""}`}
               >
                 <span className="text-lg font-medium tracking-tight sm:text-xl">{PLAIN_TITLES[id] ?? id}</span>
-                <span className="col-start-2 row-start-1 md:col-start-4">
+                <span className={`col-start-2 row-start-1 ${both ? "md:col-start-4" : "md:col-start-3"}`}>
                   <Chevron open={expanded} />
                 </span>
-                {MODES.map((mode) => (
-                  <span key={mode} className={`col-span-2 md:col-span-1 md:row-start-1 ${mode === "naive" ? "md:col-start-2" : "md:col-start-3"}`}>
-                    <Outcome mode={mode} scenario={scenarios[mode]} now={now} dimmed={dimmed[mode]} />
+                {modes.map((mode, index) => (
+                  <span key={mode} className={`col-span-2 md:col-span-1 md:row-start-1 ${index === 0 ? "md:col-start-2" : "md:col-start-3"}`}>
+                    <Outcome mode={mode} scenario={scenarios[mode]} now={now} dimmed={dimmed[mode]} labelled={both} />
                   </span>
                 ))}
               </button>
               <div id={sceneId(id)} role="region" aria-labelledby={rowId(id)} hidden={!expanded} className="bg-surface">
                 {expanded && (
-                  <Scene id={id} scenarios={scenarios} now={now} deadlineMs={deadlineMs} code={code} dimmed={dimmed} play={open.play} />
+                  <Scene id={id} modes={modes} scenarios={scenarios} now={now} deadlineMs={deadlineMs} code={code} dimmed={dimmed} play={open.play} />
                 )}
               </div>
             </li>

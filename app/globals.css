@@ -141,7 +141,6 @@
   --text-display: 3.25rem;
   --text-display--line-height: 1.08;
   --tracking-display: -0.035em;
-  --tracking-label: 0.12em;
 
   /* Three radii: controls and chips, cards and panels, the large containers (matrix, race). */
   --radius-control: 6px;

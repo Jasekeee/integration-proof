@@ -24,6 +24,3 @@ export const linkProse = "text-brand underline decoration-brand/40 underline-off
 /** A small utility link next to data: share, Report, a source file. */
 export const linkUtility =
   "text-foreground underline decoration-border-strong underline-offset-4 transition-colors duration-150 hover:decoration-foreground";
-
-/** The small line above a page or section title. */
-export const eyebrow = "text-xs font-semibold uppercase tracking-label text-brand";

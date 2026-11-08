@@ -1,1 +1,1 @@
-Integration Proof: one lost response, and the buyer pays twice. Naive store 1 of 6, hardened store 6 of 6, Claude fixes verified offline 5 of 5.
+Integration Proof: one lost response, and the buyer pays twice. The buyer's card statement shows $20 at the store that guessed and $10 at the store that asked PayPal.

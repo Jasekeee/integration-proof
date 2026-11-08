@@ -1,19 +1,26 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 // useHydrated: false until React has hydrated, so a click never lands on a dead button.
 import { useHydrated, useNow, useRunReport } from "./hooks";
-import { FLAGSHIP_SCENARIO, isRunActive, MODE_LABELS, SCENARIO_TITLES, type Mode, type RunReport, type StoreCode } from "./report";
-import { ScenarioSection, sectionId } from "./scenario-section";
-import { buttonPrimary, buttonSmall } from "./ui";
-import { VerdictMatrix } from "./verdict-matrix";
+import { ScenarioRows } from "./proof-scenes";
+import {
+  isRunActive,
+  MODE_LABELS,
+  SCENARIO_TITLES,
+  verifiedFixes,
+  type Mode,
+  type RunReport,
+  type StoreCode,
+} from "./report";
+import { Tally } from "./tally";
+import { buttonPrimary, buttonSmall, linkUtility } from "./ui";
 
 const MODES: Mode[] = ["naive", "hardened"];
 const SCENARIO_IDS = Object.keys(SCENARIO_TITLES);
 const DEFAULT_DEADLINE_MS = 150_000;
 
-type Unfolded = Record<string, Record<Mode, boolean>>;
-const BOTH = { naive: true, hardened: true };
 
 /** While following someone else's run: how often the list of runs is read. */
 const FOLLOW_POLL_MS = 3000;
@@ -42,8 +49,9 @@ async function latestRuns(): Promise<RunSummary[] | null> {
 }
 
 /**
- * Both stores side by side: the verdict matrix on top, then each scenario's cards. On wide screens
- * S3 of the naive store sits next to S3 of the hardened one; on narrow screens the two cards stack.
+ * Both stores side by side, in two layers. The first answers one question in plain words: each
+ * store's score and, per scenario, what came of it. A row opens its scene; the technical layer
+ * (Claude's analysis, the store code, the AG Grid trace) opens from there.
  */
 export function ProofComparison({
   initial,
@@ -74,8 +82,6 @@ export function ProofComparison({
   const [queued, setQueued] = useState<Mode[]>([]);
   /** While following: when the earliest live run of theirs was created; older columns are previous. */
   const [followSince, setFollowSince] = useState<string | null>(null);
-  /** The flagship scenario opens unfolded; a click on a matrix row unfolds its cards. */
-  const [unfolded, setUnfolded] = useState<Unfolded>({ [FLAGSHIP_SCENARIO]: BOTH });
   const hydrated = useHydrated();
   const busy = !hydrated || following || phase !== "idle" || MODES.some((mode) => isRunActive(reports[mode]));
   const now = useNow(busy);
@@ -103,21 +109,6 @@ export function ProofComparison({
   const waiting = MODES.some(
     (mode) => isRunActive(reports[mode]) && reports[mode]?.scenarios.some((scenario) => scenario.status === "WAITING_FOR_WEBHOOK"),
   );
-
-  function openRow(id: string) {
-    setUnfolded((current) => ({ ...current, [id]: BOTH }));
-    requestAnimationFrame(() => {
-      const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      document.getElementById(sectionId(id))?.scrollIntoView({ block: "start", behavior: smooth ? "smooth" : "auto" });
-    });
-  }
-
-  function toggle(id: string, mode: Mode) {
-    setUnfolded((current) => {
-      const row = current[id] ?? { naive: false, hardened: false };
-      return { ...current, [id]: { ...row, [mode]: !row[mode] } };
-    });
-  }
 
   async function start(mode: Mode): Promise<string | null> {
     const response = await fetch(`/api/runs${freshToken ? `?fresh=${encodeURIComponent(freshToken)}` : ""}`, {
@@ -207,76 +198,70 @@ export function ProofComparison({
   const liveMode = phase !== "idle" ? phase : MODES.find((mode) => isRunActive(reports[mode]));
   const runLabel = liveMode ? `Running ${MODE_LABELS[liveMode].name.toLowerCase()}` : "Running…";
 
+  const fixes = verifiedFixes(reports.naive);
+  const fixReport = reports.naive?.scenarios.find((scenario) => scenario.analysis?.fixCheck)?.analysis?.fixCheck?.report;
+  const shareable = MODES.filter((mode) => reports[mode] && !isRunActive(reports[mode]) && !previous[mode]);
+
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Six failures, two stores</h1>
-          <p className="measure leading-relaxed text-pretty text-muted">
-            The same PayPal failures, injected in the sandbox, against a store with common mistakes and the same store
-            fixed. Code decides every verdict. Claude explains each failure.
+    <div className="flex flex-col">
+      <header className="flex flex-col items-center pb-8 pt-12 text-center sm:pb-12 sm:pt-16">
+        <h1 className="text-[clamp(2.5rem,6vw,4.75rem)] font-semibold leading-[1.04] tracking-display text-balance">
+          Six bad days. Two stores.
+        </h1>
+        <p className="mt-4 text-lg text-pretty text-muted sm:text-xl">Real failures, injected in the PayPal sandbox.</p>
+        {freshToken && (
+          <p className="measure mt-3 text-sm text-muted">
+            Fresh analysis is on: Claude analyses every failure again instead of reusing an earlier analysis.
           </p>
-          {freshToken && (
-            <p className="measure text-sm text-muted">
-              Fresh analysis is on: Claude analyses every failure again instead of reusing an earlier analysis.
-            </p>
+        )}
+
+        <div className="mt-10 grid w-full max-w-2xl grid-cols-2 gap-4">
+          {MODES.map((mode) => (
+            <Tally key={mode} mode={mode} report={reports[mode]} now={now} previous={previous[mode]} />
+          ))}
+        </div>
+
+        <p className="mt-8 text-pretty text-muted">
+          Code decides every verdict. Claude explains each failure
+          {fixes && (
+            <>
+              {" — "}
+              {fixReport ? (
+                <a href={fixReport} className={`rounded-sm tabular-nums ${linkUtility}`}>
+                  {fixes.verified}/{fixes.total} fixes verified
+                </a>
+              ) : (
+                <span className="tabular-nums">
+                  {fixes.verified}/{fixes.total} fixes verified
+                </span>
+              )}
+            </>
+          )}
+          .
+        </p>
+
+        <div className="mt-8">
+          {/* While a run is live the button is busy, not broken: it says which store is running. */}
+          {running ? (
+            <button
+              type="button"
+              disabled
+              aria-busy="true"
+              className="inline-flex min-h-12 cursor-progress items-center gap-2.5 rounded-full border border-border-strong bg-background px-6 font-medium"
+            >
+              <span className="spinner" aria-hidden="true" />
+              {runLabel}
+            </button>
+          ) : (
+            <button type="button" onClick={() => run(MODES)} disabled={busy} className={`${buttonPrimary} min-h-12 rounded-full px-6 text-base`}>
+              Run both live
+              <span className="font-normal opacity-75">about 2–3 min</span>
+            </button>
           )}
         </div>
-        {/* While a run is live the button is busy, not broken: it says which store is running. */}
-        {running ? (
-          <button
-            type="button"
-            disabled
-            aria-busy="true"
-            className="inline-flex min-h-11 shrink-0 cursor-progress items-center gap-2.5 self-start rounded-control border border-border-strong bg-surface px-5 text-sm font-semibold sm:self-auto"
-          >
-            <span className="spinner" aria-hidden="true" />
-            {runLabel}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => run(MODES)}
-            disabled={busy}
-            className={`${buttonPrimary} shrink-0 self-start sm:self-auto`}
-          >
-            Run both live
-            <span className="font-normal opacity-75">about 2–3 min</span>
-          </button>
-        )}
-      </header>
 
-      {loadError && (
-        <p role="alert" className="rounded-card border border-warn/40 bg-warn-bg p-4 text-sm text-warn">
-          The latest results could not be loaded. Running the proof still works; reload the page to try again.
-        </p>
-      )}
-
-      {following && (
-        <div role="status" className="rounded-card border border-border-strong bg-surface p-4 text-sm leading-6">
-          Another visitor is running the proof right now, so yours did not start. Their run is shown below as it
-          happens; you can run it again as soon as it finishes.
-        </div>
-      )}
-
-      {error && (
-        <div role="alert" className="flex flex-col gap-3 rounded-card border border-fail/40 bg-fail-bg p-4 text-fail sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm">{error.message}</p>
-          <button
-            type="button"
-            onClick={() => run(error.modes)}
-            disabled={busy}
-            className={`${buttonSmall} shrink-0 self-start border-current bg-transparent text-fail hover:border-current hover:bg-background/40 sm:self-auto`}
-          >
-            Try again
-          </button>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3">
-        {/* The line always keeps its place, so the matrix does not move when a wait begins or a run ends. A wait
-            is normal, so the line is plain; the amber dot marks what is waiting, like the cells below. */}
-        <p role="status" className="flex min-h-10 items-start gap-2 text-sm text-muted sm:min-h-5">
+        {/* The line keeps its place, so nothing moves when a wait begins or a run ends. */}
+        <p role="status" className="mt-4 flex min-h-10 items-start justify-center gap-2 text-sm text-muted sm:min-h-5">
           {waiting && (
             <>
               <span aria-hidden="true" className="live-dot mt-[7px] size-1.5 shrink-0 rounded-full bg-warn" />
@@ -284,38 +269,63 @@ export function ProofComparison({
             </>
           )}
         </p>
-        <VerdictMatrix
-          reports={reports}
-          now={now}
-          previous={previous}
-          flagship={FLAGSHIP_SCENARIO}
-          openRows={new Set(Object.keys(unfolded).filter((id) => unfolded[id].naive || unfolded[id].hardened))}
-          onRow={openRow}
-        />
-      </div>
 
-      <div className="flex flex-col gap-4">
-        {SCENARIO_IDS.map((id) => (
-          <ScenarioSection
-            key={id}
-            id={id}
-            modes={MODES}
-            scenarios={{
-              naive: reports.naive?.scenarios.find((scenario) => scenario.id === id) ?? null,
-              hardened: reports.hardened?.scenarios.find((scenario) => scenario.id === id) ?? null,
-            }}
-            now={now}
-            deadlineMs={{
-              naive: reports.naive?.config.webhookDeadlineMs ?? DEFAULT_DEADLINE_MS,
-              hardened: reports.hardened?.config.webhookDeadlineMs ?? DEFAULT_DEADLINE_MS,
-            }}
-            code={code}
-            expanded={unfolded[id] ?? { naive: false, hardened: false }}
-            onToggle={(mode) => toggle(id, mode)}
-            dimmed={previous}
-          />
-        ))}
-      </div>
+        <div className="flex w-full max-w-2xl flex-col gap-3 text-left">
+          {loadError && (
+            <p role="alert" className="rounded-card border border-warn/40 bg-warn-bg p-4 text-sm text-warn">
+              The latest results could not be loaded. Running the proof still works; reload the page to try again.
+            </p>
+          )}
+          {following && (
+            <div role="status" className="rounded-card border border-border-strong bg-surface p-4 text-sm leading-6">
+              Another visitor is running the proof right now, so yours did not start. Their run is shown below as it
+              happens; you can run it again as soon as it finishes.
+            </div>
+          )}
+          {error && (
+            <div role="alert" className="flex flex-col gap-3 rounded-card border border-fail/40 bg-fail-bg p-4 text-fail sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm">{error.message}</p>
+              <button
+                type="button"
+                onClick={() => run(error.modes)}
+                disabled={busy}
+                className={`${buttonSmall} shrink-0 self-start border-current bg-transparent text-fail hover:border-current hover:bg-background/40 sm:self-auto`}
+              >
+                Try again
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <ScenarioRows
+        ids={SCENARIO_IDS}
+        scenariosOf={(id) => ({
+          naive: reports.naive?.scenarios.find((scenario) => scenario.id === id) ?? null,
+          hardened: reports.hardened?.scenarios.find((scenario) => scenario.id === id) ?? null,
+        })}
+        now={now}
+        deadlineMs={{
+          naive: reports.naive?.config.webhookDeadlineMs ?? DEFAULT_DEADLINE_MS,
+          hardened: reports.hardened?.config.webhookDeadlineMs ?? DEFAULT_DEADLINE_MS,
+        }}
+        code={code}
+        dimmed={previous}
+      />
+
+      {shareable.length > 0 && (
+        <p className="pt-6 text-small text-muted">
+          Share these results:{" "}
+          {shareable.map((mode, index) => (
+            <span key={mode}>
+              {index > 0 && " · "}
+              <Link href={`/proof/${reports[mode]!.id}`} className={`rounded-sm ${linkUtility}`}>
+                {MODE_LABELS[mode].name}
+              </Link>
+            </span>
+          ))}
+        </p>
+      )}
     </div>
   );
 }

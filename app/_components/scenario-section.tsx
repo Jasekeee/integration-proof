@@ -30,6 +30,7 @@ export function ScenarioSection({
   expanded,
   onToggle,
   dimmed,
+  analysisOpen = false,
 }: {
   id: string;
   modes: Mode[];
@@ -40,6 +41,8 @@ export function ScenarioSection({
   expanded: Record<Mode, boolean>;
   onToggle: (mode: Mode) => void;
   dimmed: Record<Mode, boolean>;
+  /** Claude's analyses open with their evidence and fix showing. */
+  analysisOpen?: boolean;
 }) {
   const [traces, setTraces] = useState<Record<Mode, boolean>>({ naive: false, hardened: false });
   const [highlight, setHighlight] = useState<Record<Mode, number | null>>({ naive: null, hardened: null });
@@ -80,6 +83,7 @@ export function ScenarioSection({
               onToggleTrace={() => toggleTrace(mode)}
               onStep={(seq) => showStep(mode, seq)}
               dimmed={dimmed[mode]}
+              analysisOpen={analysisOpen}
             />
           </div>,
           traces[mode] && steps.length > 0 ? (

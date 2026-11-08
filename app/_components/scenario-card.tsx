@@ -72,6 +72,7 @@ export function ScenarioCard({
   onToggleTrace,
   onStep,
   dimmed = false,
+  analysisOpen = false,
 }: {
   id: string;
   mode: Mode;
@@ -88,6 +89,8 @@ export function ScenarioCard({
   onStep: (seq: number) => void;
   /** A previous run's result while a new run of this store is under way. */
   dimmed?: boolean;
+  /** Claude's analysis opens with its evidence and fix showing. */
+  analysisOpen?: boolean;
 }) {
   const bodyId = useId();
   const steps = scenario?.steps ?? [];
@@ -165,7 +168,7 @@ export function ScenarioCard({
         <div id={bodyId} className="flex min-w-0 flex-col gap-3">
           {reason && <p className="measure text-sm leading-6 text-pretty text-muted">{reason}</p>}
 
-          {scenario && failed && <AnalysisPanel scenario={scenario} onStep={onStep} />}
+          {scenario && failed && <AnalysisPanel scenario={scenario} onStep={onStep} defaultOpen={analysisOpen} />}
 
           {passed && <HandlingCode id={id} mode={mode} code={code} />}
 

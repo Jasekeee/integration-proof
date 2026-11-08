@@ -32,8 +32,8 @@ const GUIDANCE = [
 
 const STEPS = [
   { title: "We break it on purpose", body: "Real checkouts in PayPal’s sandbox, broken the way bad days break them." },
-  { title: "You see what buyers see", body: "Each test ends in plain words: charged twice, shipped twice, or fine." },
-  { title: "Claude writes the fix", body: "We run the test again, offline, on the fixed store to prove it works." },
+  { title: "You see what buyers see", body: "Each scenario ends in plain words: charged twice, shipped twice, or fine." },
+  { title: "Claude writes the fix", body: "We run the scenario again on the fixed store, offline on a model of PayPal, to check it works." },
 ];
 
 /** Proving a team's own store: docs/store-contract.md and the CLI in cli/. */
@@ -104,7 +104,7 @@ export default function LandingPage() {
         <ul className="mt-8 grid gap-8 text-center sm:mt-10 sm:grid-cols-3">
           <li className="flex flex-col items-center">
             <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">{scenarioCount}</b>
-            <span className="mt-3 text-balance text-muted">ways a checkout fails</span>
+            <span className="mt-3 text-balance text-muted">failure scenarios, run in PayPal’s sandbox</span>
           </li>
           {fixes && (
             <li className="flex flex-col items-center">
@@ -112,13 +112,13 @@ export default function LandingPage() {
                 {fixes.verified}/{fixes.total}
               </b>
               <a href={fixes.report} className={`mt-3 rounded-sm text-muted ${linkProse.replace("text-brand", "")}`}>
-                Claude fixes proven to work
+                Claude’s fixes verified offline, on a model of PayPal
               </a>
             </li>
           )}
           <li className="flex flex-col items-center">
-            <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">0</b>
-            <span className="mt-3 text-balance text-muted">results decided by AI</span>
+            <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">Code</b>
+            <span className="mt-3 text-balance text-muted">decides every verdict. Claude explains it and proposes the fix.</span>
           </li>
         </ul>
       </section>
@@ -139,7 +139,7 @@ export default function LandingPage() {
       </section>
 
       <section className={`${section} border-t border-border`} aria-labelledby="own-store">
-        <h2 id="own-store" className={h2}>
+        <h2 id="own-store" className={`${h2} scroll-mt-6`}>
           Prove your own store.
         </h2>
         <p className="mt-4 text-lg text-pretty text-muted sm:text-xl">Three endpoints. One command. Real PayPal sandbox.</p>
@@ -230,11 +230,11 @@ export default function LandingPage() {
         <p className="mt-6 text-sm text-muted">
           Or pay in the sandbox yourself:{" "}
           <Link href="/store/naive" className={linkProse}>
-            naive store
+            Naive store
           </Link>{" "}
           ·{" "}
           <Link href="/store/hardened" className={linkProse}>
-            hardened store
+            Hardened store
           </Link>
         </p>
       </section>

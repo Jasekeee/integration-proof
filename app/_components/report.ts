@@ -1,6 +1,8 @@
 // Shapes of the runs API on the client, and the small pure helpers the result views share.
 import type { Snippet } from "@/lib/store/snippets";
 
+export { plainHeadline } from "@/lib/proof/headlines";
+
 export type Mode = "naive" | "hardened";
 export type Verdict = "PASS" | "FAIL" | "INCONCLUSIVE";
 
@@ -89,16 +91,17 @@ export interface RunReport {
 }
 
 /**
- * Six scenarios, in order, so a column has its rows before a run has any. These are the page's own
- * plain-language titles; the scenario definitions the runner and the analyst read keep theirs.
+ * The six scenarios, in order, so a column has its rows before a run has any, each by its one name:
+ * the rows, the technical layer, the cards and the trace all use it. The scenario definitions the
+ * runner and the analyst read (lib/proof/scenarios) keep their technical titles as model input.
  */
 export const SCENARIO_TITLES: Record<string, string> = {
-  S1: "Capture declined",
-  S2: "PayPal errors once (500)",
-  S3: "Lost response after capture",
-  S4: "Duplicate webhook",
-  S5: "Late event after a refund",
-  S6: "Forged webhook",
+  S1: "The card is declined",
+  S2: "PayPal fails for a moment",
+  S3: "PayPal’s answer gets lost",
+  S4: "A notice arrives twice",
+  S5: "A notice arrives late",
+  S6: "Someone fakes a notice",
 };
 
 /** The scenario the page opens on: PayPal captured, the store never heard, the buyer pays again. */
@@ -109,12 +112,12 @@ export const FLAGSHIP_SCENARIO = "S3";
  * derived from the same facts as the verdict, which these only stand in for.
  */
 export const FALLBACK_HEADLINES: Record<string, { PASS: string; FAIL: string }> = {
-  S1: { PASS: "Decline shown, nothing charged", FAIL: "Declined capture mishandled" },
-  S2: { PASS: "Retried and charged once", FAIL: "Sale lost on a transient error" },
+  S1: { PASS: "Decline shown, nothing charged", FAIL: "Declined card mishandled" },
+  S2: { PASS: "Retried and charged once", FAIL: "Sale lost on a temporary error" },
   S3: { PASS: "Charged once, no second checkout", FAIL: "Buyer charged twice" },
   S4: { PASS: "Shipped once", FAIL: "Order shipped twice" },
   S5: { PASS: "Shows refunded, as PayPal does", FAIL: "Refunded order shown as paid" },
-  S6: { PASS: "Forged event rejected", FAIL: "Forged refund accepted" },
+  S6: { PASS: "Forged notice rejected", FAIL: "Forged refund accepted" },
 };
 
 /**
@@ -178,9 +181,13 @@ export function waitLabel(waitedMs: number, limitMs: number): string {
   return `Waiting for PayPal webhook · ${Math.max(0, Math.floor(waitedMs / 1000))} s of ${limit} s`;
 }
 
-export const MODE_LABELS: Record<Mode, { name: string; blurb: string }> = {
-  naive: { name: "Naive store", blurb: "The common integration mistakes, left in." },
-  hardened: { name: "Hardened store", blurb: "The same store with each mistake fixed." },
+/**
+ * The two stores' names, and the one line that describes each wherever a description appears. The
+ * landing's S3 statements describe them by what they did there: "guessed" and "asked PayPal".
+ */
+export const MODE_LABELS: Record<Mode, { name: string; description: string }> = {
+  naive: { name: "Naive store", description: "common mistakes left in" },
+  hardened: { name: "Hardened store", description: "mistakes fixed" },
 };
 
 /**

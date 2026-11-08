@@ -7,13 +7,15 @@ import {
   cellState,
   FALLBACK_HEADLINES,
   MODE_LABELS,
+  plainHeadline,
+  SCENARIO_TITLES,
   type CellState,
   type Mode,
   type ScenarioView,
   type StoreCode,
 } from "./report";
 import { ScenarioSection } from "./scenario-section";
-import { PLAIN_CAUSES, PLAIN_TITLES, story, storyMode, type Story } from "./story";
+import { PLAIN_CAUSES, story, storyMode, type Story } from "./story";
 import { buttonSmall } from "./ui";
 
 const MODES: Mode[] = ["naive", "hardened"];
@@ -22,7 +24,7 @@ const MODES: Mode[] = ["naive", "hardened"];
 export const rowId = (id: string) => `row-${id}`;
 export const sceneId = (id: string) => `scene-${id}`;
 
-/** What a store's cell says: the verdict's own headline, or what the run is doing right now. */
+/** What a store's cell says: the verdict's headline in plain words, or what the run is doing right now. */
 function outcome(scenario: ScenarioView | null, state: CellState, now: number): string {
   if (!scenario) return "Not run yet";
   if (state === "QUEUED") return "Queued";
@@ -32,7 +34,7 @@ function outcome(scenario: ScenarioView | null, state: CellState, now: number): 
     return `Waiting for PayPal · ${waited} s`;
   }
   if (state === "ERROR") return "Could not run";
-  if (scenario.headline) return scenario.headline;
+  if (scenario.headline) return plainHeadline(scenario.headline);
   if (state === "INCONCLUSIVE") return "PayPal did not deliver in time";
   return (state === "PASS" || state === "FAIL" ? FALLBACK_HEADLINES[scenario.id]?.[state] : null) ?? scenario.statusLabel;
 }
@@ -101,14 +103,12 @@ function Frames({ told, play }: { told: Story; play: boolean }) {
     <ol className="grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
       {told.frames.map((frame, index) => {
         const tone = frame.tone === "fail" ? "bg-fail-bg text-fail" : frame.tone === "pass" ? "bg-pass-bg text-pass" : "bg-background";
-        const dot = frame.tone === "fail" ? "bg-fail" : frame.tone === "pass" ? "bg-pass" : "bg-border-strong";
         return (
           <li
             key={index}
-            className={`relative flex rounded-panel py-4 pl-10 pr-5 text-xl font-medium leading-tight tracking-tight text-balance sm:min-h-[8.25rem] sm:items-end sm:p-6 sm:pt-10 lg:text-[1.375rem] ${tone} ${play ? "frame-enter" : ""}`}
+            className={`flex rounded-panel px-5 py-4 text-xl font-medium leading-tight tracking-tight text-balance sm:min-h-[8.25rem] sm:items-end sm:p-6 sm:pt-10 lg:text-[1.375rem] ${tone} ${play ? "frame-enter" : ""}`}
             style={play ? ({ "--i": index } as React.CSSProperties) : undefined}
           >
-            <span aria-hidden="true" className={`absolute left-5 top-[1.6rem] size-2 rounded-full sm:left-6 sm:top-6 ${dot}`} />
             <span>
               {frame.text}
               {frame.quote && (
@@ -220,7 +220,7 @@ function Scene({
             <span className="inline-flex min-h-10 items-center gap-2 rounded-full bg-background px-4 text-[15px]">
               {check}
               <span>
-                Claude’s fix verified · <s className="text-fail decoration-[1.5px]">FAIL</s> <span aria-hidden="true">→</span>
+                Claude’s fix verified offline · <s className="text-fail decoration-[1.5px]">FAIL</s> <span aria-hidden="true">→</span>
                 <span className="sr-only">then</span> <b className="font-semibold text-pass">PASS</b>
               </span>
             </span>
@@ -252,7 +252,7 @@ function Scene({
         {tech && (
           <div className="flex flex-col gap-3">
             <p className="text-small text-muted">
-              Technical details · <span className="font-mono">{id}</span> · {scenarios.naive?.title ?? scenarios.hardened?.title}
+              Technical details · <span className="font-mono">{id}</span> · {SCENARIO_TITLES[id]}
             </p>
             <ScenarioSection
               key={analysisRequest}
@@ -338,7 +338,7 @@ export function ScenarioRows({
                 onClick={() => toggle(id)}
                 className={`grid w-full scroll-mt-4 grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 gap-y-1.5 px-1 py-5 text-left transition-colors duration-150 hover:bg-surface focus-visible:-outline-offset-2 sm:px-5 sm:py-6 md:gap-6 ${columns} ${expanded ? "bg-surface" : ""}`}
               >
-                <span className="text-lg font-medium tracking-tight sm:text-xl">{PLAIN_TITLES[id] ?? id}</span>
+                <span className="text-lg font-medium tracking-tight sm:text-xl">{SCENARIO_TITLES[id] ?? id}</span>
                 <span className={`col-start-2 row-start-1 ${both ? "md:col-start-4" : "md:col-start-3"}`}>
                   <Chevron open={expanded} />
                 </span>

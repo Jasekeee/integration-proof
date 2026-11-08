@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   cellState,
+  FALLBACK_HEADLINES,
+  MODE_LABELS,
+  plainHeadline,
   progressLabel,
   repeatedRequestIds,
   retriedWithSameKey,
   runDate,
+  SCENARIO_TITLES,
   shortRequestId,
   traceRow,
   verifiedFixes,
@@ -192,5 +197,38 @@ describe("traceRow", () => {
   it("carries the step's PayPal-Request-Id", () => {
     expect(traceRow(step(6, { paypalRequestId: "k" })).paypalRequestId).toBe("k");
     expect(traceRow(step(6)).paypalRequestId).toBeNull();
+  });
+});
+
+describe("the first layer's words", () => {
+  const JARGON = /transient|5xx|\bevent\b|webhook|replay|capture|idempoten/i;
+  // Every headline an assertion can write: the string literals that follow "headline:" or end a pass().
+  const source = readFileSync("lib/proof/assertions/index.ts", "utf8");
+  const written = [
+    ...[...source.matchAll(/headline: "([^"]+)"/g)].map((match) => match[1]),
+    ...[...source.matchAll(/\n\s+"([A-Z][^"]{3,60})",\n\s+\);/g)].map((match) => match[1]),
+    ...[...source.matchAll(/, "([A-Z][^"]{3,60})"\);/g)].map((match) => match[1]),
+  ];
+
+  it("finds the headlines the assertions write", () => {
+    expect(written).toContain("Sale lost on a transient error");
+    expect(written).toContain("Forged event rejected");
+    expect(written).toContain("Decline shown, nothing charged");
+    expect(written.length).toBeGreaterThan(20);
+  });
+
+  it("shows every headline without a technical word", () => {
+    for (const headline of [...written, ...Object.values(FALLBACK_HEADLINES).flatMap((pair) => [pair.PASS, pair.FAIL])]) {
+      expect(plainHeadline(headline)).not.toMatch(JARGON);
+    }
+    expect(plainHeadline("Sale lost on a transient error")).toBe("Sale lost on a temporary error");
+    expect(plainHeadline("Buyer charged twice")).toBe("Buyer charged twice");
+  });
+
+  it("names each scenario and each store in plain words", () => {
+    expect(Object.keys(SCENARIO_TITLES)).toEqual(["S1", "S2", "S3", "S4", "S5", "S6"]);
+    for (const title of Object.values(SCENARIO_TITLES)) expect(title).not.toMatch(JARGON);
+    expect(MODE_LABELS.naive.name).toBe("Naive store");
+    expect(MODE_LABELS.hardened.name).toBe("Hardened store");
   });
 });

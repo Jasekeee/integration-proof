@@ -9,8 +9,9 @@ your machine. The verdicts come from the same deterministic assertions as the ho
 npm run cli -- run --store http://localhost:4000/integration-proof
 ```
 
-Version 1 covers **S1 (capture declined), S2 (transient 5xx on capture) and S3 (lost response after a
-successful capture)**. The webhook scenarios S4–S6 are not part of it; see
+Version 1 covers **S1 (the card is declined), S2 (PayPal fails for a moment: a 5xx on capture) and
+S3 (PayPal's answer gets lost after a successful capture)**. The webhook scenarios S4–S6 are not
+part of it; see
 [What version 1 does not cover](#what-version-1-does-not-cover).
 
 ## How a run works
@@ -135,6 +136,9 @@ real PayPal sandbox, step by step.
 ### Output
 
 - **A line per scenario** on the console: verdict, what happened and why.
+- **A last line** with the result. With `--expect`, `Result: every scenario as expected.` or
+  `Result: not as expected.`; without it, the verdicts counted, such as
+  `Result: 1 passed, 2 failed, 0 inconclusive.`
 - **`report.json`** with every step of every scenario.
   - Request and response bodies are redacted the same way as in the hosted trace.
   - The OAuth exchange is never recorded.
@@ -146,7 +150,7 @@ real PayPal sandbox, step by step.
 | Code | When |
 |---|---|
 | `0` | Every verdict matched `--expect`, or, without expectations, every scenario passed. |
-| `1` | Not as expected. |
+| `1` | A verdict differs from `--expect`, or, without expectations, a scenario did not pass. |
 | `2` | The run could not start (wrong option, missing credentials, proxy port in use). |
 
 ## Claude's analysis of the failures (opt-in)

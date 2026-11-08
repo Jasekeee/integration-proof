@@ -462,9 +462,10 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
 
 /*
  * The landing page's two statements. The page is drawn in its final state: two payments and $20 at
- * the store that guessed, $10 in green at the one that asked. Only with scripting on and motion
- * allowed does it play once on load: the second payment arrives at 0.2 s and the totals settle by
- * 1.1 s. Without JavaScript, with reduced motion, or on scroll, nothing moves.
+ * the naive store, which guessed, $10 in green at the hardened store, which asked. Only with
+ * scripting on and motion allowed does it play once on load: the second payment arrives at 0.2 s
+ * and the totals settle by 1.1 s. Without JavaScript, with reduced motion, or on scroll, nothing
+ * moves.
  */
 .stmt-before {
   opacity: 0;

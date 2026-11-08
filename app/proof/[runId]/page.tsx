@@ -18,7 +18,7 @@ const SITE_IMAGE = { url: "/opengraph-image.png", width: 1200, height: 630, alt:
 
 /** The line a shared link previews with: what the run cost, or that nothing went wrong. */
 function shareDescription(report: RunReport): string {
-  const tail = "Six PayPal failures, judged by code, explained by Claude.";
+  const tail = "Six failure scenarios in PayPal’s sandbox, judged by code, explained by Claude.";
   if (report.status === "QUEUED" || report.status === "RUNNING") return `A proof run in progress. ${tail}`;
   if (report.consequences.length > 0) return `${report.consequences.join(" · ")}. ${tail}`;
   if (report.status === "COMPLETED" && report.summary.passed === report.summary.total) {

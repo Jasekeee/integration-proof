@@ -3,8 +3,6 @@
 import { Odometer, useChanges } from "./motion";
 import { cellState, isRunActive, MODE_LABELS, runProgress, runTone, type CellState, type Mode, type RunReport } from "./report";
 
-/** Each store's line under its score. */
-const CAPTIONS: Record<Mode, string> = { naive: "common mistakes left in", hardened: "mistakes fixed" };
 const SCORE_COLORS = { pass: "text-pass", fail: "text-fail", warn: "text-warn" } as const;
 
 /** A live run's progress, one segment per scenario: tinted while live, in full color once decided. */
@@ -54,7 +52,7 @@ export function Tally({ mode, report, now, previous }: { mode: Mode; report: Run
         </p>
       )}
       <p className="mt-3 text-lg font-medium">{MODE_LABELS[mode].name}</p>
-      <p className="text-small text-muted">{previous ? "previous run" : CAPTIONS[mode]}</p>
+      <p className="text-small text-muted">{previous ? "previous run" : MODE_LABELS[mode].description}</p>
     </div>
   );
 }

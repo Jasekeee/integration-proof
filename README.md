@@ -43,22 +43,22 @@ sandbox, and shows what the store did.
 
 Two reference stores run side by side. The naive store keeps the common integration mistakes; the
 hardened store is the same store with each one fixed. In the live sandbox the naive store passes 1
-of 6, the hardened store 6 of 6.
+of the 6 failure scenarios, the hardened store 6 of 6. A *notice* is one of PayPal's webhook events.
 
-| | Failure | How it is produced | Naive store | Hardened store |
+| | Scenario | How it is produced | Naive store | Hardened store |
 |---|---|---|---|---|
-| S1 | Capture declined | The proxy adds `PayPal-Mock-Response: INSTRUMENT_DECLINED` to the capture | Shows a decline, charges nothing | Same |
-| S2 | Transient 5xx on capture | The first capture gets a mocked `500 INTERNAL_SERVER_ERROR` | Marks the order failed: a sale lost from a buyer ready to pay | Retries with backoff and the same `PayPal-Request-Id`; charged once |
-| S3 | Lost response after a successful capture | PayPal captures; the proxy holds the answer past the store's timeout | Says "Payment failed"; the buyer checks out again and is charged twice for one cart | Asks `GET /v2/checkout/orders/{id}`, sees the capture, marks the order paid |
-| S4 | Duplicate webhook | The same real `PAYMENT.CAPTURE.COMPLETED` is delivered twice | Ships the order twice | Dedupes by event id; ships once |
-| S5 | Late `COMPLETED` after a refund | The merchant refunds; a stale `COMPLETED` arrives last | Shows the refunded order as paid | Reads the order from PayPal; stays refunded |
-| S6 | Forged webhook | A recorded delivery with its body changed after PayPal signed it | Accepts the forged refund | Signature verification fails; answers 400 and changes nothing |
+| S1 | The card is declined | The proxy adds `PayPal-Mock-Response: INSTRUMENT_DECLINED` to the capture | Shows a decline, charges nothing | Same |
+| S2 | PayPal fails for a moment | The first capture gets a mocked `500 INTERNAL_SERVER_ERROR` | Marks the order failed: a sale lost from a buyer ready to pay | Retries with backoff and the same `PayPal-Request-Id`; charged once |
+| S3 | PayPal's answer gets lost | PayPal captures; the proxy holds the answer past the store's timeout | Says "Payment failed"; the buyer checks out again and is charged twice for one cart | Asks `GET /v2/checkout/orders/{id}`, sees the capture, marks the order paid |
+| S4 | A notice arrives twice | The same real `PAYMENT.CAPTURE.COMPLETED` webhook is delivered twice | Ships the order twice | Dedupes by event id; ships once |
+| S5 | A notice arrives late | The merchant refunds; a stale `PAYMENT.CAPTURE.COMPLETED` arrives last | Shows the refunded order as paid | Reads the order from PayPal; stays refunded |
+| S6 | Someone fakes a notice | A recorded webhook delivery with its body changed after PayPal signed it | Accepts the forged refund | Signature verification fails; answers 400 and changes nothing |
 
 PayPal allows one capture per order, so no store here can charge the same order twice. The harms the
 product shows are the ones that really happen: a lost sale (S2), a second charge on a second order
 for the same cart (S3), a double shipment (S4), and order states that disagree with PayPal (S5, S6).
 
-![The proof page: the naive store passes 1 of 6 failures, the hardened store 6 of 6; the lost-response scenario open in four plain sentences, with Claude's fix verified FAIL → PASS](docs/screenshots/proof-light.png)
+![The proof page: the naive store passes 1 of 6 failure scenarios, the hardened store 6 of 6; the lost-response scenario open in four plain sentences, with Claude's fix verified FAIL → PASS](docs/screenshots/proof-light.png)
 
 ## How it works
 
@@ -211,7 +211,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 2. Click **PayPal's answer gets lost** (S3) and read what happened in four sentences. Then open
    **Claude's full analysis**: the root cause, evidence steps that jump to the trace, and the fix with
    its offline verdict. Click a trace row for its redacted request and response.
-3. Click **Run both live** to run the six failures again: the naive store, then the hardened one,
+3. Click **Run both live** to run the six scenarios again: the naive store, then the hardened one,
    one to two minutes each, about 2–3 minutes for both. The demo runs one proof at a time for
    everyone.
 

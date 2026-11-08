@@ -243,19 +243,6 @@ export function story(scenario: ScenarioView | null): Story | null {
 }
 
 /**
- * The scenario names on the proof page, in plain words. The runner and the analyst keep the
- * technical titles (SCENARIO_TITLES), which the technical layer shows.
- */
-export const PLAIN_TITLES: Record<string, string> = {
-  S1: "The card is declined",
-  S2: "PayPal fails for a moment",
-  S3: "PayPal’s answer gets lost",
-  S4: "A notice arrives twice",
-  S5: "A notice arrives late",
-  S6: "Someone fakes a notice",
-};
-
-/**
  * Why the naive store failed, in plain words: a reading of the root cause Claude gives for each
  * failure, whose own text names functions and sits in the technical layer.
  */

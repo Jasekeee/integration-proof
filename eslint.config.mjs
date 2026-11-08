@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Independent example projects, with their own package.json and dependencies.
+    "examples/**",
   ]),
 ]);
 

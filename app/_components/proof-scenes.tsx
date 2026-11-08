@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "./icon";
 import { useChanges } from "./motion";
 import {
@@ -14,9 +14,9 @@ import {
   type ScenarioView,
   type StoreCode,
 } from "./report";
-import { ScenarioSection } from "./scenario-section";
+import { analysisId, ScenarioSection } from "./scenario-section";
 import { PLAIN_CAUSES, story, storyMode, type Story } from "./story";
-import { buttonSmall } from "./ui";
+import { buttonSmall, panel } from "./ui";
 
 const MODES: Mode[] = ["naive", "hardened"];
 
@@ -95,8 +95,6 @@ const check = (
   </svg>
 );
 
-const panel = "rounded-panel bg-background p-5 sm:p-6";
-
 /** The story's frames: plain sentences, the outcome last, in red or green. */
 function Frames({ told, play }: { told: Story; play: boolean }) {
   return (
@@ -150,10 +148,8 @@ function Scene({
   play: boolean;
 }) {
   const [tech, setTech] = useState(false);
-  /** Bumped by "Claude's full analysis": the technical layer opens again with the analysis unfolded. */
-  const [analysisRequest, setAnalysisRequest] = useState(0);
-  const [unfolded, setUnfolded] = useState<Record<Mode, boolean>>({ naive: true, hardened: true });
-  const techRef = useRef<HTMLDivElement>(null);
+  /** Set by "Claude's full analysis": once the technical layer is drawn, the page scrolls to the analysis. */
+  const [seek, setSeek] = useState(0);
   const main = modes.length === 1 ? modes[0] : storyMode(scenarios);
   const other: Mode | null = modes.length === 1 ? null : main === "naive" ? "hardened" : "naive";
   const told = story(scenarios[main]);
@@ -165,14 +161,20 @@ function Scene({
   const cause = failed && main === "naive" ? PLAIN_CAUSES[id] : bothPassed ? "Both stores read PayPal’s answer and acted on it." : null;
   const techId = `${sceneId(id)}-tech`;
 
+  useEffect(() => {
+    if (seek === 0) return;
+    const frame = requestAnimationFrame(() => {
+      const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById(analysisId(id, main))?.scrollIntoView({ block: "start", behavior: smooth ? "smooth" : "auto" });
+    });
+    return () => cancelAnimationFrame(frame);
+    // Only a new request scrolls; the run's own updates do not move the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seek]);
+
   function openAnalysis() {
     setTech(true);
-    setUnfolded({ naive: true, hardened: true });
-    setAnalysisRequest((count) => count + 1);
-    requestAnimationFrame(() => {
-      const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      techRef.current?.scrollIntoView({ block: "start", behavior: smooth ? "smooth" : "auto" });
-    });
+    setSeek((count) => count + 1);
   }
 
   return (
@@ -248,25 +250,13 @@ function Scene({
         </button>
       </div>
 
-      <div id={techId} ref={techRef} hidden={!tech} className="scroll-mt-4 pt-3">
+      <div id={techId} hidden={!tech} className="scroll-mt-4 pt-3">
         {tech && (
           <div className="flex flex-col gap-3">
             <p className="text-small text-muted">
-              Technical details · <span className="font-mono">{id}</span> · {SCENARIO_TITLES[id]}
+              Technical details · {id} · {SCENARIO_TITLES[id]}
             </p>
-            <ScenarioSection
-              key={analysisRequest}
-              id={id}
-              modes={modes}
-              scenarios={scenarios}
-              now={now}
-              deadlineMs={deadlineMs}
-              code={code}
-              expanded={unfolded}
-              onToggle={(mode) => setUnfolded((current) => ({ ...current, [mode]: !current[mode] }))}
-              dimmed={dimmed}
-              analysisOpen={analysisRequest > 0}
-            />
+            <ScenarioSection id={id} modes={modes} scenarios={scenarios} now={now} deadlineMs={deadlineMs} code={code} dimmed={dimmed} />
           </div>
         )}
       </div>

@@ -533,10 +533,11 @@ the page shows, not a run stuck in RUNNING.
 
 ## A passing card shows the code that passed
 
-**Decision:** a PASS card shows "How the hardened store handles it": the three to six lines of
-`lib/store/hardened.ts` that decide the scenario, with the store's own comment as the caption, the
-line numbers, and a link to the same lines on GitHub at the deployed commit. The naive store's one
-pass, S1, shows its own lines the same way.
+**Decision:** a store that passes shows "How the hardened store handles it" below its card, as wide
+as the scenario, so no line is cut off: the three to six lines of `lib/store/hardened.ts` that
+decide the scenario, with the store's own comment as the caption, the line numbers, and a link to
+the same lines on GitHub at the deployed commit. The naive store's one pass, S1, shows its own lines
+the same way.
 
 **How:** a comment that starts with a scenario id marks the code, for example
 `// [S3] Fix: no answer is not a failure.` The snippet is the code after the comment, up to the next

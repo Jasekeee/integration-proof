@@ -34,7 +34,9 @@ const theme = themeQuartz.withParams({
   wrapperBorderRadius: 10,
 });
 
+/** Mono only for what is code or an id: the call, debug_id and PayPal-Request-Id. Numbers stay in the text face. */
 const mono = { fontFamily: "var(--font-geist-mono)" };
+const numbers = { fontVariantNumeric: "tabular-nums" };
 
 interface GridContext {
   /** Repeated PayPal-Request-Id values and their color slots. */
@@ -57,21 +59,23 @@ function RequestIdCell({ value, context }: ICellRendererParams<TraceRow, string 
 }
 
 /**
- * The columns in reading order. debug_id is the id PayPal finds a request by: on a narrow screen,
- * where the grid scrolls sideways, it is pinned to the right edge so it stays in view.
+ * The columns in reading order. From 1280 px every column fits the scenario's width (the minimums add
+ * up to 994 px); Call and Detail wrap instead of widening. debug_id is the id PayPal finds a request
+ * by: on a narrow screen, where the grid scrolls sideways, it is pinned to the right edge so it stays
+ * in view.
  */
 function columns(narrow: boolean): ColDef<TraceRow>[] {
   return [
-    { field: "seq", headerName: "Step", width: 68, valueFormatter: (p) => `#${p.value}`, cellStyle: mono },
+    { field: "seq", headerName: "Step", width: 68, valueFormatter: (p) => `#${p.value}`, cellStyle: numbers },
     { field: "actor", headerName: "Actor", width: 90 },
-    { field: "call", headerName: "Call", flex: 3, minWidth: 240, wrapText: true, autoHeight: true, cellStyle: { ...mono, lineHeight: "1.5" } },
-    { field: "httpStatus", headerName: "HTTP", width: 72, cellStyle: mono, valueFormatter: (p) => (p.value === null ? "–" : String(p.value)) },
+    { field: "call", headerName: "Call", flex: 3, minWidth: 200, wrapText: true, autoHeight: true, cellStyle: { ...mono, lineHeight: "1.5" } },
+    { field: "httpStatus", headerName: "HTTP", width: 72, cellStyle: numbers, valueFormatter: (p) => (p.value === null ? "–" : String(p.value)) },
     {
       field: "durationMs",
       headerName: "Duration",
       width: 96,
       type: "rightAligned",
-      cellStyle: mono,
+      cellStyle: numbers,
       valueFormatter: (p) => (p.value >= 1000 ? `${(p.value / 1000).toFixed(1)} s` : `${p.value} ms`),
     },
     {
@@ -83,7 +87,7 @@ function columns(narrow: boolean): ColDef<TraceRow>[] {
       valueFormatter: (p) => p.value ?? "–",
     },
     { field: "paypalRequestId", headerName: "PayPal-Request-Id", width: 156, cellStyle: mono, cellRenderer: RequestIdCell },
-    { field: "detail", headerName: "Detail", flex: 2, minWidth: 260, wrapText: true, autoHeight: true, cellStyle: { lineHeight: "1.5" } },
+    { field: "detail", headerName: "Detail", flex: 2, minWidth: 180, wrapText: true, autoHeight: true, cellStyle: { lineHeight: "1.5" } },
   ];
 }
 
@@ -172,7 +176,9 @@ export default function TraceGrid({
         getRowId={(params) => String(params.data.seq)}
         rowClassRules={rowClassRules}
         domLayout="autoHeight"
-        onGridReady={(event) => setApi(event.api)}
+        // Once the rows are drawn, not when the grid is ready: the evidence link that opened this trace
+        // scrolls to a row, which must exist by then.
+        onFirstDataRendered={(event) => setApi(event.api)}
         onRowClicked={(event) => event.data && onSelect(event.data.seq)}
         onCellFocused={(event) => {
           // From the keyboard too: a focused Request-Id cell marks its twins.

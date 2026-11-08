@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { SCENARIO_TITLES } from "../_components/report";
 import { Icon } from "../_components/icon";
+import { GITHUB_URL } from "../_components/site";
 import { buttonPrimary, linkProse } from "../_components/ui";
 import { Statements } from "./statements";
 import { fixesSummary } from "@/lib/ai/fix-check";
@@ -34,6 +35,30 @@ const STEPS = [
   { title: "You see what buyers see", body: "Each test ends in plain words: charged twice, shipped twice, or fine." },
   { title: "Claude writes the fix", body: "We run the test again, offline, on the fixed store to prove it works." },
 ];
+
+/** Proving a team's own store: docs/store-contract.md and the CLI in cli/. */
+const OWN_STORE_STEPS = [
+  "Add three endpoints from the store contract.",
+  "Run the CLI against the PayPal sandbox.",
+  "Claude explains each failure and writes a patch you apply.",
+];
+
+/**
+ * The command from the README's "Prove your own store", the opt-in Claude flags included, exactly
+ * as the README writes it. On a phone every flag gets a line of its own, so nothing is cut off.
+ */
+const OWN_STORE_COMMAND = `npm run cli -- run \\
+  --store http://localhost:4000/integration-proof \\
+  --env-file .env.cli \\
+  --explain --source examples/express-store \\
+  --write-patch claude-fix.patch`;
+const OWN_STORE_COMMAND_NARROW = `npm run cli -- run \\
+  --store \\
+  http://localhost:4000/integration-proof \\
+  --env-file .env.cli \\
+  --explain \\
+  --source examples/express-store \\
+  --write-patch claude-fix.patch`;
 
 const AUDIENCE = ["Teams with a custom PayPal Checkout", "Plugin and platform authors", "Anyone before a launch or a sale day"];
 
@@ -111,6 +136,51 @@ export default function LandingPage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section className={`${section} border-t border-border`} aria-labelledby="own-store">
+        <h2 id="own-store" className={h2}>
+          Prove your own store.
+        </h2>
+        <p className="mt-4 text-lg text-pretty text-muted sm:text-xl">Three endpoints. One command. Real PayPal sandbox.</p>
+        <div className="mt-8 grid gap-10 sm:mt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-14">
+          <ol className="flex flex-col gap-6">
+            {OWN_STORE_STEPS.map((step, index) => (
+              <li key={step} className="flex gap-4">
+                <span className="w-4 shrink-0 font-semibold tabular-nums text-brand">{index + 1}</span>
+                <p className="text-xl font-semibold leading-snug tracking-tight text-pretty">{step}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="flex min-w-0 flex-col gap-5">
+            {/* Scrolls sideways on a narrow screen; focusable, so the keyboard can scroll it too. */}
+            <pre
+              tabIndex={0}
+              aria-label="The command that proves your store"
+              className="overflow-x-auto rounded-panel border border-border bg-surface p-4 font-mono text-xs leading-6 sm:px-5 sm:text-sm"
+            >
+              <code className="sm:hidden">{OWN_STORE_COMMAND_NARROW}</code>
+              <code className="max-sm:hidden">{OWN_STORE_COMMAND}</code>
+            </pre>
+            <p className="leading-relaxed text-pretty">
+              An Express store we did not write the tool for: S2 and S3 went from{" "}
+              <span className="font-semibold text-fail">FAIL</span> to <span className="font-semibold text-pass">PASS</span> after
+              Claude&apos;s patch.{" "}
+              <a href={`${GITHUB_URL}/blob/main/docs/store-contract-claude-run.md`} className={linkProse}>
+                See the run
+              </a>
+            </p>
+            <p className="flex flex-wrap gap-x-5 gap-y-2">
+              <a href={`${GITHUB_URL}/blob/main/docs/store-contract.md`} className={linkProse}>
+                Store contract
+              </a>
+              <a href={`${GITHUB_URL}/blob/main/.github/workflows/store-contract.yml`} className={linkProse}>
+                CI example
+              </a>
+            </p>
+            <p className="text-sm text-muted">Runs from a clone today. Webhook scenarios need a public URL.</p>
+          </div>
+        </div>
       </section>
 
       <section className={`${section} border-t border-border`} aria-labelledby="guidance">

@@ -241,8 +241,14 @@ machine. Add three small endpoints to your store, described in the
 point its PayPal base URL at the proxy the CLI starts on `127.0.0.1:8787`, and run:
 
 ```bash
-npm run cli -- run --store http://localhost:4000/integration-proof --env-file .env.cli
+npm run cli -- run \
+  --store http://localhost:4000/integration-proof \
+  --env-file .env.cli \
+  --explain --source examples/express-store \
+  --write-patch claude-fix.patch
 ```
+
+The last two lines are the opt-in Claude flags, which need `ANTHROPIC_API_KEY`; without them nothing is sent to Claude.
 
 - **Same faults, same verdicts.** The CLI injects the same faults as the hosted proof, through a
   proxy on your machine, and decides with the same deterministic assertions. PayPal's record of the

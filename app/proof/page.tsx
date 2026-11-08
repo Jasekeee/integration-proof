@@ -7,9 +7,9 @@ import { latestRunIds, readReport } from "@/lib/proof/report";
 import { readStoreCode } from "@/lib/store/snippets";
 
 export const metadata: Metadata = {
-  title: "Six failures, two stores",
+  title: "Six bad days, two stores",
   description:
-    "The same six PayPal failures against a store with common mistakes and the same store fixed. Code decides every verdict; Claude explains each failure.",
+    "The same six PayPal failures, injected in the sandbox, against a store with common mistakes and the same store fixed. Code decides every verdict; Claude explains each failure.",
 };
 
 /** Plain JSON, as the report API returns it, so the first paint and later polls match. */
@@ -36,7 +36,7 @@ export default async function ProofPage({ searchParams }: PageProps<"/proof">) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6">
+    <div className="mx-auto flex w-full max-w-6xl flex-col px-4 pb-24 sm:px-6">
       <ProofComparison initial={initial} freshToken={freshToken} code={code} loadError={loadError} />
     </div>
   );

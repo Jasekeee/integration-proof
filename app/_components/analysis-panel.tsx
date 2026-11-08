@@ -44,8 +44,17 @@ function FixBadge({ check }: { check: NonNullable<AnalysisView["fixCheck"]> }) {
  * Claude's explanation of a FAIL or INCONCLUSIVE verdict. The root cause is always visible; the
  * evidence and the fix open on demand. Evidence buttons point at steps of the trace below.
  */
-export function AnalysisPanel({ scenario, onStep }: { scenario: ScenarioView; onStep: (seq: number) => void }) {
-  const [open, setOpen] = useState(false);
+export function AnalysisPanel({
+  scenario,
+  onStep,
+  defaultOpen = false,
+}: {
+  scenario: ScenarioView;
+  onStep: (seq: number) => void;
+  /** Opened from "Claude's full analysis": the evidence and the fix show at once. */
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const detailsId = useId();
   const analysis = scenario.analysis;
   const heading = scenario.verdict === "INCONCLUSIVE" ? "Why it is inconclusive" : "Why it failed";

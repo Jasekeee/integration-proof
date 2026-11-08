@@ -7,33 +7,33 @@
  */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-  --muted: #525252;
-  --surface: #fafafa;
-  --surface-2: #f2f2f3;
-  --border: #e4e4e7;
-  --border-strong: #c4c4c8;
-  --accent: #171717;
+  --foreground: #111110;
+  --muted: #5c5b56;
+  --surface: #f6f6f4;
+  --surface-2: #eeede9;
+  --border: #e6e5e1;
+  --border-strong: #cfcdc7;
+  --accent: #111110;
   --accent-foreground: #ffffff;
   /* Focus follows the brand accent: 7.9:1 on the background. */
-  --ring: #4338ca;
-  --pass: #166534;
-  --pass-bg: #dcfce7;
-  --fail: #991b1b;
-  --fail-bg: #fee2e2;
-  --warn: #92400e;
-  --warn-bg: #fef3c7;
+  --ring: #2456e0;
+  --pass: #13703f;
+  --pass-bg: #e8f5ed;
+  --fail: #b42318;
+  --fail-bg: #fdefed;
+  --warn: #8a4a0b;
+  --warn-bg: #fdf3e1;
   --diff-add: #14532d;
   --diff-add-bg: #e9f9ee;
   --diff-del: #7f1d1d;
   --diff-del-bg: #fdecec;
-  --highlight-bg: #e8f0fe;
+  --highlight-bg: #eaf0fe;
   /*
    * The one brand accent: the mark, links, step numbers, focus and the flagship scenario's row.
    * Green and red stay with verdicts. 7.1:1 or better on every background token, both themes.
    */
-  --brand: #4338ca;
-  --brand-bg: #eef2ff;
+  --brand: #2456e0;
+  --brand-bg: #edf2fe;
   --brand-foreground: #ffffff;
   /* A PayPal-Request-Id that repeats in a trace: each repeated key gets one of these pairs. */
   --key-0: #3730a3;
@@ -57,30 +57,30 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --muted: #a3a3a3;
-    --surface: #131313;
-    --surface-2: #1b1b1c;
-    --border: #2a2a2c;
-    --border-strong: #3f3f43;
-    --accent: #ededed;
-    --accent-foreground: #0a0a0a;
-    --ring: #a5b4fc;
-    --pass: #86efac;
-    --pass-bg: #0b2e17;
-    --fail: #fca5a5;
-    --fail-bg: #3b0d0d;
+    --background: #0f0f0e;
+    --foreground: #f3f2ee;
+    --muted: #a3a19a;
+    --surface: #191917;
+    --surface-2: #222220;
+    --border: #2b2a27;
+    --border-strong: #45433f;
+    --accent: #f3f2ee;
+    --accent-foreground: #0f0f0e;
+    --ring: #86a6ff;
+    --pass: #5bd394;
+    --pass-bg: #10241a;
+    --fail: #ff8077;
+    --fail-bg: #2a1513;
     --warn: #fcd34d;
-    --warn-bg: #3a2405;
+    --warn-bg: #2e2208;
     --diff-add: #a7f3c0;
     --diff-add-bg: #0d2416;
     --diff-del: #fecaca;
     --diff-del-bg: #2c0f0f;
-    --highlight-bg: #172554;
-    --brand: #a5b4fc;
-    --brand-bg: #1e1b4b;
-    --brand-foreground: #0a0a0a;
+    --highlight-bg: #18213d;
+    --brand: #86a6ff;
+    --brand-bg: #18213d;
+    --brand-foreground: #0f0f0e;
     --key-0: #c7d2fe;
     --key-0-bg: #1e1b4b;
     --key-1: #99f6e4;
@@ -512,6 +512,33 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   box-shadow: 0 0 0 1.5px currentColor;
 }
 
+/*
+ * A scenario's scene as it opens: the frames land one after another (--i is the frame's place), the
+ * outcome last, then the other store and the cause. With reduced motion everything is there at once.
+ */
+.frame-enter {
+  animation: frame-in 480ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 450ms + 80ms);
+}
+
+.after-enter {
+  animation: fade-in 480ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 450ms + 80ms);
+}
+
+@keyframes frame-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* A trace as it opens below its card. */
 .trace-enter {
   animation: rise 350ms var(--ease-out) both;
@@ -564,6 +591,7 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }

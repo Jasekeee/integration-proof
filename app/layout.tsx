@@ -64,7 +64,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <header className="border-b border-border">
-          <nav className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
             <Link href="/" className="flex min-h-10 items-center gap-2 rounded-control font-semibold tracking-tight">
               <svg viewBox="0 0 32 32" className="size-6" aria-hidden="true">
                 <rect width="32" height="32" rx="7" className="fill-brand" />
@@ -79,7 +79,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <footer className="border-t border-border">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-muted sm:flex-row sm:justify-between sm:px-6">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-muted sm:flex-row sm:justify-between sm:px-6">
             <p>PayPal sandbox only. No real payment is ever made.</p>
             <p>
               <a href={GITHUB_URL} className={linkProse}>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 // useHydrated: false until React has hydrated, so a click never lands on a dead button.
 import { useHydrated, useNow, useRunReport } from "./hooks";
+import { Icon } from "./icon";
 import { ScenarioRows } from "./proof-scenes";
 import {
   isRunActive,
@@ -206,9 +207,9 @@ export function ProofComparison({
     <div className="flex flex-col">
       <header className="flex flex-col items-center pb-5 pt-12 text-center sm:pb-6 sm:pt-16">
         <h1 className="text-[clamp(2.5rem,6vw,4.75rem)] font-semibold leading-[1.04] tracking-display text-balance">
-          Six bad days. Two stores.
+          Six failure scenarios. Two stores.
         </h1>
-        <p className="mt-4 text-lg text-pretty text-muted sm:text-xl">Real failures, injected in the PayPal sandbox.</p>
+        <p className="mt-4 text-lg text-pretty text-muted sm:text-xl">Real failures, caused on purpose in PayPal’s sandbox.</p>
         {freshToken && (
           <p className="measure mt-3 text-sm text-muted">
             Fresh analysis is on: Claude analyses every failure again instead of reusing an earlier analysis.
@@ -228,11 +229,11 @@ export function ProofComparison({
               {" — "}
               {fixReport ? (
                 <a href={fixReport} className={`rounded-sm tabular-nums ${linkUtility}`}>
-                  {fixes.verified}/{fixes.total} fixes verified
+                  {fixes.verified}/{fixes.total} fixes verified offline
                 </a>
               ) : (
                 <span className="tabular-nums">
-                  {fixes.verified}/{fixes.total} fixes verified
+                  {fixes.verified}/{fixes.total} fixes verified offline
                 </span>
               )}
             </>
@@ -265,7 +266,7 @@ export function ProofComparison({
           {waiting && (
             <>
               <span aria-hidden="true" className="live-dot mt-[7px] size-1.5 shrink-0 rounded-full bg-warn" />
-              Waiting for PayPal&apos;s real webhooks. They usually arrive in 7 to 60 seconds.
+              Waiting for PayPal&apos;s real notices. They usually arrive in 7 to 60 seconds.
             </>
           )}
         </p>
@@ -313,8 +314,15 @@ export function ProofComparison({
         dimmed={previous}
       />
 
+      <p className="pt-6">
+        <Link href="/#own-store" className="group inline-flex min-h-10 items-center gap-1 rounded-control font-medium text-brand">
+          Prove your own store
+          <Icon name="arrow-right" className="size-4 transition-transform duration-150 ease-(--ease-out) group-hover:translate-x-0.5" />
+        </Link>
+      </p>
+
       {shareable.length > 0 && (
-        <p className="pt-6 text-small text-muted">
+        <p className="pt-2 text-small text-muted">
           Share these results:{" "}
           {shareable.map((mode, index) => (
             <span key={mode}>

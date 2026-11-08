@@ -7,9 +7,9 @@ import { latestRunIds, readReport } from "@/lib/proof/report";
 import { readStoreCode } from "@/lib/store/snippets";
 
 export const metadata: Metadata = {
-  title: "Six bad days, two stores",
+  title: "Six failure scenarios, two stores",
   description:
-    "The same six PayPal failures, injected in the sandbox, against a store with common mistakes and the same store fixed. Code decides every verdict; Claude explains each failure.",
+    "The same six failure scenarios, caused on purpose in PayPal’s sandbox, against the naive store, with common mistakes left in, and the hardened store, with them fixed. Code decides every verdict; Claude explains each failure.",
 };
 
 /** Plain JSON, as the report API returns it, so the first paint and later polls match. */

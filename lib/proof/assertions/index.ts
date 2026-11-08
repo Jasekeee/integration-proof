@@ -36,8 +36,13 @@ const STATUS_FROM_CAPTURE: Record<string, OrderStatus> = {
   FAILED: "FAILED",
 };
 
-const BUYER_CAPTURE_PATH = /^\/api\/store\/(naive|hardened)\/orders\/([A-Z0-9]+)\/capture$/;
-const BUYER_CREATE_PATH = /^\/api\/store\/(naive|hardened)\/orders$/;
+/**
+ * The buyer's requests to the store, under whatever prefix the store serves them: the reference
+ * stores use /api/store/{mode}, another store its own. PayPal's paths (/v1, /v2) never count, so
+ * the buyer's own PayPal call, confirm-payment-source, is not mistaken for a checkout.
+ */
+const BUYER_CAPTURE_PATH = /^(?!\/v[12]\/)(?:\/[^/?#]+)*\/orders\/([A-Z0-9]+)\/capture$/;
+const BUYER_CREATE_PATH = /^(?!\/v[12]\/)(?:\/[^/?#]+)*\/orders$/;
 const PAYPAL_CAPTURE_PATH = /^\/v2\/checkout\/orders\/[A-Z0-9]+\/capture$/;
 
 const BuyerAnswerSchema = z.object({ status: z.enum(ORDER_STATUSES), message: z.string() });
@@ -206,7 +211,7 @@ export const assertS3: Assertion = (trace, state) => {
 
   // What the buyer was told at checkout, against what PayPal had done.
   for (const step of buyerCaptures(trace)) {
-    const orderId = BUYER_CAPTURE_PATH.exec(step.path ?? "")?.[2];
+    const orderId = BUYER_CAPTURE_PATH.exec(step.path ?? "")?.[1];
     const answer = BuyerAnswerSchema.safeParse(step.responseBody).data;
     const truth = state.paypal.find((order) => order.id === orderId);
     if (truth && isCharged(truth) && answer && answer.status !== "PAID" && answer.status !== "PENDING") {

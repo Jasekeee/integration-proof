@@ -449,3 +449,53 @@ describe("harms", () => {
     expect(assertS6([], { ...paidOnce, storeBefore: [] }).harm).toBeNull();
   });
 });
+
+describe("buyer steps under any store prefix", () => {
+  /** The same trace with the buyer's store paths moved under another prefix. */
+  const under = (prefix: string, trace: TraceEntry[]): TraceEntry[] =>
+    trace.map((step) =>
+      step.actor === "buyer" && step.path?.startsWith("/api/store/naive") ? { ...step, path: step.path.replace("/api/store/naive", prefix) } : step,
+    );
+  const twiceCharged = [
+    buyerCreate(1),
+    buyerCapture(200, FAILED_ANSWER, 3, ORDER),
+    buyerCreate(6),
+    buyerCapture(200, PAID_ANSWER, 8, SECOND_ORDER),
+  ];
+  const twice = state(
+    [storeOrder("PAID", ORDER, 1), storeOrder("PAID", SECOND_ORDER, 1)],
+    [paypalOrder(["COMPLETED"]), paypalOrder(["COMPLETED"], SECOND_ORDER)],
+  );
+
+  it("keeps the reference stores' verdicts and reasons", () => {
+    expect(assertS3(under("/api/store/hardened", twiceCharged), twice)).toEqual(assertS3(twiceCharged, twice));
+  });
+
+  it("reads a store's own prefix, at any depth or none, the same way", () => {
+    const reference = assertS3(twiceCharged, twice);
+    for (const prefix of ["/integration-proof", "/shop/api/v3", ""]) {
+      expect(assertS3(under(prefix, twiceCharged), twice)).toEqual(reference);
+    }
+    expect(reference.reason).toContain("The buyer checked out 2 times");
+    const declined = [buyerCreate(1), storeCapture(422, 4), buyerCapture(200, DECLINED_ANSWER, 3)];
+    const unpaid = state([storeOrder("DECLINED")], [paypalOrder([])]);
+    expect(assertS1(under("/integration-proof", declined), unpaid)).toEqual(assertS1(declined, unpaid));
+  });
+
+  it("never counts the buyer's PayPal calls as checkouts", () => {
+    const confirm: TraceEntry = {
+      seq: 2,
+      actor: "buyer",
+      method: "POST",
+      path: `/v2/checkout/orders/${ORDER}/confirm-payment-source`,
+      httpStatus: 200,
+      fault: null,
+      responseBody: null,
+    };
+    const paypalCreate: TraceEntry = { ...confirm, seq: 4, path: "/v2/checkout/orders" };
+    const paypalCapture: TraceEntry = { ...confirm, seq: 5, path: `/v2/checkout/orders/${ORDER}/capture`, responseBody: FAILED_ANSWER };
+    const trace = [buyerCreate(1), confirm, paypalCreate, paypalCapture, buyerCapture(200, PAID_ANSWER, 3)];
+    const result = assertS3(trace, state([storeOrder("PAID", ORDER, 1)], [paypalOrder(["COMPLETED"])]));
+    expect(result).toMatchObject({ verdict: "PASS", reason: "The order is PAID with exactly 1 charge at PayPal. The buyer checked out 1 time." });
+  });
+});

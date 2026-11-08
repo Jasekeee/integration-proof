@@ -156,6 +156,50 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+ * Geist's fallback, measured against Geist on the site's own text: regular Geist is 2.0 % wider than
+ * Arial, Geist 600 as wide as Arial Bold. Ascent and descent follow Geist's own metrics (1.005 and
+ * 0.295 of the em) at the adjusted size.
+ */
+@font-face {
+  font-family: "Geist Fallback Metric";
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans");
+  font-weight: 100 549;
+  size-adjust: 102%;
+  ascent-override: 98.5%;
+  descent-override: 28.9%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Geist Fallback Metric";
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold");
+  font-weight: 550 900;
+  size-adjust: 100%;
+  ascent-override: 100.5%;
+  descent-override: 29.5%;
+  line-gap-override: 0%;
+}
+
+/* Geist Mono's fallback: the same 0.6 em advance, and Geist Mono's ascent and descent. */
+@font-face {
+  font-family: "Geist Mono Fallback Metric";
+  src: local("Courier New"), local("CourierNewPSMT"), local("Liberation Mono");
+  font-weight: 100 549;
+  ascent-override: 100.5%;
+  descent-override: 29.5%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Geist Mono Fallback Metric";
+  src: local("Courier New Bold"), local("CourierNewPS-BoldMT"), local("Liberation Mono Bold");
+  font-weight: 550 900;
+  ascent-override: 100.5%;
+  descent-override: 29.5%;
+  line-gap-override: 0%;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -201,9 +245,12 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   box-shadow: none !important;
 }
 
-/* Prose never runs wider than a comfortable line, whatever its container. */
+/*
+ * Prose never runs wider than a comfortable line, whatever its container: about 68 characters. Set
+ * in em, not ch, so the width does not depend on which font has loaded.
+ */
 .measure {
-  max-width: 68ch;
+  max-width: 45em;
 }
 
 /* A spinner for live work: the button while a run is under way. Without motion it stands still. */

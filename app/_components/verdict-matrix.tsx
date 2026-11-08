@@ -9,7 +9,7 @@ import {
   FALLBACK_HEADLINES,
   isRunActive,
   MODE_LABELS,
-  progressLabel,
+  runProgress,
   runDate,
   runTone,
   SCENARIO_TITLES,
@@ -77,8 +77,12 @@ const SEGMENT_STYLES: Record<CellState, string> = {
   "NOT RUN": "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border)]",
 };
 
-/** A live run's progress: one segment per scenario in its real state, and how many are done. */
+/**
+ * A live run's progress: one segment per scenario in its real state, and how many are done. On a
+ * phone the column is narrow, so the line drops "Running ·", which the button and segments say.
+ */
 function Progress({ report, now }: { report: RunReport; now: number }) {
+  const { done, total, elapsedS } = runProgress(report, now);
   return (
     <span className="flex min-h-10 flex-col justify-center gap-2">
       <span className="grid max-w-56 grid-cols-6 gap-1" aria-hidden="true">
@@ -86,8 +90,9 @@ function Progress({ report, now }: { report: RunReport; now: number }) {
           <span key={scenario.id} className={`segment h-1.5 rounded-full ${SEGMENT_STYLES[cellState(scenario)]}`} />
         ))}
       </span>
-      <span className="font-mono text-xs font-semibold tabular-nums sm:text-small" suppressHydrationWarning>
-        {progressLabel(report, now)}
+      <span className="whitespace-nowrap font-mono text-xs font-semibold tabular-nums sm:text-small" suppressHydrationWarning>
+        <span className="max-sm:hidden">Running · </span>
+        {done} of {total} done · {elapsedS} s
       </span>
     </span>
   );
@@ -109,10 +114,11 @@ function StoreHead({
   const total = report?.summary.total ?? 6;
   // The score rolls up only when this page saw the run end; a page that loads with it shows it still.
   const ended = useChanges(active) > 0 && !active;
-  // Times are local to the visitor: the server knows only its own time zone, so they appear once
-  // the page runs in the browser.
+  // Times are local to the visitor, which only the browser knows. Until the page has hydrated the
+  // line holds its place, written in UTC and invisible, so the local time replaces it without moving
+  // anything (the server and the first render agree on UTC; the next render brings the local time).
   const hydrated = useHydrated();
-  const when = report && hydrated ? runDate(report.createdAt, now) : null;
+  const when = report ? runDate(report.createdAt, now, hydrated ? undefined : "UTC") : null;
   return (
     <div
       className={`flex min-w-0 flex-col gap-1 p-3 transition-opacity duration-200 sm:p-4 ${previous ? "opacity-60" : ""}`}
@@ -128,7 +134,7 @@ function StoreHead({
           <span className="inline-flex h-[1em] text-muted">/{total}</span>
         </span>
       )}
-      <span className="text-xs leading-5 tabular-nums text-muted">
+      <span className={`text-xs leading-5 tabular-nums text-muted ${hydrated ? "" : "invisible"}`}>
         {!report && "Not run yet"}
         {report && previous && <>Previous run{when && <> · {when}</>}</>}
         {report && !previous && (

@@ -200,13 +200,13 @@ export function progressLabel(report: RunReport, now: number): string {
 }
 
 /** When a run was made, short: "today 09:34" on the day itself, "Nov 5" before it. Local time. */
-export function runDate(iso: string, now: number): string {
+export function runDate(iso: string, now: number, timeZone?: string): string {
   const date = new Date(iso);
-  const today = new Date(now);
-  if (date.toDateString() === today.toDateString()) {
-    return `today ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+  const day = (value: Date) => value.toLocaleDateString("en-CA", { timeZone });
+  if (day(date) === day(new Date(now))) {
+    return `today ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone })}`;
   }
-  return date.toLocaleDateString("en", { month: "short", day: "numeric" });
+  return date.toLocaleDateString("en", { month: "short", day: "numeric", timeZone });
 }
 
 /** The state of one matrix cell: a verdict once there is one, the live status before. */

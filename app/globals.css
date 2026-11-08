@@ -15,7 +15,7 @@
   --border-strong: #cfcdc7;
   --accent: #111110;
   --accent-foreground: #ffffff;
-  /* Focus follows the brand accent: 7.9:1 on the background. */
+  /* Focus follows the brand accent: 6.0:1 on the background. */
   --ring: #2456e0;
   --pass: #13703f;
   --pass-bg: #e8f5ed;
@@ -29,8 +29,8 @@
   --diff-del-bg: #fdecec;
   --highlight-bg: #eaf0fe;
   /*
-   * The one brand accent: the mark, links, step numbers, focus and the flagship scenario's row.
-   * Green and red stay with verdicts. 7.1:1 or better on every background token, both themes.
+   * The one brand accent: links, step numbers and focus. Green and red stay with outcomes.
+   * 5.3:1 or better on every background token, both themes.
    */
   --brand: #2456e0;
   --brand-bg: #edf2fe;
@@ -48,9 +48,7 @@
   --scroll-shadow: rgba(23, 23, 23, 0.16);
   /* The primary button under the pointer: the accent, a step toward the background. */
   --accent-hover: color-mix(in srgb, var(--accent) 86%, var(--background));
-  /* The flagship scenario's row in the verdict matrix. */
-  --flag-bg: var(--brand-bg);
-  /* The one raised surface: the landing page's S3 race. */
+  /* Raised surfaces: the landing page's card statements and an open trace. */
   --shadow-raised: 0 12px 40px -18px rgba(0, 0, 0, 0.18);
   color-scheme: light;
 }
@@ -90,7 +88,6 @@
     --key-3: #bae6fd;
     --key-3-bg: #082f49;
     --scroll-shadow: rgba(0, 0, 0, 0.85);
-    --flag-bg: color-mix(in srgb, #1e1b4b 62%, transparent);
     --shadow-raised: 0 12px 40px -18px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
   }
@@ -122,7 +119,6 @@
   --color-brand-bg: var(--brand-bg);
   --color-brand-foreground: var(--brand-foreground);
   --color-accent-hover: var(--accent-hover);
-  --color-flag-bg: var(--flag-bg);
   --shadow-raised: var(--shadow-raised);
 
   /*
@@ -142,7 +138,7 @@
   --text-display--line-height: 1.08;
   --tracking-display: -0.035em;
 
-  /* Three radii: controls and chips, cards and panels, the large containers (matrix, race). */
+  /* Three radii: controls and chips, cards and panels, the large containers (scenes, statements). */
   --radius-control: 6px;
   --radius-card: 10px;
   --radius-panel: 14px;
@@ -350,40 +346,9 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   box-shadow: inset 3px 0 0 var(--foreground);
 }
 
-/*
- * The verdict matrix during a live run. A chip whose state changed enters: the word slides up into
- * place (--stagger delays it by row), and a verdict settles with a short overshoot. A FAIL leaves a
- * red trace in its cell that fades; the flagship scenario's FAIL gets a ring instead, once.
- */
-.chip-enter > .chip-word {
-  animation: chip-word 250ms var(--ease-out) both;
-  animation-delay: var(--stagger, 0ms);
-}
-
-.chip-enter.chip-verdict {
-  animation: chip-settle 320ms var(--ease-out) both;
-  animation-delay: var(--stagger, 0ms);
-}
-
-@keyframes chip-word {
-  from {
-    opacity: 0;
-    transform: translateY(70%);
-  }
-}
-
-@keyframes chip-settle {
-  0% {
-    transform: scale(0.94);
-  }
-  60% {
-    transform: scale(1.04);
-  }
-}
-
+/* A scenario outcome that changed while the page was open slides in. */
 .headline-enter {
   animation: rise 350ms var(--ease-out) both;
-  animation-delay: calc(var(--stagger, 0ms) + 60ms);
 }
 
 @keyframes rise {
@@ -393,45 +358,7 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   }
 }
 
-.cell-flash {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--fail-bg);
-  opacity: 0;
-  animation: cell-flash 900ms var(--ease-out);
-  pointer-events: none;
-}
-
-@keyframes cell-flash {
-  from {
-    opacity: 0.9;
-  }
-}
-
-.cell-ring {
-  position: absolute;
-  inset: 5px 8px;
-  border-radius: var(--radius-card);
-  box-shadow: 0 0 0 1.5px var(--fail);
-  opacity: 0;
-  animation: cell-ring 1400ms var(--ease-out);
-  pointer-events: none;
-}
-
-@keyframes cell-ring {
-  0% {
-    opacity: 0;
-    transform: scale(1.03);
-  }
-  20%,
-  70% {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Only cells that are really waiting for PayPal pulse. */
+/* Only what is really waiting for PayPal pulses. */
 .live-dot {
   animation: live-dot 1.6s var(--ease-in-out) infinite;
 }
@@ -445,11 +372,6 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
 /* A run's progress: one segment per scenario, in its state's color. */
 .segment {
   transition: background-color 250ms var(--ease-out), box-shadow 250ms var(--ease-out);
-}
-
-/* What the run cost: the items arrive one by one once the store is done. */
-.harm-enter {
-  animation: rise 350ms var(--ease-out) both;
 }
 
 /*
@@ -576,46 +498,6 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
 /* A trace as it opens below its card. */
 .trace-enter {
   animation: rise 350ms var(--ease-out) both;
-}
-
-/* The S3 race on the landing page: the held answer's dot pulses three times once its step lights up. */
-[data-lit] .race-pulse {
-  animation: race-pulse 1s var(--ease-in-out) 3;
-}
-
-.race-diverge {
-  position: relative;
-}
-
-.race-diverge::before {
-  content: "";
-  position: absolute;
-  inset: -4px -8px;
-  z-index: -1;
-  border-radius: var(--radius-control);
-  opacity: 0;
-  animation: race-diverge 1200ms var(--ease-out);
-}
-
-.race-diverge-bad::before {
-  background: var(--fail-bg);
-}
-
-.race-diverge-good::before {
-  background: var(--pass-bg);
-}
-
-@keyframes race-diverge {
-  0%,
-  45% {
-    opacity: 1;
-  }
-}
-
-@keyframes race-pulse {
-  50% {
-    opacity: 0.25;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

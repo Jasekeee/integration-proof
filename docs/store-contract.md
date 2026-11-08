@@ -149,6 +149,70 @@ real PayPal sandbox, step by step.
 | `1` | Not as expected. |
 | `2` | The run could not start (wrong option, missing credentials, proxy port in use). |
 
+## Claude's analysis of the failures (opt-in)
+
+With `--explain`, the CLI asks Claude why each failed scenario failed, in the store's own code. It
+uses the same analyst as the hosted proof (`lib/ai/analyst.ts`):
+- the answer is validated against the same schema;
+- every piece of evidence must cite a real step of the trace;
+- the trace goes in as untrusted data, guarded against instructions hidden in it;
+- the fix is a list of find-and-replace edits, each `find` quoted from your file and occurring in it
+  exactly once;
+- edits that do not match get one round to correct themselves, then are shown as needing review.
+
+```bash
+npm run cli -- run --store http://localhost:4000/integration-proof --env-file .env.cli \
+  --explain --source src/checkout --write-patch claude-fix.patch
+```
+
+| Option | Meaning |
+|---|---|
+| `--explain` | Ask Claude. Needs `ANTHROPIC_API_KEY`. Without it, nothing is sent anywhere. |
+| `--source <path>` | A file or directory of the store's code; repeatable. |
+| `--target <file>` | The one file a fix may change. By default, the only file sent, or the one that calls PayPal's capture. |
+| `--write-patch <file>` | Write the checked fix as a unified diff. |
+| `--model <id>` | The Claude model. By default `ANTHROPIC_MODEL`, else `claude-sonnet-5-5`. |
+
+**What is sent.** For each failed scenario, Claude receives:
+- the scenario;
+- its verdict and reason;
+- its trace, redacted as in `report.json`;
+- the source files `--source` selects;
+- the names, not the values, of the environment variables the code reads.
+
+Before anything is sent, the CLI prints every file with its size, the total, and every file it left
+out with the reason.
+
+**What is never sent.**
+- `.env*` files, lockfiles, keys and certificates.
+- `node_modules` and build output.
+- Anything that is not source code, such as Markdown or JSON configuration.
+- Files over 100 KB.
+
+Above 300 KB in all, nothing is sent and the CLI asks for a narrower `--source`. Secret-looking values
+in the files are replaced with `[REDACTED]` first, by the same rule as the trace. That covers:
+- private keys;
+- API keys and access tokens;
+- `Bearer` and `Basic` credentials;
+- string literals assigned to names such as `secret`, `password` or `token`;
+- card numbers that pass the Luhn check.
+
+**What happens to the fix.**
+- The CLI checks Claude's edits against your real file on disk and writes the diff itself.
+- An edit that touches a redacted line is not turned into a patch.
+- With `--write-patch`, the fixes for all failed scenarios are combined in scenario order. A fix that
+  overlaps an earlier one is left out and named.
+- **The CLI never applies or runs code the model wrote.** You review the patch and apply it yourself
+  with `git apply`.
+- The verdicts are decided by code before Claude is asked, and the analysis never changes them.
+
+The analysis appears on the console, in `summary.md` and in `report.json`.
+[Claude explains the example store's failures](store-contract-claude-run.md) shows a whole run:
+1. the two failures;
+2. the analysis;
+3. the patch;
+4. the patched copy passing.
+
 ## What version 1 does not cover
 
 - **S4–S6 (duplicate, late and forged webhooks).** PayPal delivers webhooks only to a public HTTPS
@@ -156,7 +220,5 @@ real PayPal sandbox, step by step.
   tunnel. They also need the deliveries recorded with their transmission headers, so they can be
   replayed and forged. A later version of the contract will add them; version 1 states nothing about
   webhooks.
-- **Claude's analysis of your code.** The hosted proof explains failures of the reference stores
-  only.
 - **A published package.** The CLI runs from a clone of this repository; it is not on npm. The
   `bin` entry in `package.json` is kept for a later release.

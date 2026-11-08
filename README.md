@@ -250,6 +250,13 @@ npm run cli -- run --store http://localhost:4000/integration-proof --env-file .e
 - **Your own credentials.** It uses your store's sandbox app; our service is not involved.
 - **No PayPal account.** With `--paypal model`, an offline model of the sandbox answers instead,
   which suits CI.
+- **Claude, if you ask.** With `--explain --source <dir>`, Claude explains each failure in your own
+  code and proposes a fix, through the same analyst and checks as the hosted proof.
+  - Before anything is sent, the CLI lists every file that will go. `.env` files, keys, lockfiles,
+    dependencies and build output never go, and secret-looking values are redacted.
+  - `--write-patch` writes the checked fix as a diff for you to apply. The CLI never applies or runs
+    model-written code.
+  - [A run on the example store](docs/store-contract-claude-run.md) takes S2 and S3 from FAIL to PASS.
 - **Output.**
   - A verdict per scenario on the console.
   - `report.json` with the redacted trace.
@@ -297,6 +304,7 @@ npx tsx scripts/verify-ai-fixes.ts --check # Claude's committed fixes, verified 
 - [docs/ai-fixes-report.md](docs/ai-fixes-report.md): Claude's fixes, verified offline.
 - [docs/store-contract.md](docs/store-contract.md): what a store implements to be proved by the CLI.
 - [docs/store-contract-sandbox-run.md](docs/store-contract-sandbox-run.md): the example store proved against the real sandbox.
+- [docs/store-contract-claude-run.md](docs/store-contract-claude-run.md): Claude explains the example store's failures, and its patch passes.
 
 ## Roadmap
 

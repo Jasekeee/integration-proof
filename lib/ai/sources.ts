@@ -16,6 +16,11 @@ export const STORE_FILES: Record<StoreMode, string> = {
 export interface SourceFile {
   path: string;
   content: string;
+  /**
+   * How a read-only file is shown to the analyst: the exported declarations of a module (the
+   * reference stores' context, the default), or a complete file of a store its owner sent.
+   */
+  kind?: "declarations" | "source";
 }
 
 export interface StoreSources {

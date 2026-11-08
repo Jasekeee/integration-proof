@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import {
+  analystSystemPrompt,
   analyze,
   analyzeOnce,
   buildMessages,
@@ -10,6 +11,7 @@ import {
   type AnalystClient,
   type AnalystInput,
   type AnalystResult,
+  REFERENCE_STORE_SOURCE,
 } from "./analyst";
 import { checkPatch } from "./patch";
 import { analysisKey } from "./signature";
@@ -400,5 +402,33 @@ describe("API errors", () => {
       status: "UNAVAILABLE",
       reason: "The model call failed: HTTP 400 invalid_request_error: Your credit balance is too low. (request req_123)",
     });
+  });
+});
+
+describe("a store other than the reference stores", () => {
+  it("can name the store, send full read-only files and describe them, without changing the default request", async () => {
+    const own = input({
+      mode: undefined,
+      storeLabel: "the store under test",
+      sources: {
+        target: { path: "server.js", content: "export function captureOrder() {}" },
+        context: [{ path: "lib/paypal.js", content: "export const base = 1;", kind: "source" }],
+        environment: "PAYPAL_API_BASE=",
+        hash: "",
+      },
+    });
+    const blocks = buildMessages(own)[0].content as Anthropic.TextBlockParam[];
+    expect(blocks[0].text).toContain('<file path="lib/paypal.js" kind="source">');
+    expect(blocks[1].text).toContain("in server.js (the store under test)");
+
+    const ownPrompt = analystSystemPrompt("the owner's own files.");
+    expect(ownPrompt).toContain("- <store_source>: the owner's own files.");
+    expect(analystSystemPrompt()).toContain(`- <store_source>: ${REFERENCE_STORE_SOURCE}`);
+
+    const { client, create } = clientReturning(message(JSON.stringify(VALID)), message(JSON.stringify(VALID)));
+    await analyze(input(), { client, model: MODEL });
+    await analyze(input(), { client, model: MODEL, system: ownPrompt });
+    expect(create.mock.calls[0][0].system).toBe(analystSystemPrompt());
+    expect(create.mock.calls[1][0].system).toBe(ownPrompt);
   });
 });

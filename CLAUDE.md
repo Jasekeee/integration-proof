@@ -66,7 +66,7 @@ lib/
   db/schema.ts, db/client.ts                           Drizzle schema, database client
   db/migrations/                                       Drizzle migrations
 bench/                                                 offline bench: in-memory PayPal model, PGlite, real runner
-cli/                                                   runs S1–S3 against any store that implements docs/store-contract.md
+cli/                                                   runs S1–S3 against any store that implements docs/store-contract.md; --explain asks Claude
 examples/express-store/                                an independent Express store with two mistakes, proved in CI by the CLI
 fixtures/ai-fixes/                                     Claude's committed fixes for S2..S6 (scripts/export-ai-fixes.ts)
 public/ai-fixes.json, docs/ai-fixes-report.md          offline verification of those fixes (scripts/verify-ai-fixes.ts)

@@ -1,0 +1,70 @@
+# Proves examples/express-store with the Integration Proof CLI on every pull request and on main,
+# the way a team would prove its own store in CI. PayPal is the offline model of the sandbox
+# (--paypal model), so the job needs no secret and runs the same for pull requests from forks.
+# The example keeps two mistakes on purpose: the job passes when S1 passes and S2 and S3 fail.
+name: Store contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  example-store:
+    name: prove examples/express-store
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      STORE_PORT: "4000"
+      PROXY_PORT: "8787"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            examples/express-store/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: examples/express-store
+
+      - name: Start the example store, with PayPal calls sent to the CLI's proxy
+        working-directory: examples/express-store
+        env:
+          PORT: ${{ env.STORE_PORT }}
+          PAYPAL_API_BASE: http://127.0.0.1:${{ env.PROXY_PORT }}
+          # Placeholders: the offline model accepts any client credentials.
+          PAYPAL_CLIENT_ID: model-client
+          PAYPAL_CLIENT_SECRET: model-secret
+          PAYPAL_TIMEOUT_MS: "2000"
+        run: |
+          node server.js > "$RUNNER_TEMP/store.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -sf "http://127.0.0.1:${PORT}/health" > /dev/null && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/store.log"
+          exit 1
+
+      - name: Prove S1–S3
+        run: >-
+          npm run cli -- run
+          --store "http://127.0.0.1:${STORE_PORT}/integration-proof"
+          --paypal model
+          --proxy-port "${PROXY_PORT}"
+          --hold-ms 3000
+          --expect S1=PASS,S2=FAIL,S3=FAIL
+          --out store-contract-report
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-contract-report
+          path: store-contract-report/
+          if-no-files-found: ignore

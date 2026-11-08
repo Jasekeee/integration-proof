@@ -5,9 +5,9 @@ import { money } from "../_components/story";
  * guessed charges the cart a second time. The amounts are the reference item's price, once and
  * twice, as PayPal records them in a run (chargesPerCart 2 against 1).
  *
- * One short animation, in CSS: the second payment arrives, the totals settle in red and green, and
- * the final state stays. Every line holds its place from the first paint, so nothing below moves;
- * with reduced motion, or without JavaScript, the final state is what shows.
+ * The server renders the final state. One short animation in CSS enhances it (globals.css): the
+ * second payment arrives and the totals settle within 1.1 s, once. Every line holds its place from
+ * the first paint, so nothing below moves; with reduced motion or without JavaScript nothing plays.
  */
 export function Statements({ price, currency }: { price: number; currency: string }) {
   const line = money(price, currency).replace(/^\$(\d+)$/, "$$$1.00");
@@ -70,7 +70,7 @@ function Statement({
                 {first}
               </span>
             )}
-            <span className={`col-start-1 row-start-1 justify-self-end ${first ? "stmt-after text-fail" : "stmt-settle"}`}>{total}</span>
+            <span className={`col-start-1 row-start-1 justify-self-end ${first ? "stmt-after text-fail" : "stmt-settle text-pass"}`}>{total}</span>
           </b>
         </p>
       </div>

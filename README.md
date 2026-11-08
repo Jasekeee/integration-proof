@@ -10,7 +10,7 @@ cause and a fix that is verified before it is shown.
 [![Verify AI fixes](https://github.com/Jasekeee/integration-proof/actions/workflows/verify-ai-fixes.yml/badge.svg)](https://github.com/Jasekeee/integration-proof/actions/workflows/verify-ai-fixes.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-![One lost response, and the buyer pays twice. The naive store passes 1 of 6 failures, the hardened store 6 of 6; Claude's fixes verified offline: 5/5](docs/screenshots/hero.png)
+![One lost response, and the buyer pays twice: the buyer's card statement at the store that guessed shows $20, at the store that asked PayPal $10](docs/screenshots/hero.png)
 
 ## Who it is for
 
@@ -58,7 +58,7 @@ PayPal allows one capture per order, so no store here can charge the same order 
 product shows are the ones that really happen: a lost sale (S2), a second charge on a second order
 for the same cart (S3), a double shipment (S4), and order states that disagree with PayPal (S5, S6).
 
-![The verdict matrix on the proof page: six failures against both stores, what the naive store cost, and Claude's fixes verified 5/5](docs/screenshots/proof-light.png)
+![The proof page: the naive store passes 1 of 6 failures, the hardened store 6 of 6; the lost-response scenario open in four plain sentences, with Claude's fix verified FAIL → PASS](docs/screenshots/proof-light.png)
 
 ## How it works
 
@@ -206,9 +206,9 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 1. Open [integration-proof.onrender.com/proof](https://integration-proof.onrender.com/proof). The page
    opens with the latest results of both stores.
-2. Click the S3 row of the matrix. Read Claude's root cause, click an evidence step to jump to it in
-   the trace, and see the fix and its offline verdict. Click a trace row for its redacted request and
-   response.
+2. Click **PayPal's answer gets lost** (S3) and read what happened in four sentences. Then open
+   **Claude's full analysis**: the root cause, evidence steps that jump to the trace, and the fix with
+   its offline verdict. Click a trace row for its redacted request and response.
 3. Click **Run both live** to run the six failures again: the naive store, then the hardened one,
    one to two minutes each, about 2–3 minutes for both. The demo runs one proof at a time for
    everyone.

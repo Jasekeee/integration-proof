@@ -20,7 +20,7 @@ app/
   (marketing)/page.tsx                                 landing
   proof/page.tsx                                       naive and hardened side by side; Run both
   proof/[runId]/page.tsx                               shareable results of one run
-  _components/                                         result views: verdict matrix, scenario cards, Claude analysis, AG Grid trace
+  _components/                                         result views: scenario rows and scenes, scenario cards, Claude analysis, AG Grid trace
   icon.svg, opengraph-image.png                        favicon and link preview (the README hero layout)
   not-found.tsx                                        the 404 page
   proof/loading.tsx, proof/[runId]/loading.tsx         skeletons of the results while they load

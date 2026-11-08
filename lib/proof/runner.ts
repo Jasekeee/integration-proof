@@ -549,6 +549,20 @@ async function sendWithToken(send: (call: CallContext) => Promise<PayPalResponse
 
 const ActorSchema = z.enum(ACTORS);
 
+/** The prefix of every store route the runner calls: orders, capture, state and the webhook router. */
+const STORE_ROUTES = "/api/store/";
+
+/**
+ * Where a step's request went. The runner sends its own requests to the store's routes or to
+ * PayPal's API; a store step is the store's PayPal call, as the proxy saw it.
+ */
+function targetOf(row: TraceStepRow): TraceEntry["target"] {
+  if (row.actor === "store") return "paypal";
+  if (row.path?.startsWith(STORE_ROUTES)) return "store";
+  if (row.path?.startsWith(ORDERS_PATH) || row.path?.startsWith(CAPTURES_PATH)) return "paypal";
+  return null;
+}
+
 function toEntry(row: TraceStepRow): TraceEntry {
   return {
     seq: row.seq,
@@ -558,6 +572,7 @@ function toEntry(row: TraceStepRow): TraceEntry {
     httpStatus: row.httpStatus,
     fault: row.fault,
     responseBody: row.responseBody,
+    target: targetOf(row),
   };
 }
 

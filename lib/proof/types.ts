@@ -18,6 +18,12 @@ export interface TraceEntry {
   httpStatus: number | null;
   fault: string | null;
   responseBody: unknown;
+  /**
+   * Where the request went: the store under test, or PayPal. The buyer talks to both, so this, not
+   * the path, tells a checkout at the store from the buyer's own PayPal call. Absent on a step whose
+   * target was not recorded; the assertions then go by actor and the shape of the path.
+   */
+  target?: "store" | "paypal" | null;
 }
 
 /** The webhook router the runner delivers recorded or forged events to. */

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { FocusModality } from "./_components/focus-modality";
+import { LogoMark } from "./_components/logo";
 import { SiteNav } from "./_components/site-nav";
 import { GITHUB_URL } from "./_components/site";
 import { linkProse } from "./_components/ui";
@@ -66,10 +67,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <header className="border-b border-border">
           <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
             <Link href="/" className="flex min-h-10 items-center gap-2 rounded-control font-semibold tracking-tight">
-              <svg viewBox="0 0 32 32" className="size-6" aria-hidden="true">
-                <rect width="32" height="32" rx="7" className="fill-brand" />
-                <path d="M9 16.5l4.5 4.5L23 11.5" fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="stroke-brand-foreground" />
-              </svg>
+              <LogoMark />
               Integration Proof
             </Link>
             <SiteNav />

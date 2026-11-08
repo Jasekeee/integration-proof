@@ -51,19 +51,33 @@ function expectation(report: Report, scenario: ScenarioResult): string {
   return scenario.verdict === expected ? `as expected` : `expected ${expected}`;
 }
 
+/**
+ * The verdicts counted, for a run without --expect: "1 passed, 2 failed, 0 inconclusive." Errors
+ * are named only when there is one.
+ */
+export function tally(report: Report): string {
+  const count = (verdict: CliVerdict) => report.scenarios.filter((scenario) => scenario.verdict === verdict).length;
+  const errors = count("ERROR");
+  return `${count("PASS")} passed, ${count("FAIL")} failed, ${count("INCONCLUSIVE")} inconclusive${errors > 0 ? `, ${errors} could not run` : ""}.`;
+}
+
+const hasExpectations = (report: Report) => Object.keys(report.expected).length > 0;
+
 export function consoleLines(report: Report): string[] {
   const lines = report.scenarios.map((scenario) => {
     const note = expectation(report, scenario);
     return `${scenario.id}  ${scenario.verdict.padEnd(12)} ${scenario.headline}${note ? `  (${note})` : ""}\n    ${scenario.reason}`;
   });
-  lines.push(report.ok ? "Result: every scenario as expected." : "Result: not as expected.");
+  // With --expect the result is measured against it; without, it is only counted.
+  if (!hasExpectations(report)) lines.push(`Result: ${tally(report)}`);
+  else lines.push(report.ok ? "Result: every scenario as expected." : "Result: not as expected.");
   return lines;
 }
 
 const cell = (text: string) => text.replace(/\|/g, "\\|").replace(/\n/g, " ");
 
 export function markdown(report: Report): string {
-  const expectations = Object.keys(report.expected).length > 0;
+  const expectations = hasExpectations(report);
   const rows = report.scenarios.map((scenario) => {
     const base = `| ${scenario.id} · ${cell(scenario.title)} | **${scenario.verdict}** | ${cell(scenario.headline)} | ${cell(scenario.reason)} |`;
     return expectations ? `${base} ${cell(expectation(report, scenario) || "—")} |` : base;
@@ -77,7 +91,11 @@ export function markdown(report: Report): string {
     `|---|---|---|---|${expectations ? "---|" : ""}`,
     ...rows,
     "",
-    report.ok ? "Every scenario as expected." : "**Not as expected.** The full trace of every scenario is in report.json.",
+    expectations
+      ? report.ok
+        ? "Every scenario as expected."
+        : "**Not as expected.** The full trace of every scenario is in report.json."
+      : `${tally(report)}${report.ok ? "" : " The full trace of every scenario is in report.json."}`,
     "",
   ].join("\n");
 }

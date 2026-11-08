@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startFixtureStore, type FixtureOptions } from "./fixture-store";
 import { installModel } from "./model";
 import { startProxy, type LocalProxy } from "./proxy";
-import { buildReport, markdown, parseExpectations } from "./report";
+import { buildReport, consoleLines, markdown, parseExpectations } from "./report";
 import { runScenarios, type ScenarioResult } from "./run";
 
 // Short enough to keep the tests quick, with the hold longer than the store's timeout as S3 needs.
@@ -144,6 +144,38 @@ describe("report", () => {
     expect(buildReport({ ...base, expected, scenarios: [scenario("S1", "PASS"), scenario("S2", "FAIL")] }).ok).toBe(true);
     expect(buildReport({ ...base, expected, scenarios: [scenario("S1", "PASS"), scenario("S2", "PASS")] }).ok).toBe(false);
     expect(buildReport({ ...base, expected: {}, scenarios: [scenario("S1", "PASS"), scenario("S3", "INCONCLUSIVE")] }).ok).toBe(false);
+  });
+
+  it("counts the verdicts on its last line without --expect, and keeps the exit status", () => {
+    const report = buildReport({
+      ...base,
+      expected: {},
+      scenarios: [scenario("S1", "PASS"), scenario("S2", "FAIL"), scenario("S3", "FAIL")],
+    });
+    expect(report.ok).toBe(false);
+    const last = consoleLines(report).at(-1);
+    expect(last).toBe("Result: 1 passed, 2 failed, 0 inconclusive.");
+    expect(consoleLines(report).join("\n")).not.toMatch(/expected/);
+    expect(markdown(report)).toContain("1 passed, 2 failed, 0 inconclusive. The full trace of every scenario is in report.json.");
+    expect(markdown(report)).not.toMatch(/expected/i);
+
+    const passed = buildReport({ ...base, expected: {}, scenarios: [scenario("S1", "PASS"), scenario("S2", "PASS"), scenario("S3", "PASS")] });
+    expect(passed.ok).toBe(true);
+    expect(consoleLines(passed).at(-1)).toBe("Result: 3 passed, 0 failed, 0 inconclusive.");
+
+    const errored = buildReport({ ...base, expected: {}, scenarios: [scenario("S1", "PASS"), scenario("S2", "ERROR"), scenario("S3", "INCONCLUSIVE")] });
+    expect(errored.ok).toBe(false);
+    expect(consoleLines(errored).at(-1)).toBe("Result: 1 passed, 0 failed, 1 inconclusive, 1 could not run.");
+  });
+
+  it("keeps the wording of --expect", () => {
+    const scenarios = [scenario("S1", "PASS"), scenario("S2", "FAIL"), scenario("S3", "FAIL")];
+    const asExpected = buildReport({ ...base, expected: parseExpectations("S1=PASS,S2=FAIL,S3=FAIL"), scenarios });
+    expect(consoleLines(asExpected).at(-1)).toBe("Result: every scenario as expected.");
+    expect(markdown(asExpected)).toContain("Every scenario as expected.");
+    const notAsExpected = buildReport({ ...base, expected: parseExpectations("S1=PASS,S2=PASS,S3=PASS"), scenarios });
+    expect(consoleLines(notAsExpected).at(-1)).toBe("Result: not as expected.");
+    expect(markdown(notAsExpected)).toContain("**Not as expected.**");
   });
 
   it("rejects an expectation outside contract v1", () => {

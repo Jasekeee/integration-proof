@@ -25,6 +25,9 @@
     "claude",
     "anthropic"
   ],
+  "bin": {
+    "integration-proof": "cli/index.ts"
+  },
   "engines": {
     "node": "24.x"
   },
@@ -39,7 +42,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:clean-manual": "tsx scripts/db-clean-manual-orders.ts",
-    "analyst:context": "tsx scripts/analyst-context.ts"
+    "analyst:context": "tsx scripts/analyst-context.ts",
+    "cli": "tsx cli/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

@@ -192,7 +192,9 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 ## Honest limits
 
 - **Sandbox only.** The product never touches live payments.
-- **Reference stores.** It proves two stores built to show the method, not your store yet.
+- **Your own store: checkout scenarios only.** The CLI proves a store that implements the
+  [store contract](docs/store-contract.md) against S1–S3. The webhook scenarios S4–S6 run on the
+  reference stores only.
 - **Webhook delivery takes time.** In recorded full proofs a scenario's webhooks arrived 7 to 60
   seconds after its last call to PayPal, and once took 138 seconds for two deliveries. A scenario that needs a
   webhook waits up to 150 seconds. If PayPal has not delivered by then, the verdict is
@@ -231,6 +233,32 @@ A checkout abandoned before approval leaves a `CREATED` order behind. `npm run d
 lists the ones older than an hour, and `npm run db:clean-manual -- --yes` deletes them; proof runs
 are never touched.
 
+## Prove your own store
+
+Your own PayPal Checkout integration can go through the same checkout scenarios, S1 to S3, from your
+machine. Add three small endpoints to your store, described in the
+[store contract](docs/store-contract.md): create an order, capture it, report the cart's state. Then
+point its PayPal base URL at the proxy the CLI starts on `127.0.0.1:8787`, and run:
+
+```bash
+npm run cli -- run --store http://localhost:4000/integration-proof --env-file .env.cli
+```
+
+- **Same faults, same verdicts.** The CLI injects the same faults as the hosted proof, through a
+  proxy on your machine, and decides with the same deterministic assertions. PayPal's record of the
+  cart is the judge.
+- **Your own credentials.** It uses your store's sandbox app; our service is not involved.
+- **No PayPal account.** With `--paypal model`, an offline model of the sandbox answers instead,
+  which suits CI.
+- **Output.**
+  - A verdict per scenario on the console.
+  - `report.json` with the redacted trace.
+  - A Markdown summary for a CI job page.
+  - Exit code 0 when the verdicts are as expected (`--expect S1=PASS,S2=FAIL,S3=FAIL`).
+
+The CLI runs from a clone of this repository; it is not published to npm. Contract version 1 covers
+S1–S3. The webhook scenarios need a public URL for PayPal's deliveries and are not part of it.
+
 ## Quick start
 
 You need Node.js 24, a PayPal sandbox REST app, a Postgres database (Neon works) and, for the
@@ -262,11 +290,12 @@ npx tsx scripts/verify-ai-fixes.ts --check # Claude's committed fixes, verified 
 - [docs/decisions.md](docs/decisions.md): engineering decisions and their reasoning.
 - [docs/sandbox-findings.md](docs/sandbox-findings.md): PayPal sandbox behaviour, as observed.
 - [docs/ai-fixes-report.md](docs/ai-fixes-report.md): Claude's fixes, verified offline.
+- [docs/store-contract.md](docs/store-contract.md): what a store implements to be proved by the CLI.
 
 ## Roadmap
 
-- **Your own store.** Point the runner at any store that implements the small contract the
-  reference stores use: create, capture, a state endpoint and a webhook route.
+- **Webhooks for your own store.** S4–S6 against a store that implements the contract, with
+  PayPal's deliveries reaching it through a public URL or a tunnel.
 - **More failures.** 3-D Secure and `PAYER_ACTION_REQUIRED`, partial refunds, pending captures, and
   webhook redelivery after a 5xx.
 - **Proof in pull requests.** A GitHub Action that runs the proof against a preview deployment and

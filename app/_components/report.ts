@@ -322,12 +322,23 @@ export type TraceActor = "buyer" | "store" | "proxy" | "PayPal" | "runner" | "Cl
 export interface TraceRow {
   seq: number;
   actor: TraceActor;
+  /** The request line, or what PayPal delivered; several webhook events go one per line. */
   call: string;
   httpStatus: number | null;
   durationMs: number;
   debugId: string | null;
   paypalRequestId: string | null;
   detail: string | null;
+}
+
+/**
+ * A trace cell's text as lines of segments, for display: one line per line of the text, each split
+ * after every "/" and after a "." that a letter follows, so a long path or event name breaks between
+ * its parts (the page puts a <wbr> there), never inside an order id or a number like 15.1. The
+ * segments join back to the text unchanged, so a copied id is the id.
+ */
+export function traceSegments(text: string): string[][] {
+  return text.split("\n").map((line) => line.split(/(?<=\/)|(?<=\.)(?=[A-Za-z])/));
 }
 
 /** The path without its query string, which only carries ids. */
@@ -362,11 +373,12 @@ export function traceRow(step: StepView): TraceRow {
   if (step.actor === "runner" && !request) {
     const delivered = [...(step.note ?? "").matchAll(DELIVERED)].map((match) => match[1]);
     const missing = [...(step.note ?? "").matchAll(MISSING)].map((match) => match[1]);
+    // One event per line, no separator: a comma between two long event names wraps onto a line of its own.
     const call =
       missing.length > 0
-        ? `Webhook not delivered: ${missing.join(", ")}`
+        ? ["Webhook not delivered:", ...missing].join("\n")
         : delivered.length > 0
-          ? `Webhook delivered: ${delivered.join(", ")}`
+          ? ["Webhook delivered:", ...delivered].join("\n")
           : "Waited for PayPal webhooks";
     return { ...base, actor: "PayPal", call, detail: step.note };
   }

@@ -9,14 +9,12 @@ export function FixMark({
   before,
   after,
   label,
-  size = "md",
 }: {
   before: string;
   after: string;
   label: string;
-  size?: "sm" | "md";
 }) {
-  const chip = `inline-flex items-center rounded-control px-2 font-mono font-semibold ${size === "sm" ? "h-5 text-label" : "h-6 text-xs"}`;
+  const chip = "inline-flex h-6 items-center rounded-control px-2 text-xs font-semibold tracking-wide";
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
       <span className="sr-only">
@@ -27,7 +25,7 @@ export function FixMark({
         <Icon name="arrow-right" className="fix-arrow size-4 text-muted" />
         <span className={`fix-after bg-pass-bg text-pass ${chip}`}>{after}</span>
       </span>
-      <span aria-hidden="true" className={`fix-after font-mono font-semibold text-pass ${size === "sm" ? "text-label" : "text-xs"}`}>
+      <span aria-hidden="true" className="fix-after text-xs font-semibold text-pass">
         {label}
       </span>
     </span>

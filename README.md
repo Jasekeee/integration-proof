@@ -217,12 +217,13 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Try the checkout yourself
 
-[/store/naive](https://integration-proof.onrender.com/store/naive) and
-[/store/hardened](https://integration-proof.onrender.com/store/hardened) sell one item through a real
-PayPal Checkout, rendered with the PayPal JS SDK v6. The buttons call the store's own create and
-capture routes, the same code the proof runs. After payment the page shows the store's answer, then
-the order once PayPal's webhook has been applied (`PAID`, one fulfilment), as a short trace with a
-link to come back to.
+[/store/hardened](https://integration-proof.onrender.com/store/hardened), linked from the landing page
+and from /proof, sells one item through a real PayPal Checkout, rendered with the PayPal JS SDK v6;
+[/store/naive](https://integration-proof.onrender.com/store/naive) does the same for the naive store.
+The buttons call the store's own create and capture routes, the same code the proof runs. After
+payment the page shows three stages: the store's answer, PayPal's webhook with the store's signature
+check (`SUCCESS` in the hardened store, `NOT_CHECKED` in the naive one), and the order once the
+webhook has been applied (`PAID`, one fulfilment). A short trace and a link to come back to follow.
 
 - **Pay by card**, the fastest way, with no login: PayPal's published
   [sandbox test card](https://developer.paypal.com/tools/sandbox/card-testing/), shown on the page.

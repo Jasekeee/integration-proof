@@ -314,9 +314,13 @@ export function ProofComparison({
         dimmed={previous}
       />
 
-      <p className="pt-6">
+      <p className="flex flex-wrap gap-x-8 pt-6">
         <Link href="/#own-store" className="group inline-flex min-h-10 items-center gap-1 rounded-control font-medium text-brand">
           Prove your own store
+          <Icon name="arrow-right" className="size-4 transition-transform duration-150 ease-(--ease-out) group-hover:translate-x-0.5" />
+        </Link>
+        <Link href="/store/hardened" className="group inline-flex min-h-10 items-center gap-1 rounded-control font-medium text-brand">
+          Try a real PayPal Checkout
           <Icon name="arrow-right" className="size-4 transition-transform duration-150 ease-(--ease-out) group-hover:translate-x-0.5" />
         </Link>
       </p>

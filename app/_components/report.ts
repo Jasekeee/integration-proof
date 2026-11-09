@@ -104,9 +104,6 @@ export const SCENARIO_TITLES: Record<string, string> = {
   S6: "Someone fakes a notice",
 };
 
-/** The scenario the page opens on: PayPal captured, the store never heard, the buyer pays again. */
-export const FLAGSHIP_SCENARIO = "S3";
-
 /**
  * Headlines for runs recorded before the assertions wrote their own. New runs carry a headline
  * derived from the same facts as the verdict, which these only stand in for.
@@ -130,11 +127,6 @@ export interface StoreCode {
 }
 
 export type Tone = "pass" | "fail" | "warn";
-
-/** A verdict as a color: PASS green, FAIL red, INCONCLUSIVE amber. ERROR and no verdict have none. */
-export function verdictTone(verdict: Verdict | null): Tone | null {
-  return verdict === "PASS" ? "pass" : verdict === "FAIL" ? "fail" : verdict === "INCONCLUSIVE" ? "warn" : null;
-}
 
 /**
  * A finished run as a color: red with any failure, green when every scenario passed, amber when
@@ -306,15 +298,6 @@ export function isSettled(report: RunReport, now = Date.now()): boolean {
 export function seconds(ms: number | null): string {
   if (ms === null) return "–";
   return ms < 10_000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms / 1000)} s`;
-}
-
-export function timeAgo(iso: string, now: number): string {
-  const minutes = Math.round((now - Date.parse(iso)) / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  return new Date(iso).toLocaleDateString("en", { month: "short", day: "numeric" });
 }
 
 export type TraceActor = "buyer" | "store" | "proxy" | "PayPal" | "runner" | "Claude";

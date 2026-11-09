@@ -1,8 +1,6 @@
 # CLAUDE.md
 
 Engineering guide for AI coding agents and contributors working on **Integration Proof**.
-If `.private/BRIEF.md` exists locally, read it first — it contains maintainer context that is
-intentionally not committed.
 
 ## Product
 
@@ -170,6 +168,4 @@ output with zod.
 
 - English everywhere: code, comments, docs, commit messages, UI copy.
 - Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`, `ci:`), small and focused.
-- Public files must read as a product repository: no personal notes, no event names, no deadlines,
-  no TODO dumps. Anything private goes to `.private/` (git-ignored).
 - Before finishing a task: lint, typecheck and tests pass; explain what changed and how to verify it.

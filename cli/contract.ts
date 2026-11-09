@@ -9,9 +9,6 @@ export const CONTRACT_VERSION = 1;
 export const CONTRACT_SCENARIOS = ["S1", "S2", "S3"] as const;
 export type ContractScenarioId = (typeof CONTRACT_SCENARIOS)[number];
 
-/** A cart id the CLI makes up for each checkout: short, URL-safe, unique per scenario. */
-export const CartIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
-
 /** POST {store}/orders, answered 201. */
 export const CreatedSchema = z.object({ orderId: z.string().regex(/^[A-Z0-9]{1,36}$/) });
 

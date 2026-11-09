@@ -1,6 +1,6 @@
 {
   "name": "integration-proof",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Prove your PayPal integration survives a bad day: controlled failures in the PayPal sandbox, deterministic verdicts, and Claude's root cause and verified fix for each failure.",
   "license": "MIT",

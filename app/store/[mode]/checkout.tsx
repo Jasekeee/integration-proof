@@ -18,7 +18,7 @@ import { buttonSecondary, linkUtility, panel, panelLabel } from "../../_componen
 import { captureWithFlag, checkoutView, followsCart, showsButtons, type CaptureAnswer, type CheckoutView } from "./capture";
 
 const POLL_MS = 3000;
-/** The proof waits as long for a webhook (WEBHOOK_WAIT_MS); deliveries took 7 to 60 s. */
+/** The proof waits as long for a webhook (WEBHOOK_WAIT_MS); recorded deliveries took 4 to 133 s, most under a minute. */
 const WEBHOOK_WAIT_MS = 150_000;
 const COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
 

@@ -12,9 +12,10 @@ import {
 } from "@paypal/react-paypal-js/sdk-v6";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-import { CodeScroller } from "../../_components/code-scroller";
 import type { Mode } from "../../_components/report";
-import { linkUtility } from "../../_components/ui";
+import { TraceText } from "../../_components/trace-text";
+import { buttonSecondary, linkUtility, panel, panelLabel } from "../../_components/ui";
+import { captureWithFlag, checkoutView, followsCart, showsButtons, type CaptureAnswer, type CheckoutView } from "./capture";
 
 const POLL_MS = 3000;
 /** The proof waits as long for a webhook (WEBHOOK_WAIT_MS); deliveries took 7 to 60 s. */
@@ -22,7 +23,6 @@ const WEBHOOK_WAIT_MS = 150_000;
 const COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
 
 const CreatedSchema = z.object({ orderId: z.string() });
-const CapturedSchema = z.object({ status: z.string(), captureId: z.string().nullable(), message: z.string() });
 const ErrorSchema = z.object({ message: z.string() });
 const StateSchema = z.object({
   orders: z.array(
@@ -50,7 +50,6 @@ type StoreState = z.infer<typeof StateSchema>;
 type Phase =
   | { kind: "ready" }
   | { kind: "paying" }
-  | { kind: "captured"; status: string; message: string }
   | { kind: "error"; message: string };
 
 function newCartId(): string {
@@ -71,6 +70,7 @@ function delivered(state: StoreState | null): boolean {
 
 export function Checkout({
   mode,
+  storeName,
   clientId,
   buyerEmail,
   product,
@@ -78,6 +78,8 @@ export function Checkout({
   initialCart,
 }: {
   mode: Mode;
+  /** The store's name, as the site writes it: "Hardened store". */
+  storeName: string;
   clientId: string | null;
   buyerEmail: string | null;
   product: { description: string; amount: { currency_code: string; value: string } };
@@ -91,6 +93,10 @@ export function Checkout({
   // A shared transaction link starts following the cart at once.
   const [polling, setPolling] = useState<{ since: number } | null>(() => (initialCart ? { since: Date.now() } : null));
   const [now, setNow] = useState(() => Date.now());
+  /** The store is capturing: the buyer approved in PayPal and the capture has not answered yet. */
+  const [capturing, setCapturing] = useState(false);
+  /** The store's answer to this page's capture, or no usable answer; null before one. */
+  const [answer, setAnswer] = useState<CaptureAnswer | null>(null);
 
   /** The store creates the order; the SDK opens PayPal with its id. */
   const createOrder = useCallback(async (): Promise<{ orderId: string }> => {
@@ -98,6 +104,8 @@ export function Checkout({
     cartRef.current = cart;
     setCartId(cart);
     setState(null);
+    setAnswer(null);
+    setPolling(null);
     setPhase({ kind: "paying" });
     const response = await fetch(`/api/store/${mode}/orders`, {
       method: "POST",
@@ -116,15 +124,13 @@ export function Checkout({
   /** The buyer approved in PayPal; the store captures, as it does for the runner. */
   const onApprove = useCallback(
     async ({ orderId }: OnApproveDataOneTimePayments) => {
-      const response = await fetch(`/api/store/${mode}/orders/${encodeURIComponent(orderId)}/capture`, { method: "POST" });
-      const body = CapturedSchema.safeParse(await response.clone().json().catch(() => null));
-      if (!response.ok || !body.success) {
-        setPhase({ kind: "error", message: await readError(response, "The store could not capture the order") });
-        return;
-      }
-      setPhase({ kind: "captured", status: body.data.status, message: body.data.message });
-      if (cartRef.current) window.history.replaceState(null, "", `?cart=${cartRef.current}`);
-      setPolling({ since: Date.now() });
+      // The flag is cleared whatever happens, and the call never throws: a failure is an answer.
+      const result = await captureWithFlag(mode, orderId, setCapturing);
+      setAnswer(result);
+      setPhase({ kind: "ready" });
+      if (result.kind === "answered" && cartRef.current) window.history.replaceState(null, "", `?cart=${cartRef.current}`);
+      // Unless PayPal confirmed nothing was captured, the cart's state settles it: a capture, or PayPal's webhook.
+      if (followsCart(mode, result)) setPolling({ since: Date.now() });
     },
     [mode],
   );
@@ -157,123 +163,167 @@ export function Checkout({
   }, [polling, cartId, mode]);
 
   const order = state?.orders[0] ?? null;
-  const shareUrl = cartId && (phase.kind === "captured" || initialCart) ? `/store/${mode}?cart=${cartId}` : null;
+  const shareUrl = cartId && (answer?.kind === "answered" || initialCart) ? `/store/${mode}?cart=${cartId}` : null;
   const components = useMemo(() => ["paypal-payments", "paypal-guest-payments"] as const, []);
+  const webhook = state?.deliveries.find((delivery) => delivery.eventType === COMPLETED) ?? null;
+  const fulfilled = order && delivered(state) ? order : null;
+  const capturedOrder = state?.orders.find((candidate) => candidate.captureId !== null) ?? null;
+  // One decision of what the buyer sees (./capture.ts): a receipt once a capture is seen anywhere, so
+  // a paid cart never shows a payment button again; PayPal's buttons back only where a new payment
+  // cannot follow one that went through.
+  const view = checkoutView({
+    mode,
+    answer,
+    order: capturedOrder ?? order,
+    webhookCompleted: delivered(state) || Boolean(webhook && webhook.responseStatus >= 200 && webhook.responseStatus < 300),
+    stateLoaded: state !== null,
+    following: Boolean(polling),
+    capturing,
+    sharedLink: Boolean(initialCart),
+  });
+  const showButtons = showsButtons(view, Boolean(initialCart));
+  const answered = answer?.kind === "answered" ? answer : null;
+  const total = `${product.amount.value} ${product.amount.currency_code}`;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <section className="flex min-w-0 flex-col gap-4 rounded-panel border border-border bg-surface p-5 sm:p-6" aria-labelledby="buy">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id="buy" className="text-lg font-semibold">{product.description}</h2>
-          <p className="shrink-0 text-lg font-semibold tabular-nums">
-            {product.amount.value} {product.amount.currency_code}
-          </p>
-        </div>
+    // Panels on a surface, like a scenario's scene on /proof: the order with its total and PayPal's
+    // buttons on the left, the sandbox's testing details, quieter, on the right, and below them what
+    // the store and PayPal did. On a phone the order comes first.
+    <div className="flex flex-col gap-3 rounded-panel bg-surface p-3 sm:gap-4 sm:p-4">
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <section className={`flex min-w-0 flex-col gap-5 ${panel}`} aria-labelledby="buy">
+          <div className="flex flex-col gap-1">
+            <h2 id="buy" className="text-xl font-medium leading-snug tracking-tight">
+              Your order
+            </h2>
+            <p className={panelLabel}>{storeName}</p>
+          </div>
 
-        <ol className="flex flex-col gap-3 rounded-control border border-border bg-background p-4 text-sm leading-6">
-          <li className="flex flex-col gap-1">
-            <p className="font-semibold">Fastest: pay by card, no login needed.</p>
-            <p className="text-muted">
-              Choose Debit or Credit Card below and enter PayPal&apos;s published sandbox test card:
-            </p>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 font-mono text-sm">
-              <dt className="text-muted">Card</dt>
-              <dd className="text-foreground">{testCard.number.replace(/(\d{4})(?=\d)/g, "$1 ")}</dd>
-              <dt className="text-muted">Expiry</dt>
-              <dd className="text-foreground">{testCard.expiry.split("-").reverse().join("/")}</dd>
-              <dt className="text-muted">CVV</dt>
-              <dd className="text-foreground">{testCard.securityCode}</dd>
-            </dl>
-          </li>
-          <li className="border-t border-border pt-3 text-muted">
-            Or pay with PayPal as the sandbox buyer
-            {buyerEmail ? (
-              <>
-                {" "}
-                <span className="break-all font-mono text-foreground">{buyerEmail}</span>
-              </>
-            ) : null}
-            . Its password is shared on request.
-          </li>
-        </ol>
-
-        {clientId ? (
-          <PayPalProvider clientId={clientId} environment="sandbox" components={[...components]} pageType="checkout">
-            {/* Holds the two buttons' height (45 px each and the gap) while the SDK draws them, so the page does not move. */}
-            <div className="flex min-h-[102px] flex-col gap-3" aria-busy={phase.kind === "paying"}>
-              <PayPalOneTimePaymentButton
-                createOrder={createOrder}
-                onApprove={onApprove}
-                onCancel={onCancel}
-                onError={onError}
-                presentationMode="auto"
-              />
-              <PayPalGuestPaymentButton createOrder={createOrder} onApprove={onApprove} onCancel={onCancel} onError={onError} />
+          <dl className="flex flex-col text-base">
+            <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
+              <dt>
+                {product.description} <span className="text-muted">· qty 1</span>
+              </dt>
+              <dd className="shrink-0 tabular-nums">{total}</dd>
             </div>
-          </PayPalProvider>
-        ) : (
-          <p role="alert" className="rounded-control border border-warn/40 bg-warn-bg p-3 text-sm text-warn">
-            The PayPal client id is not configured, so the buttons cannot load.
-          </p>
-        )}
+            <div className="flex items-baseline justify-between gap-4 pt-3 text-lg font-semibold">
+              <dt>Total</dt>
+              <dd className="shrink-0 tabular-nums">{total}</dd>
+            </div>
+          </dl>
 
-        {phase.kind === "error" && (
-          <p role="alert" className="rounded-control border border-fail/40 bg-fail-bg p-3 text-sm text-fail">
-            {phase.message}
-          </p>
-        )}
+          {clientId ? (
+            <PayPalProvider clientId={clientId} environment="sandbox" components={[...components]} pageType="checkout">
+              {/* Hidden, never removed, once the cart is paid or being captured: the SDK keeps its elements. */}
+              <div hidden={!showButtons}>
+                {/* Holds the two buttons' height (45 px each and the gap) while the SDK draws them, so the page does not move. */}
+                <div className="flex min-h-[102px] flex-col gap-3" aria-busy={phase.kind === "paying"}>
+                  <PayPalOneTimePaymentButton
+                    createOrder={createOrder}
+                    onApprove={onApprove}
+                    onCancel={onCancel}
+                    onError={onError}
+                    presentationMode="auto"
+                  />
+                  <PayPalGuestPaymentButton createOrder={createOrder} onApprove={onApprove} onCancel={onCancel} onError={onError} />
+                </div>
+              </div>
+            </PayPalProvider>
+          ) : (
+            <p role="alert" className="rounded-control border border-warn/40 bg-warn-bg p-3 text-sm text-warn">
+              The PayPal client id is not configured, so the buttons cannot load.
+            </p>
+          )}
 
-      </section>
+          <Receipt mode={mode} total={total} view={view} sharedLink={Boolean(initialCart)} />
 
-      <section className="flex min-w-0 flex-col gap-4 rounded-panel border border-border p-5 sm:p-6" aria-labelledby="result" aria-live="polite">
-        <h2 id="result" className="text-lg font-semibold">What the store did</h2>
-        {!cartId && (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-muted">What you will see here</p>
-            <ol className="flex flex-col gap-2">
-              {[
-                "The store's answer to the buyer",
-                "PayPal's webhook, when it arrives",
-                "The order as the store records it, with a short trace",
-              ].map((step, index) => (
-                <li key={step} className="flex items-center gap-3 rounded-control border border-dashed border-border px-3 py-2 text-sm leading-6 text-muted">
-                  <span className="font-mono text-xs">{index + 1}</span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
+          {phase.kind === "error" && (
+            <p role="alert" className="rounded-control border border-fail/40 bg-fail-bg p-3 text-sm text-fail">
+              {phase.message}
+            </p>
+          )}
+        </section>
 
-        {phase.kind === "captured" && (
+        <section className="flex min-w-0 flex-col gap-5 rounded-panel border border-border p-5 text-sm leading-6 sm:p-6" aria-labelledby="testing">
+          <h2 id="testing" className="text-base font-medium">
+            Testing in the PayPal sandbox
+          </h2>
           <div className="flex flex-col gap-1">
-            <p className="text-small text-muted">The store answered the buyer</p>
-            <p className="text-sm">
-              <span className="font-mono font-semibold">{phase.status}</span> · {phase.message}
+            <p className="font-medium">Pay with PayPal</p>
+            <p className="text-pretty text-muted">
+              Log in as the sandbox buyer
+              {buyerEmail ? (
+                <>
+                  {" "}
+                  <span className="break-all font-mono text-foreground">{buyerEmail}</span>
+                </>
+              ) : null}
+              . Reviewers get the sandbox buyer login with the testing instructions.
             </p>
           </div>
-        )}
-
-        {cartId && (order || polling) && (
-          <div className="flex flex-col gap-1">
-            <p className="text-small text-muted">After PayPal&apos;s webhook</p>
-            {order && delivered(state) ? (
-              <p className="text-sm">
-                <span className="font-mono font-semibold text-pass">{order.status}</span> · fulfilments{" "}
-                <span className="font-mono font-semibold">{order.fulfilments}</span>
-              </p>
-            ) : polling ? (
-              <p className="text-sm tabular-nums text-muted" suppressHydrationWarning>
-                Waiting for PayPal&apos;s webhook · {Math.round((now - polling.since) / 1000)} s of {WEBHOOK_WAIT_MS / 1000} s
-              </p>
-            ) : (
-              <p className="text-sm text-muted">
-                No webhook was applied within {WEBHOOK_WAIT_MS / 1000} s. PayPal delivers to the deployed service only, and
-                deliveries can take a while; reload this page later.
-              </p>
-            )}
+          <div className="flex flex-col gap-2">
+            <p className="font-medium">Or pay by card</p>
+            <p className="text-pretty text-muted">Choose Debit or Credit Card and enter PayPal&apos;s published sandbox test card:</p>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
+              <dt className="text-muted">Card</dt>
+              <dd className="font-mono tabular-nums">{testCard.number.replace(/(\d{4})(?=\d)/g, "$1 ")}</dd>
+              <dt className="text-muted">Expiry</dt>
+              <dd className="font-mono tabular-nums">{testCard.expiry.split("-").reverse().join("/")}</dd>
+              <dt className="text-muted">CVV</dt>
+              <dd className="font-mono tabular-nums">{testCard.securityCode}</dd>
+            </dl>
           </div>
-        )}
+          <p className="text-muted">Sandbox only: no real money moves.</p>
+        </section>
+      </div>
+
+      <section className={`flex min-w-0 flex-col gap-4 ${panel}`} aria-labelledby="result" aria-live="polite">
+        <h2 id="result" className={panelLabel}>
+          What the store and PayPal did
+        </h2>
+        <ol className="grid gap-2 sm:gap-3 md:grid-cols-3">
+          <Stage
+            label="The store takes the payment"
+            done={view.kind === "paid"}
+            failed={view.kind === "not_charged" || view.kind === "failed"}
+            text={
+              answered
+                ? `${answered.status} · ${answered.message}`
+                : view.kind === "paid"
+                  ? `${capturedOrder?.status ?? "PAID"} · capture ${view.captureId}`
+                  : answer
+                    ? answer.message
+                    : capturing
+                      ? "Capturing the payment…"
+                      : view.kind === "unpaid"
+                        ? "Not paid"
+                        : phase.kind === "paying"
+                          ? "Paying in PayPal…"
+                          : "Waiting for you to pay"
+            }
+          />
+          <Stage
+            label="PayPal's webhook arrives"
+            done={Boolean(webhook)}
+            text={
+              webhook
+                ? `Signature ${webhook.verification}`
+                : polling
+                  ? `Waiting · ${Math.round((now - polling.since) / 1000)} s of ${WEBHOOK_WAIT_MS / 1000} s`
+                  : view.kind === "not_charged"
+                    ? "None: nothing was captured"
+                    : cartId && order
+                    ? `Not applied within ${WEBHOOK_WAIT_MS / 1000} s. PayPal delivers to the deployed service only, and deliveries can take a while; reload this page later.`
+                    : "After the payment, usually within a minute"
+            }
+            detail={webhook ? `${webhook.eventType ?? "event"}, ${webhook.outcome}` : null}
+          />
+          <Stage
+            label="The order is fulfilled"
+            done={Boolean(fulfilled)}
+            text={fulfilled ? `${fulfilled.status} · fulfilled ${fulfilled.fulfilments === 1 ? "once" : `${fulfilled.fulfilments} times`}` : "When the webhook is applied"}
+          />
+        </ol>
 
         {cartId && state && <TransactionTrace mode={mode} state={state} />}
 
@@ -289,6 +339,107 @@ export function Checkout({
     </div>
   );
 }
+
+/**
+ * With or in place of PayPal's buttons: the receipt once the cart is paid, what is happening while
+ * the store captures or the page checks with PayPal, and why a payment did not go through. A new
+ * checkout loads the plain page, so it opens a new cart.
+ */
+function Receipt({ mode, total, view, sharedLink }: { mode: Mode; total: string; view: CheckoutView; sharedLink: boolean }) {
+  const again = (
+    <a href={`/store/${mode}`} className={`${buttonSecondary} self-start`}>
+      Start a new checkout
+    </a>
+  );
+  if (view.kind === "ready") return null;
+  if (view.kind === "paid") {
+    return (
+      <div role="status" className="flex flex-col gap-3 rounded-card bg-pass-bg p-4 sm:p-5">
+        <p className="flex items-center gap-2 text-lg font-semibold text-pass">
+          {check}
+          Paid {total}
+        </p>
+        {view.captureId && (
+          <p className="text-sm text-muted">
+            Capture <span className="break-all font-mono text-foreground">{view.captureId}</span>
+          </p>
+        )}
+        {again}
+      </div>
+    );
+  }
+  // The buttons are back above it; on a shared link a new checkout is the way to pay again.
+  if (view.kind === "not_charged" || view.kind === "failed") {
+    return (
+      <div role="alert" className="flex flex-col gap-3 rounded-card bg-fail-bg p-4 text-fail sm:p-5">
+        <p className="font-medium">{view.message}</p>
+        {sharedLink && again}
+      </div>
+    );
+  }
+  return (
+    <div role="status" className="flex min-h-[102px] flex-col justify-center gap-3 rounded-card bg-surface p-4 sm:p-5">
+      {view.kind === "unpaid" ? (
+        <>
+          <p className="text-sm text-muted">This cart was not paid.</p>
+          {again}
+        </>
+      ) : (
+        <p className="flex items-center gap-2 text-sm text-muted">
+          <span aria-hidden="true" className="spinner" />
+          {view.kind === "capturing"
+            ? "The store is capturing the payment…"
+            : view.kind === "checking"
+              ? "Checking with PayPal whether the payment went through…"
+              : "Loading this order…"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const check = (
+  <svg aria-hidden="true" viewBox="0 0 16 16" className="size-4 shrink-0 text-pass">
+    <path d="m3.5 8.4 2.8 2.8 6.2-6.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/** One stage of the purchase, a frame like a scene's: what it is, and what has happened so far. */
+function Stage({
+  label,
+  done,
+  failed = false,
+  text,
+  detail = null,
+}: {
+  label: string;
+  done: boolean;
+  /** The stage ended without a payment: it reads in the failure color, never green. */
+  failed?: boolean;
+  text: string;
+  detail?: string | null;
+}) {
+  return (
+    <li className={`flex min-w-0 flex-col gap-2 rounded-card px-4 py-3 ${done ? "bg-pass-bg" : failed ? "bg-fail-bg" : "bg-surface"}`}>
+      <p className="flex items-center gap-2 text-small text-muted">
+        {done && check}
+        {label}
+        {done && <span className="sr-only">: done</span>}
+      </p>
+      <p
+        className={`text-base font-medium leading-snug text-pretty tabular-nums ${done ? "text-pass" : failed ? "text-fail" : "text-foreground"}`}
+        suppressHydrationWarning
+      >
+        {text}
+      </p>
+      {detail && <p className="break-words text-xs text-muted">{detail}</p>}
+    </li>
+  );
+}
+
+/** One step of the trace: five columns from 640 px, stacked lines on a phone. */
+const TRACE_ROW =
+  "grid gap-x-4 gap-y-1 px-3 py-2 sm:grid-cols-[1.5rem_3.5rem_minmax(0,1.6fr)_5.5rem_minmax(0,1fr)] sm:items-baseline";
 
 /** The cart's order and webhook deliveries as the store recorded them, step by step. */
 function TransactionTrace({ mode, state }: { mode: Mode; state: StoreState }) {
@@ -315,32 +466,37 @@ function TransactionTrace({ mode, state }: { mode: Mode; state: StoreState }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-small text-muted">Trace</p>
-      {/* Scrolls sideways inside itself, with a shadow on the edge that hides columns, like a code block. */}
-      <CodeScroller label="Trace of this transaction" className="rounded-control border border-border">
-        <table className="w-full min-w-[30rem] border-collapse font-mono text-xs">
-          <thead className="bg-surface-2 text-left text-muted">
-            <tr>
-              <th className="px-3 py-2 font-medium">#</th>
-              <th className="px-3 py-2 font-medium">Actor</th>
-              <th className="px-3 py-2 font-medium">Call</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={index} className="border-t border-border align-top">
-                <td className="px-3 py-2 text-muted">{index + 1}</td>
-                <td className="px-3 py-2">{row.actor}</td>
-                <td className="min-w-[10rem] px-3 py-2 break-all">{row.call}</td>
-                <td className="px-3 py-2">{row.status}</td>
-                <td className="min-w-[11rem] px-3 py-2 break-words text-muted">{row.detail}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </CodeScroller>
+      <p className={panelLabel}>Trace of this payment</p>
+      {/* A table from 640 px; on a phone each step stacks into lines, so nothing is cut off. */}
+      <div className="rounded-control border border-border text-xs">
+        <div aria-hidden="true" className={`${TRACE_ROW} bg-surface-2 font-medium text-muted max-sm:hidden`}>
+          <span>#</span>
+          <span>Actor</span>
+          <span>Call</span>
+          <span>Status</span>
+          <span>Detail</span>
+        </div>
+        <ol>
+          {rows.map((row, index) => (
+            <li key={index} className={`${TRACE_ROW} border-t border-border first:max-sm:border-t-0`}>
+              <span className="tabular-nums text-muted">
+                <span className="sm:hidden">Step </span>
+                {index + 1}
+                <span className="sm:hidden">
+                  {" "}
+                  · {row.actor} · {row.status}
+                </span>
+              </span>
+              <span className="max-sm:hidden">{row.actor}</span>
+              <span className="min-w-0 break-words font-mono">
+                <TraceText text={row.call} />
+              </span>
+              <span className="max-sm:hidden">{row.status}</span>
+              <span className="min-w-0 break-words text-muted">{row.detail}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }

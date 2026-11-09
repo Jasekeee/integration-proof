@@ -68,6 +68,15 @@ const section = "flex flex-col py-14 sm:py-20";
 /** The arrow of a button that moves on: it steps forward under the pointer. */
 const nudge = "transition-transform duration-150 ease-(--ease-out) group-hover:translate-x-0.5";
 
+/** The real checkout of the hardened store, the secondary way in next to the proof. */
+function CheckoutLink() {
+  return (
+    <Link href="/store/hardened" className="group inline-flex min-h-10 items-center gap-1 rounded-control font-medium text-brand">
+      Or pay yourself with a real PayPal Checkout <Icon name="arrow-right" className={`size-4 ${nudge}`} />
+    </Link>
+  );
+}
+
 function ProofButton() {
   return (
     <Link href="/proof" className={`group ${buttonPrimary} min-h-12 rounded-full px-6 text-base`}>
@@ -90,8 +99,9 @@ export default function LandingPage() {
           <p className="mt-6 max-w-[30em] text-lg leading-relaxed text-pretty text-muted sm:text-xl">
             Integration Proof breaks a PayPal checkout on purpose, so you see the bad day before your customers do.
           </p>
-          <div className="mt-9">
+          <div className="mt-9 flex flex-col items-start gap-4">
             <ProofButton />
+            <CheckoutLink />
           </div>
         </div>
         <Statements price={Number(PRODUCT.amount.value)} currency={PRODUCT.amount.currency_code} />
@@ -224,19 +234,10 @@ export default function LandingPage() {
         <h2 id="try" className={h2}>
           Is your checkout ready for a bad day?
         </h2>
-        <div className="mt-9">
+        <div className="mt-9 flex flex-col items-center gap-4">
           <ProofButton />
+          <CheckoutLink />
         </div>
-        <p className="mt-6 text-sm text-muted">
-          Or pay in the sandbox yourself:{" "}
-          <Link href="/store/naive" className={linkProse}>
-            Naive store
-          </Link>{" "}
-          ·{" "}
-          <Link href="/store/hardened" className={linkProse}>
-            Hardened store
-          </Link>
-        </p>
       </section>
     </div>
   );

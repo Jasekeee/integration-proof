@@ -29,33 +29,38 @@ export default async function StorePage({ params, searchParams }: PageProps<"/st
   // The client id is public by design; it is read at request time so a deploy needs no rebuild.
   const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || process.env.PAYPAL_CLIENT_ID || null;
   const label = MODE_LABELS[mode.data];
-  const other = mode.data === "naive" ? "hardened" : "naive";
 
   return (
-    // The site's grid: the left edge lines up with the header; the store keeps a narrower measure.
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-24 pt-12 sm:px-6 sm:pt-16">
-      <header className="flex max-w-5xl flex-col gap-4">
-        <p className="text-lg text-muted">PayPal sandbox · {label.name}</p>
-        <h1 className="text-[clamp(2.25rem,5vw,3.5rem)] font-semibold leading-[1.05] tracking-display text-balance">Try the checkout yourself</h1>
-        <p className="measure text-lg leading-relaxed text-pretty text-muted">
-          Pay for one item through a real PayPal Checkout. The {label.name.toLowerCase()} creates and captures the order with
-          the same code the proof runs, and the page follows the order until PayPal&apos;s webhook arrives. Sandbox only: no
-          real money moves.{" "}
-          <Link href={`/store/${other}`} className={linkProse}>
-            Try the {other} store
-          </Link>
+    // The proof page's layout: a centered header, then panels on a surface, as in a scenario's scene.
+    <div className="mx-auto flex w-full max-w-6xl flex-col px-4 pb-24 sm:px-6">
+      <header className="flex flex-col items-center pb-10 pt-12 text-center sm:pb-12 sm:pt-16">
+        <p className="text-small text-muted">PayPal sandbox · {label.name}</p>
+        <h1 className="mt-3 text-[clamp(2.5rem,6vw,4.75rem)] font-semibold leading-[1.04] tracking-display text-balance">
+          A real PayPal Checkout.
+        </h1>
+        <p className="measure mt-4 text-lg text-pretty text-muted sm:text-xl">
+          Pay in PayPal&apos;s real sandbox as the sandbox buyer or with the test card, then watch the page wait for
+          PayPal&apos;s webhook and show{" "}
+          {mode.data === "hardened" ? "that the store verified its signature" : "that this store never checks its signature"}.
         </p>
+        {/* The naive store's page is reachable by its URL only; from there, the hardened one is a click away. */}
+        {mode.data === "naive" && (
+          <p className="mt-4 text-sm text-muted">
+            <Link href="/store/hardened" className={linkProse}>
+              Try the hardened store
+            </Link>
+          </p>
+        )}
       </header>
-      <div className="max-w-5xl">
       <Checkout
         mode={mode.data}
+        storeName={label.name}
         clientId={clientId}
         buyerEmail={process.env.SANDBOX_BUYER_EMAIL || null}
         product={PRODUCT}
         testCard={{ number: SANDBOX_TEST_CARD.number, expiry: SANDBOX_TEST_CARD.expiry, securityCode: SANDBOX_TEST_CARD.security_code }}
         initialCart={cart.success ? cart.data : null}
       />
-      </div>
     </div>
   );
 }

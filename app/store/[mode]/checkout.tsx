@@ -15,6 +15,7 @@ import { z } from "zod";
 import type { Mode } from "../../_components/report";
 import { TraceText } from "../../_components/trace-text";
 import { buttonSecondary, linkUtility, panel, panelLabel } from "../../_components/ui";
+import { captureWithFlag, checkoutView, followsCart, showsButtons, type CaptureAnswer, type CheckoutView } from "./capture";
 
 const POLL_MS = 3000;
 /** The proof waits as long for a webhook (WEBHOOK_WAIT_MS); deliveries took 7 to 60 s. */
@@ -22,7 +23,6 @@ const WEBHOOK_WAIT_MS = 150_000;
 const COMPLETED = "PAYMENT.CAPTURE.COMPLETED";
 
 const CreatedSchema = z.object({ orderId: z.string() });
-const CapturedSchema = z.object({ status: z.string(), captureId: z.string().nullable(), message: z.string() });
 const ErrorSchema = z.object({ message: z.string() });
 const StateSchema = z.object({
   orders: z.array(
@@ -50,7 +50,6 @@ type StoreState = z.infer<typeof StateSchema>;
 type Phase =
   | { kind: "ready" }
   | { kind: "paying" }
-  | { kind: "captured"; status: string; message: string; captureId: string | null }
   | { kind: "error"; message: string };
 
 function newCartId(): string {
@@ -96,6 +95,8 @@ export function Checkout({
   const [now, setNow] = useState(() => Date.now());
   /** The store is capturing: the buyer approved in PayPal and the capture has not answered yet. */
   const [capturing, setCapturing] = useState(false);
+  /** The store's answer to this page's capture, or no usable answer; null before one. */
+  const [answer, setAnswer] = useState<CaptureAnswer | null>(null);
 
   /** The store creates the order; the SDK opens PayPal with its id. */
   const createOrder = useCallback(async (): Promise<{ orderId: string }> => {
@@ -103,6 +104,8 @@ export function Checkout({
     cartRef.current = cart;
     setCartId(cart);
     setState(null);
+    setAnswer(null);
+    setPolling(null);
     setPhase({ kind: "paying" });
     const response = await fetch(`/api/store/${mode}/orders`, {
       method: "POST",
@@ -121,20 +124,13 @@ export function Checkout({
   /** The buyer approved in PayPal; the store captures, as it does for the runner. */
   const onApprove = useCallback(
     async ({ orderId }: OnApproveDataOneTimePayments) => {
-      setCapturing(true);
-      try {
-        const response = await fetch(`/api/store/${mode}/orders/${encodeURIComponent(orderId)}/capture`, { method: "POST" });
-        const body = CapturedSchema.safeParse(await response.clone().json().catch(() => null));
-        if (!response.ok || !body.success) {
-          setPhase({ kind: "error", message: await readError(response, "The store could not capture the order") });
-          return;
-        }
-        setPhase({ kind: "captured", status: body.data.status, message: body.data.message, captureId: body.data.captureId });
-        if (cartRef.current) window.history.replaceState(null, "", `?cart=${cartRef.current}`);
-        setPolling({ since: Date.now() });
-      } finally {
-        setCapturing(false);
-      }
+      // The flag is cleared whatever happens, and the call never throws: a failure is an answer.
+      const result = await captureWithFlag(mode, orderId, setCapturing);
+      setAnswer(result);
+      setPhase({ kind: "ready" });
+      if (result.kind === "answered" && cartRef.current) window.history.replaceState(null, "", `?cart=${cartRef.current}`);
+      // Unless PayPal confirmed nothing was captured, the cart's state settles it: a capture, or PayPal's webhook.
+      if (followsCart(mode, result)) setPolling({ since: Date.now() });
     },
     [mode],
   );
@@ -167,21 +163,26 @@ export function Checkout({
   }, [polling, cartId, mode]);
 
   const order = state?.orders[0] ?? null;
-  const shareUrl = cartId && (phase.kind === "captured" || initialCart) ? `/store/${mode}?cart=${cartId}` : null;
+  const shareUrl = cartId && (answer?.kind === "answered" || initialCart) ? `/store/${mode}?cart=${cartId}` : null;
   const components = useMemo(() => ["paypal-payments", "paypal-guest-payments"] as const, []);
   const webhook = state?.deliveries.find((delivery) => delivery.eventType === COMPLETED) ?? null;
   const fulfilled = order && delivered(state) ? order : null;
-  // A cart is paid once the store's capture said PAID, or, on a reload with ?cart=, once the store's
-  // state shows a capture. A paid cart never shows a payment button again.
   const capturedOrder = state?.orders.find((candidate) => candidate.captureId !== null) ?? null;
-  const paid =
-    phase.kind === "captured" && phase.status === "PAID"
-      ? { captureId: phase.captureId ?? capturedOrder?.captureId ?? null }
-      : capturedOrder
-        ? { captureId: capturedOrder.captureId }
-        : null;
-  // A shared transaction link shows that cart only; a new checkout starts from the plain page.
-  const showButtons = !initialCart && !paid && !capturing;
+  // One decision of what the buyer sees (./capture.ts): a receipt once a capture is seen anywhere, so
+  // a paid cart never shows a payment button again; PayPal's buttons back only where a new payment
+  // cannot follow one that went through.
+  const view = checkoutView({
+    mode,
+    answer,
+    order: capturedOrder ?? order,
+    webhookCompleted: delivered(state) || Boolean(webhook && webhook.responseStatus >= 200 && webhook.responseStatus < 300),
+    stateLoaded: state !== null,
+    following: Boolean(polling),
+    capturing,
+    sharedLink: Boolean(initialCart),
+  });
+  const showButtons = showsButtons(view, Boolean(initialCart));
+  const answered = answer?.kind === "answered" ? answer : null;
   const total = `${product.amount.value} ${product.amount.currency_code}`;
 
   return (
@@ -234,7 +235,7 @@ export function Checkout({
             </p>
           )}
 
-          {!showButtons && <Receipt mode={mode} total={total} paid={paid} capturing={capturing} loading={Boolean(initialCart) && !state} />}
+          <Receipt mode={mode} total={total} view={view} sharedLink={Boolean(initialCart)} />
 
           {phase.kind === "error" && (
             <p role="alert" className="rounded-control border border-fail/40 bg-fail-bg p-3 text-sm text-fail">
@@ -283,17 +284,22 @@ export function Checkout({
         <ol className="grid gap-2 sm:gap-3 md:grid-cols-3">
           <Stage
             label="The store takes the payment"
-            done={Boolean(paid) || phase.kind === "captured" || Boolean(order?.captureId)}
+            done={view.kind === "paid"}
+            failed={view.kind === "not_charged" || view.kind === "failed"}
             text={
-              phase.kind === "captured"
-                ? `${phase.status} · ${phase.message}`
-                : order?.captureId
-                  ? `${order.status} · capture ${order.captureId}`
-                  : capturing
-                    ? "Capturing the payment…"
-                    : phase.kind === "paying"
-                      ? "Paying in PayPal…"
-                      : "Waiting for you to pay"
+              answered
+                ? `${answered.status} · ${answered.message}`
+                : view.kind === "paid"
+                  ? `${capturedOrder?.status ?? "PAID"} · capture ${view.captureId}`
+                  : answer
+                    ? answer.message
+                    : capturing
+                      ? "Capturing the payment…"
+                      : view.kind === "unpaid"
+                        ? "Not paid"
+                        : phase.kind === "paying"
+                          ? "Paying in PayPal…"
+                          : "Waiting for you to pay"
             }
           />
           <Stage
@@ -304,7 +310,9 @@ export function Checkout({
                 ? `Signature ${webhook.verification}`
                 : polling
                   ? `Waiting · ${Math.round((now - polling.since) / 1000)} s of ${WEBHOOK_WAIT_MS / 1000} s`
-                  : cartId && order
+                  : view.kind === "not_charged"
+                    ? "None: nothing was captured"
+                    : cartId && order
                     ? `Not applied within ${WEBHOOK_WAIT_MS / 1000} s. PayPal delivers to the deployed service only, and deliveries can take a while; reload this page later.`
                     : "After the payment, usually within a minute"
             }
@@ -333,56 +341,58 @@ export function Checkout({
 }
 
 /**
- * In place of PayPal's buttons once the cart is paid, or while the store captures: the amount, the
- * capture id and a way to start again. A new checkout loads the plain page, so it opens a new cart.
+ * With or in place of PayPal's buttons: the receipt once the cart is paid, what is happening while
+ * the store captures or the page checks with PayPal, and why a payment did not go through. A new
+ * checkout loads the plain page, so it opens a new cart.
  */
-function Receipt({
-  mode,
-  total,
-  paid,
-  capturing,
-  loading,
-}: {
-  mode: Mode;
-  total: string;
-  paid: { captureId: string | null } | null;
-  capturing: boolean;
-  /** A shared link whose cart has not been read yet. */
-  loading: boolean;
-}) {
+function Receipt({ mode, total, view, sharedLink }: { mode: Mode; total: string; view: CheckoutView; sharedLink: boolean }) {
   const again = (
     <a href={`/store/${mode}`} className={`${buttonSecondary} self-start`}>
       Start a new checkout
     </a>
   );
-  if (paid) {
+  if (view.kind === "ready") return null;
+  if (view.kind === "paid") {
     return (
       <div role="status" className="flex flex-col gap-3 rounded-card bg-pass-bg p-4 sm:p-5">
         <p className="flex items-center gap-2 text-lg font-semibold text-pass">
           {check}
           Paid {total}
         </p>
-        {paid.captureId && (
+        {view.captureId && (
           <p className="text-sm text-muted">
-            Capture <span className="break-all font-mono text-foreground">{paid.captureId}</span>
+            Capture <span className="break-all font-mono text-foreground">{view.captureId}</span>
           </p>
         )}
         {again}
       </div>
     );
   }
+  // The buttons are back above it; on a shared link a new checkout is the way to pay again.
+  if (view.kind === "not_charged" || view.kind === "failed") {
+    return (
+      <div role="alert" className="flex flex-col gap-3 rounded-card bg-fail-bg p-4 text-fail sm:p-5">
+        <p className="font-medium">{view.message}</p>
+        {sharedLink && again}
+      </div>
+    );
+  }
   return (
     <div role="status" className="flex min-h-[102px] flex-col justify-center gap-3 rounded-card bg-surface p-4 sm:p-5">
-      {capturing || loading ? (
-        <p className="flex items-center gap-2 text-sm text-muted">
-          <span aria-hidden="true" className="spinner" />
-          {capturing ? "The store is capturing the payment…" : "Loading this order…"}
-        </p>
-      ) : (
+      {view.kind === "unpaid" ? (
         <>
           <p className="text-sm text-muted">This cart was not paid.</p>
           {again}
         </>
+      ) : (
+        <p className="flex items-center gap-2 text-sm text-muted">
+          <span aria-hidden="true" className="spinner" />
+          {view.kind === "capturing"
+            ? "The store is capturing the payment…"
+            : view.kind === "checking"
+              ? "Checking with PayPal whether the payment went through…"
+              : "Loading this order…"}
+        </p>
       )}
     </div>
   );
@@ -395,15 +405,31 @@ const check = (
 );
 
 /** One stage of the purchase, a frame like a scene's: what it is, and what has happened so far. */
-function Stage({ label, done, text, detail = null }: { label: string; done: boolean; text: string; detail?: string | null }) {
+function Stage({
+  label,
+  done,
+  failed = false,
+  text,
+  detail = null,
+}: {
+  label: string;
+  done: boolean;
+  /** The stage ended without a payment: it reads in the failure color, never green. */
+  failed?: boolean;
+  text: string;
+  detail?: string | null;
+}) {
   return (
-    <li className={`flex min-w-0 flex-col gap-2 rounded-card px-4 py-3 ${done ? "bg-pass-bg" : "bg-surface"}`}>
+    <li className={`flex min-w-0 flex-col gap-2 rounded-card px-4 py-3 ${done ? "bg-pass-bg" : failed ? "bg-fail-bg" : "bg-surface"}`}>
       <p className="flex items-center gap-2 text-small text-muted">
         {done && check}
         {label}
         {done && <span className="sr-only">: done</span>}
       </p>
-      <p className={`text-base font-medium leading-snug text-pretty tabular-nums ${done ? "text-pass" : "text-foreground"}`} suppressHydrationWarning>
+      <p
+        className={`text-base font-medium leading-snug text-pretty tabular-nums ${done ? "text-pass" : failed ? "text-fail" : "text-foreground"}`}
+        suppressHydrationWarning
+      >
         {text}
       </p>
       {detail && <p className="break-words text-xs text-muted">{detail}</p>}

@@ -63,6 +63,12 @@ const OWN_STORE_COMMAND_NARROW = `npm run cli -- run \\
 const AUDIENCE = ["Teams with a custom PayPal Checkout", "Plugin and platform authors", "Anyone before a launch or a sale day"];
 
 const h2 = "text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-[1.05] tracking-display text-balance";
+
+/**
+ * A big stat. Proportional figures: Geist's tabular "1" is a different glyph, with a foot serif,
+ * that reads as a monospaced face at display sizes.
+ */
+const stat = "text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] proportional-nums";
 const section = "flex flex-col py-14 sm:py-20";
 
 /** The arrow of a button that moves on: it steps forward under the pointer. */
@@ -113,12 +119,12 @@ export default function LandingPage() {
         </h2>
         <ul className="mt-8 grid gap-8 text-center sm:mt-10 sm:grid-cols-3">
           <li className="flex flex-col items-center">
-            <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">{scenarioCount}</b>
+            <b className={stat}>{scenarioCount}</b>
             <span className="mt-3 text-balance text-muted">failure scenarios, run in PayPal’s sandbox</span>
           </li>
           {fixes && (
             <li className="flex flex-col items-center">
-              <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">
+              <b className={stat}>
                 {fixes.verified}/{fixes.total}
               </b>
               <a href={fixes.report} className={`mt-3 rounded-sm text-muted ${linkProse.replace("text-brand", "")}`}>
@@ -127,7 +133,7 @@ export default function LandingPage() {
             </li>
           )}
           <li className="flex flex-col items-center">
-            <b className="text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] tabular-nums">Code</b>
+            <b className={stat}>Code</b>
             <span className="mt-3 text-balance text-muted">decides every verdict. Claude explains it and proposes the fix.</span>
           </li>
         </ul>
@@ -140,7 +146,7 @@ export default function LandingPage() {
         <ol className="mt-8 grid gap-8 sm:mt-10 md:grid-cols-3 md:gap-12">
           {STEPS.map((step, index) => (
             <li key={step.title} className="flex flex-col">
-              <span className="font-semibold tabular-nums text-brand">{index + 1}</span>
+              <span className="font-semibold text-brand">{index + 1}</span>
               <h3 className="mt-3 text-xl font-semibold tracking-tight">{step.title}</h3>
               <p className="mt-2 leading-relaxed text-pretty text-muted">{step.body}</p>
             </li>
@@ -157,7 +163,7 @@ export default function LandingPage() {
           <ol className="flex flex-col gap-6">
             {OWN_STORE_STEPS.map((step, index) => (
               <li key={step} className="flex gap-4">
-                <span className="w-4 shrink-0 font-semibold tabular-nums text-brand">{index + 1}</span>
+                <span className="w-4 shrink-0 font-semibold text-brand">{index + 1}</span>
                 <p className="text-xl font-semibold leading-snug tracking-tight text-pretty">{step}</p>
               </li>
             ))}

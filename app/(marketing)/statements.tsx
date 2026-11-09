@@ -72,7 +72,8 @@ function Statement({
         </ul>
         <p className="mt-auto flex items-baseline justify-between border-t border-border pt-3">
           <span className="text-small text-muted">Charged</span>
-          <b className="grid text-[2rem] font-semibold leading-none tracking-tight tabular-nums sm:text-[2.75rem]">
+          {/* Proportional figures at this size: Geist's tabular "1" has a foot serif. */}
+          <b className="grid text-[2rem] font-semibold leading-none tracking-tight proportional-nums sm:text-[2.75rem]">
             {first && (
               <span aria-hidden="true" className="stmt-before col-start-1 row-start-1 justify-self-end">
                 {first}

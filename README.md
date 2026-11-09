@@ -228,7 +228,7 @@ paid, a receipt with the capture id takes the buttons' place, also when the page
 "Start a new checkout" opens a new cart.
 
 - **Pay with PayPal** as the sandbox buyer whose email the page shows. Reviewers get the sandbox buyer
-  login with the testing instructions; it is not in this repository.
+  password with the testing instructions; it is not in this repository.
 - **Pay by card**, with no login: PayPal's published
   [sandbox test card](https://developer.paypal.com/tools/sandbox/card-testing/), shown on the page.
 

@@ -35,7 +35,7 @@ npm run cli -- run --store http://127.0.0.1:4000/integration-proof \
 
 ```text
 S1  PASS         Decline shown, nothing charged  (as expected)
-S2  FAIL         Sale lost on a transient error  (as expected)
+S2  FAIL         Sale lost on a temporary error  (as expected)
 S3  FAIL         Buyer charged twice  (as expected)
 Result: every scenario as expected.
 ```

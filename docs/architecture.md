@@ -1,8 +1,10 @@
 # Architecture
 
 Integration Proof is one Next.js application, deployed as one service on Render, with one Postgres
-database on Neon. The reasons behind each choice below are in [decisions.md](decisions.md); the
-PayPal behaviour it relies on is in [sandbox-findings.md](sandbox-findings.md).
+database on Neon. A command-line tool in `cli/` runs the checkout scenarios against a store of your
+own, from your machine ([Proving your own store](#proving-your-own-store-the-cli)). The reasons
+behind each choice below are in [decisions.md](decisions.md); the PayPal behaviour it relies on is
+in [sandbox-findings.md](sandbox-findings.md).
 
 ## Components
 
@@ -186,6 +188,34 @@ were written for the store code in the checkout. `scripts/verify-ai-fixes.ts` fi
 bench reproduces the live verdicts, then applies each fix and runs all six scenarios against the
 patched store. CI runs it in a network namespace with no interface and fails when the committed
 report is out of date. The server only reads `public/ai-fixes.json`.
+
+## Proving your own store: the CLI
+
+`npm run cli -- run` proves a store that implements the
+[store contract](store-contract.md) against S1–S3. It runs on the developer's machine and uses the
+same scenario definitions and assertions as the hosted proof; the deployed service is not involved.
+
+```mermaid
+flowchart LR
+  cli["CLI · cli/run.ts<br/>buyer and judge"] -->|"create, capture, state"| store["Your store<br/>contract endpoints"]
+  store -->|"PayPal calls"| proxy["Proxy · cli/proxy.ts<br/>127.0.0.1 only"]
+  proxy -->|"decline, 500, or answer held"| paypal[("PayPal sandbox<br/>or the bench's model")]
+  cli -->|"confirm the test card, read the orders"| paypal
+  cli -->|"facts"| assertions["Assertions<br/>lib/proof/assertions"]
+  cli -.->|"--explain"| analyst["Analyst · cli/explain.ts<br/>same checks as the hosted proof"]
+  analyst -.-> claude["Claude"]
+```
+
+- **Proxy.** Started by the CLI on `127.0.0.1`; the store's PayPal base URL points at it, and it
+  injects the running scenario's fault before forwarding.
+- **PayPal or its model.** `--paypal sandbox` uses the real sandbox with the store's own app;
+  `--paypal model` (`cli/model.ts`) answers from the bench's model of PayPal and needs no account or
+  network, which is what CI uses for `examples/express-store`.
+- **Verdicts.** PayPal's record of the cart and the store's state endpoint go into the same
+  assertions as the hosted proof. The console, `report.json` and a Markdown summary report them.
+- **Claude, opt-in.** With `--explain --source <dir>`, the CLI lists the files it will send, redacts
+  secret-looking values, and asks the same analyst for a root cause and a fix. `--write-patch` writes
+  the checked fix as a diff; the CLI never applies or runs it.
 
 ## Data model
 

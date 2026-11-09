@@ -291,39 +291,43 @@ store's create order request, and the store then sends that order's PayPal calls
 **Consequence:** the proxy forwards only the Orders v2 create, get and capture calls, and only while
 the scenario is running. Anything else returns 404 before a request reaches PayPal.
 
-## One Neon database for the deployed service and local development
+## Local development uses a Neon branch, not the deployed database
 
-**Decision:** the deployed service and local development share one Neon database. This is a
-deliberate trade-off. Render builds with `npm ci && npm run db:migrate && npm run build`, so a deploy
-applies pending migrations before it builds.
+**Decision:** the deployed service has its Neon database to itself. Local development, local
+production builds and local sandbox runs use a Neon branch of it: a copy-on-write copy made from the
+deployed database, with its own connection string in `.env.local`. Render builds with
+`npm ci && npm run db:migrate && npm run build`, so a deploy applies pending migrations to the
+deployed database before it builds.
 
 **Why:**
 
-- PayPal delivers webhooks only to the URL registered on the sandbox app, which is the deployed
-  router. A local run sees a webhook only because the deployed router writes it to the same database.
-  A separate local database would need its own sandbox app and a public tunnel for every session.
-- One database holds one record of sandbox orders, deliveries and traces, so a local run and the
-  deployed service never disagree about what happened.
+- A local server writes to the database it is pointed at: its startup ends interrupted runs, and a
+  local run adds runs, orders and traces. None of that may reach the results the deployed service
+  shows.
+- A branch starts with the deployed data, so local pages show realistic runs and analyses without a
+  seed script.
 
-**Cost:** the deployed code and the code on a local branch use one schema at the same time, and test
-data written locally shows up on the deployed service.
+**Cost:** PayPal delivers webhooks only to the URL registered on the sandbox app, which is the
+deployed router. A local run never sees a webhook: S1 to S3 run as usual, and S4 to S6 end
+INCONCLUSIVE. The offline bench (`npx vitest run bench`) and the CLI's `--paypal model` cover the
+webhook-free paths without any account; the webhook scenarios are proved on the deployed service.
 
 **Rules:**
 
 - **Migrations only add:** new tables, new enum types, new indexes, and new columns that are
-  nullable or have a default. No drops, renames or type changes, because the deployed code must keep
-  working against a schema a newer branch has already migrated. Removing something is a separate
-  decision, taken once no running code uses it.
+  nullable or have a default. No drops, renames or type changes, because a deploy migrates before it
+  builds, and the previous deploy keeps serving against the new schema until the new one is up.
+  Removing something is a separate decision, taken once no running code uses it.
 - **An applied migration is never rewritten.** `drizzle-kit migrate` stores each file's hash in
   `drizzle.__drizzle_migrations` but never compares it. An edited file would not run again, and the
   schema would silently differ from the files. A change is a new migration.
 - **Migrations apply in merge order.** Only migrations newer than the newest recorded one run, so a
   migration generated earlier but applied later is skipped without an error. Generate a migration
-  on a branch that is up to date with `main`, and apply it to the shared database from that branch
-  only, just before it merges.
+  on a branch that is up to date with `main`; the deployed database gets it from the deploy that
+  merges it.
 - **Test data is cleared with `npm run db:reset`.** It prints the row count of every table and
-  deletes only with `--yes`, keeping the schema and the migration history. The database is shared,
-  so a reset also clears the runs the deployed service shows.
+  deletes only with `--yes`, keeping the schema and the migration history. It clears the database
+  `DATABASE_URL` points to, so check the host before confirming.
 
 **Consequence:** all pending migrations run in one transaction. A migration that fails leaves the
 schema as it was, and the `&&` chain stops the build before `next build`, so the previous deploy
@@ -331,7 +335,7 @@ keeps serving.
 
 **Verified on 2026-11-03** with `sslmode=verify-full`:
 
-- `npm run db:migrate` ran twice on the shared database and twice on a temporary empty database,
+- `npm run db:migrate` ran twice on the deployed database and twice on a temporary empty database,
   which was dropped afterwards. Every run exited 0, and the second run recorded nothing new.
 - Both databases ended with the same tables and enums, and the recorded timestamps and hashes match
   the files.
@@ -732,7 +736,7 @@ about the code under test.
 **Consequence:** the sandbox buyer's email is configuration (`SANDBOX_BUYER_EMAIL`), shown on the
 page; its password is never stored in the repository. The client id is read at request time on the
 server, so a deploy needs no rebuild to change it. Webhooks reach only the deployed service, so a
-purchase made against a local server sees its webhook through the shared database.
+purchase made against a local server never sees its webhook; the deployed store page shows it.
 
 ## The analyst's context is only what a fix can use
 
@@ -767,17 +771,18 @@ or `lib/paypal`, to a variable they read, or to the analysis format:
 
 1. `npm run analyst:context` when the declarations or the configuration changed, and commit the
    result.
-2. Run a naive proof on that code: locally with `npm run dev` and `/proof?fresh=1`, or on the
-   deployed service after the merge.
+2. Run a naive proof on that code: locally with `npm run dev` and
+   `/proof?fresh=<FRESH_ANALYSIS_TOKEN>`, or on the deployed service after the merge.
 3. `npx tsx scripts/export-ai-fixes.ts`. It takes the newest naive run whose analysis keys match the
    checkout, so analyses of other code are never exported.
 4. `npx tsx scripts/verify-ai-fixes.ts`, which writes `docs/ai-fixes-report.md` and
    `public/ai-fixes.json`. Record what it finds, a fix that does not pass included.
 5. Commit the fixtures, the report and the JSON with the change, so CI and the deployed page agree.
 
-Running the proof locally before the merge keeps the badges on the deployed page: the deploy then
-reuses the analyses already in the shared database, whose patches are the verified ones, as long as
-its trace looks the same.
+Analyses written by a local run stay in the local Neon branch. The deployed service reuses only the
+analyses in its own database, so after a deploy that changes the code hash its next run analyses the
+changed store again, and the page shows "Fix verified offline" only where that patch matches a
+verified fixture.
 
 **Result on 2026-11-05,** run `e28c50a6`, with the context narrowed as above: 5 of 5 fixes verified
 offline. S2's edits did not match the file on the first check and matched after the self-check

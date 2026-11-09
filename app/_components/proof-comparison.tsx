@@ -256,7 +256,7 @@ export function ProofComparison({
           ) : (
             <button type="button" onClick={() => run(MODES)} disabled={busy} className={`${buttonPrimary} min-h-12 rounded-full px-6 text-base`}>
               Run both live
-              <span className="font-normal opacity-75">about 2–3 min</span>
+              <span className="font-normal opacity-75">about 1–3 min</span>
             </button>
           )}
         </div>
@@ -266,7 +266,7 @@ export function ProofComparison({
           {waiting && (
             <>
               <span aria-hidden="true" className="live-dot mt-[7px] size-1.5 shrink-0 rounded-full bg-warn" />
-              Waiting for PayPal&apos;s real notices. They usually arrive in 7 to 60 seconds.
+              Waiting for PayPal&apos;s real notices. They usually arrive within a minute.
             </>
           )}
         </p>

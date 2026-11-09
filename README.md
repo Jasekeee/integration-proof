@@ -8,9 +8,10 @@ cause and a fix that is verified before it is shown.
 
 [![CI](https://github.com/Jasekeee/integration-proof/actions/workflows/ci.yml/badge.svg)](https://github.com/Jasekeee/integration-proof/actions/workflows/ci.yml)
 [![Verify AI fixes](https://github.com/Jasekeee/integration-proof/actions/workflows/verify-ai-fixes.yml/badge.svg)](https://github.com/Jasekeee/integration-proof/actions/workflows/verify-ai-fixes.yml)
+[![Store contract](https://github.com/Jasekeee/integration-proof/actions/workflows/store-contract.yml/badge.svg)](https://github.com/Jasekeee/integration-proof/actions/workflows/store-contract.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-![One lost response, and the buyer pays twice: the buyer's card statement at the store that guessed shows $20, at the store that asked PayPal $10](docs/screenshots/hero.png)
+![One lost response, and the buyer pays twice: the buyer's card statement shows $20 at the naive store, which guessed, and $10 at the hardened store, which asked PayPal](docs/screenshots/hero.png)
 
 ## Who it is for
 
@@ -58,7 +59,7 @@ PayPal allows one capture per order, so no store here can charge the same order 
 product shows are the ones that really happen: a lost sale (S2), a second charge on a second order
 for the same cart (S3), a double shipment (S4), and order states that disagree with PayPal (S5, S6).
 
-![The proof page: the naive store passes 1 of 6 failure scenarios, the hardened store 6 of 6; the lost-response scenario open in four plain sentences, with Claude's fix verified FAIL → PASS](docs/screenshots/proof-light.png)
+![The proof page: the naive store passes 1 of 6 failure scenarios, the hardened store 6 of 6; S3, PayPal's answer gets lost, open in four plain sentences, with Claude's fix verified offline, FAIL → PASS](docs/screenshots/proof.png)
 
 ## How it works
 
@@ -159,7 +160,7 @@ an offline bench.
 
 | Scenario | Patch applies | Types | Before | After | Other scenarios |
 |---|---|---|---|---|---|
-| S2 · Sale lost on a transient error, edits self-corrected after 1 check | yes | yes | FAIL | **PASS** | unchanged |
+| S2 · Sale lost on a temporary error, edits self-corrected after 1 check | yes | yes | FAIL | **PASS** | unchanged |
 | S3 · Buyer charged twice | yes | yes | FAIL | **PASS** | unchanged |
 | S4 · Order shipped twice | yes | yes | FAIL | **PASS** | S5 FAIL → PASS |
 | S5 · Refunded order shown as paid | yes | yes | FAIL | **PASS** | S4 FAIL → PASS |
@@ -195,9 +196,9 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 - **Your own store: checkout scenarios only.** The CLI proves a store that implements the
   [store contract](docs/store-contract.md) against S1–S3. The webhook scenarios S4–S6 run on the
   reference stores only.
-- **Webhook delivery takes time.** In recorded full proofs a scenario's webhooks arrived 7 to 60
-  seconds after its last call to PayPal, and once took 138 seconds for two deliveries. A scenario that needs a
-  webhook waits up to 150 seconds. If PayPal has not delivered by then, the verdict is
+- **Webhook delivery takes time.** In the 20 most recent live runs, the runner waited 4 to 133 seconds
+  for a scenario's webhooks: 15 seconds at the median, and 85 of 89 waits under a minute. A scenario
+  that needs a webhook waits up to 150 seconds. If PayPal has not delivered by then, the verdict is
   **INCONCLUSIVE**, not FAIL: the store was never tested.
 - **The offline bench is a model.** It covers the PayPal behaviour observed in the sandbox and
   nothing more. A fix that relies on behaviour nobody has observed, such as a redelivery after a
@@ -211,9 +212,9 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 2. Click **PayPal's answer gets lost** (S3) and read what happened in four sentences. Then open
    **Claude's full analysis**: the root cause, evidence steps that jump to the trace, and the fix with
    its offline verdict. Click a trace row for its redacted request and response.
-3. Click **Run both live** to run the six scenarios again: the naive store, then the hardened one,
-   one to two minutes each, about 2–3 minutes for both. The demo runs one proof at a time for
-   everyone.
+3. Click **Run both live** to run the six scenarios again: the naive store, then the hardened one.
+   It takes about 1 to 3 minutes, most of it waiting for PayPal's webhooks: 63 to 181 seconds in the
+   nine most recent proofs of both stores. The demo runs one proof at a time for everyone.
 
 ## Try the checkout yourself
 
@@ -226,6 +227,8 @@ in the hardened store, `NOT_CHECKED` in the naive one), and the order once the w
 applied (`PAID`, one fulfilment), then a short trace and a link to come back to. Once the order is
 paid, a receipt with the capture id takes the buttons' place, also when the page is reloaded, and
 "Start a new checkout" opens a new cart.
+
+![The hardened store's checkout after a sandbox payment: the order paid, PayPal's webhook with signature SUCCESS, the order fulfilled once, and the trace](docs/screenshots/store.png)
 
 - **Pay with PayPal** as the sandbox buyer whose email the page shows. Reviewers get the sandbox buyer
   password with the testing instructions; it is not in this repository.
@@ -251,7 +254,8 @@ npm run cli -- run \
   --write-patch claude-fix.patch
 ```
 
-The last two lines are the opt-in Claude flags, which need `ANTHROPIC_API_KEY`; without them nothing is sent to Claude.
+The last two lines are the opt-in Claude flags, which need `ANTHROPIC_API_KEY`; without them
+nothing is sent to Claude.
 
 - **Same faults, same verdicts.** The CLI injects the same faults as the hosted proof, through a
   proxy on your machine, and decides with the same deterministic assertions. PayPal's record of the
@@ -282,14 +286,26 @@ S1–S3. The webhook scenarios need a public URL for PayPal's deliveries and are
 
 ## Quick start
 
-You need Node.js 24, a PayPal sandbox REST app, a Postgres database (Neon works) and, for the
-analyses, an Anthropic API key.
+You need Node.js 24. Everything in the first block runs without an account or a key:
 
 ```bash
 git clone https://github.com/Jasekeee/integration-proof.git
 cd integration-proof
-cp .env.example .env.local   # every variable is documented there
 npm ci
+npm test                                   # unit and assertion tests
+npx vitest run bench                       # naive 1/6, hardened 6/6 on the offline PayPal model
+npx tsx scripts/verify-ai-fixes.ts --check # Claude's committed fixes, verified offline
+```
+
+[examples/express-store](examples/express-store#prove-it) proves a store of your own the same way,
+with the CLI and the offline model.
+
+To run the app and the live proof you also need a PayPal sandbox REST app, a Postgres database (Neon
+works) and, for the analyses, an Anthropic API key. Fill in `.env.local` first: `db:migrate` needs
+`DATABASE_URL`.
+
+```bash
+cp .env.example .env.local   # fill in the values; every variable is documented there
 npm run db:migrate
 npm run dev                  # http://localhost:3000/proof
 ```
@@ -298,22 +314,16 @@ PayPal delivers webhooks only to a public HTTPS URL, registered on the sandbox a
 `https://<host>/api/store/webhooks-router`. Without one, S1 to S3 run as usual, and S4 to S6, which
 need a delivery, end INCONCLUSIVE.
 
-The offline bench needs no account at all:
-
-```bash
-npx vitest run bench                       # naive 1/6, hardened 6/6 on the PayPal model
-npx tsx scripts/verify-ai-fixes.ts --check # Claude's committed fixes, verified offline
-```
-
 ## Documentation
 
-- [docs/architecture.md](docs/architecture.md): components, a run step by step, data model.
+- [docs/architecture.md](docs/architecture.md): components, a run step by step, the CLI, data model.
 - [docs/decisions.md](docs/decisions.md): engineering decisions and their reasoning.
 - [docs/sandbox-findings.md](docs/sandbox-findings.md): PayPal sandbox behaviour, as observed.
 - [docs/ai-fixes-report.md](docs/ai-fixes-report.md): Claude's fixes, verified offline.
 - [docs/store-contract.md](docs/store-contract.md): what a store implements to be proved by the CLI.
 - [docs/store-contract-sandbox-run.md](docs/store-contract-sandbox-run.md): the example store proved against the real sandbox.
 - [docs/store-contract-claude-run.md](docs/store-contract-claude-run.md): Claude explains the example store's failures, and its patch passes.
+- [CONTRIBUTING.md](CONTRIBUTING.md): setting up, the checks a pull request passes, and the rules that keep the proof honest.
 
 ## Roadmap
 

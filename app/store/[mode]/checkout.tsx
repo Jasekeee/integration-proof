@@ -190,7 +190,8 @@ export function Checkout({
     // buttons on the left, the sandbox's testing details, quieter, on the right, and below them what
     // the store and PayPal did. On a phone the order comes first.
     <div className="flex flex-col gap-3 rounded-panel bg-surface p-3 sm:gap-4 sm:p-4">
-      <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+      {/* Each card is as tall as its content, so nothing stretches into an empty area. */}
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
         <section className={`flex min-w-0 flex-col gap-5 ${panel}`} aria-labelledby="buy">
           <div className="flex flex-col gap-1">
             <h2 id="buy" className="text-xl font-medium leading-snug tracking-tight">
@@ -216,8 +217,12 @@ export function Checkout({
             <PayPalProvider clientId={clientId} environment="sandbox" components={[...components]} pageType="checkout">
               {/* Hidden, never removed, once the cart is paid or being captured: the SDK keeps its elements. */}
               <div hidden={!showButtons}>
-                {/* Holds the two buttons' height (45 px each and the gap) while the SDK draws them, so the page does not move. */}
-                <div className="flex min-h-[102px] flex-col gap-3" aria-busy={phase.kind === "paying"}>
+                {/* Holds the two buttons' height (45 px each and the gap) while the SDK draws them, so the page does not move.
+                    The SDK's elements take the card's full width from here; their props and loading are untouched. */}
+                <div
+                  className="flex min-h-[102px] flex-col gap-3 [&>*]:w-full [&_paypal-basic-card-button]:w-full"
+                  aria-busy={phase.kind === "paying"}
+                >
                   <PayPalOneTimePaymentButton
                     createOrder={createOrder}
                     onApprove={onApprove}
@@ -258,7 +263,7 @@ export function Checkout({
                   <span className="break-all font-mono text-foreground">{buyerEmail}</span>
                 </>
               ) : null}
-              . Reviewers get the sandbox buyer login with the testing instructions.
+              . Reviewers get the sandbox buyer password with the testing instructions.
             </p>
           </div>
           <div className="flex flex-col gap-2">

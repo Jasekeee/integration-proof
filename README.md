@@ -220,15 +220,17 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 [/store/hardened](https://integration-proof.onrender.com/store/hardened), linked from the landing page
 and from /proof, sells one item through a real PayPal Checkout, rendered with the PayPal JS SDK v6;
 [/store/naive](https://integration-proof.onrender.com/store/naive) does the same for the naive store.
-The buttons call the store's own create and capture routes, the same code the proof runs. After
-payment the page shows three stages: the store's answer, PayPal's webhook with the store's signature
-check (`SUCCESS` in the hardened store, `NOT_CHECKED` in the naive one), and the order once the
-webhook has been applied (`PAID`, one fulfilment). A short trace and a link to come back to follow.
+The buttons call the store's own create and capture routes, the same code the proof runs. The page
+shows three stages: the store's answer, PayPal's webhook with the store's signature check (`SUCCESS`
+in the hardened store, `NOT_CHECKED` in the naive one), and the order once the webhook has been
+applied (`PAID`, one fulfilment), then a short trace and a link to come back to. Once the order is
+paid, a receipt with the capture id takes the buttons' place, also when the page is reloaded, and
+"Start a new checkout" opens a new cart.
 
-- **Pay by card**, the fastest way, with no login: PayPal's published
+- **Pay with PayPal** as the sandbox buyer whose email the page shows. Reviewers get the sandbox buyer
+  login with the testing instructions; it is not in this repository.
+- **Pay by card**, with no login: PayPal's published
   [sandbox test card](https://developer.paypal.com/tools/sandbox/card-testing/), shown on the page.
-- **Pay with PayPal** as the sandbox buyer whose email the page shows. Its password is shared on
-  request; it is not in this repository.
 
 A checkout abandoned before approval leaves a `CREATED` order behind. `npm run db:clean-manual`
 lists the ones older than an hour, and `npm run db:clean-manual -- --yes` deletes them; proof runs

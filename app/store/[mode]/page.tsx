@@ -39,7 +39,8 @@ export default async function StorePage({ params, searchParams }: PageProps<"/st
           A real PayPal Checkout.
         </h1>
         <p className="measure mt-4 text-lg text-pretty text-muted sm:text-xl">
-          Pay in PayPal&apos;s real sandbox with the test card, then watch the page wait for PayPal&apos;s webhook and show{" "}
+          Pay in PayPal&apos;s real sandbox as the sandbox buyer or with the test card, then watch the page wait for
+          PayPal&apos;s webhook and show{" "}
           {mode.data === "hardened" ? "that the store verified its signature" : "that this store never checks its signature"}.
         </p>
         {/* The naive store's page is reachable by its URL only; from there, the hardened one is a click away. */}

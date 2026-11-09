@@ -44,7 +44,9 @@ export function Tally({ mode, report, now, previous }: { mode: Mode; report: Run
           </span>
         </p>
       ) : (
-        <p className="flex h-[clamp(4rem,9vw,7.5rem)] items-center text-[clamp(4rem,9vw,7.5rem)] font-semibold leading-none tracking-[-0.055em] tabular-nums">
+        // Proportional figures: Geist's tabular "1" is a different glyph, with a foot serif, that reads
+        // as a monospaced face at this size.
+        <p className="flex h-[clamp(4rem,9vw,7.5rem)] items-center text-[clamp(4rem,9vw,7.5rem)] font-semibold leading-none tracking-[-0.055em] proportional-nums">
           <span className={`inline-flex h-[1em] ${tone ? SCORE_COLORS[tone] : "text-muted"}`}>
             {report ? <Odometer key={report.id} value={report.summary.passed} max={total} roll={ended} /> : "–"}
             <span>/{total}</span>

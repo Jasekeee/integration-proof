@@ -28,7 +28,8 @@ export function useChanges<T>(value: T): number {
 /**
  * A digit that rolls to its value: a column of the digits 0 to max moves under a one-digit window.
  * With roll, it starts at 0 and rolls up after the first frame; otherwise it stands at the value.
- * Screen readers get the number itself.
+ * The window is as wide as the value's own digit, in the font's proportional figures, so the number
+ * sets like text: no tabular slot around a narrow "1". Screen readers get the number itself.
  */
 export function Odometer({ value, max, roll }: { value: number; max: number; roll: boolean }) {
   const [shown, setShown] = useState(roll ? 0 : value);
@@ -38,11 +39,16 @@ export function Odometer({ value, max, roll }: { value: number; max: number; rol
     return () => cancelAnimationFrame(frame);
   }, [shown, value]);
   return (
-    <span className="relative inline-block h-[1em] overflow-hidden leading-none">
+    // Clipped top and bottom only: with the score's tight tracking a glyph's ink reaches past its advance.
+    <span className="relative inline-block h-[1em] overflow-x-visible overflow-y-clip leading-none">
       <span className="sr-only">{value}</span>
+      {/* Sizes the window: the value's digit, invisible, in the flow. */}
+      <span aria-hidden="true" className="invisible">
+        {value}
+      </span>
       <span
         aria-hidden="true"
-        className="flex flex-col transition-transform duration-600 ease-(--ease-out)"
+        className="absolute right-0 top-0 flex flex-col items-end transition-transform duration-600 ease-(--ease-out)"
         style={{ transform: `translateY(-${shown}em)` }}
       >
         {Array.from({ length: max + 1 }, (_, digit) => (

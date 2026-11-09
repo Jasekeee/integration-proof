@@ -12,6 +12,7 @@ import {
   SCENARIO_TITLES,
   shortRequestId,
   traceRow,
+  traceSegments,
   verifiedFixes,
   type RunReport,
   type ScenarioView,
@@ -197,6 +198,48 @@ describe("traceRow", () => {
   it("carries the step's PayPal-Request-Id", () => {
     expect(traceRow(step(6, { paypalRequestId: "k" })).paypalRequestId).toBe("k");
     expect(traceRow(step(6)).paypalRequestId).toBeNull();
+  });
+
+  it("lists PayPal's deliveries one per line, with no separator", () => {
+    // The runner's note, as lib/proof/runner.ts writes it for two expected deliveries.
+    const note =
+      "Waited 15.2 s for PayPal webhooks. PAYMENT.CAPTURE.COMPLETED for order 93U333919E574954D acknowledged: verification NOT_CHECKED, outcome applied. PAYMENT.CAPTURE.COMPLETED for order 93U333919E574954D acknowledged: verification NOT_CHECKED, outcome applied.";
+    const row = traceRow(step(7, { actor: "runner", method: null, path: null, note }));
+    expect(row.actor).toBe("PayPal");
+    expect(row.call).toBe("Webhook delivered:\nPAYMENT.CAPTURE.COMPLETED\nPAYMENT.CAPTURE.COMPLETED");
+    expect(row.call).not.toContain(",");
+  });
+
+  it("lists missing deliveries one per line too", () => {
+    const row = traceRow(step(7, { actor: "runner", method: null, path: null, note: "Waited 150.0 s for PayPal webhooks. No acknowledged PAYMENT.CAPTURE.REFUNDED for order 93U333919E574954D within 150 s." }));
+    expect(row.call).toBe("Webhook not delivered:\nPAYMENT.CAPTURE.REFUNDED");
+  });
+});
+
+describe("traceSegments", () => {
+  const path = "POST /v2/checkout/orders/93U333919E574954D/confirm-payment-source";
+
+  it("breaks a path only after a slash, never inside the order id", () => {
+    const [segments] = traceSegments(path);
+    expect(segments).toEqual(["POST /", "v2/", "checkout/", "orders/", "93U333919E574954D/", "confirm-payment-source"]);
+    expect(segments.some((segment) => segment.includes("93U333919E574954D") && segment !== "93U333919E574954D/")).toBe(false);
+  });
+
+  it("joins back to the call unchanged, so a copied id is the id", () => {
+    const call = "Webhook delivered:\nPAYMENT.CAPTURE.COMPLETED\nPAYMENT.CAPTURE.REFUNDED";
+    expect(traceSegments(path).map((line) => line.join("")).join("\n")).toBe(path);
+    expect(traceSegments(call).map((line) => line.join("")).join("\n")).toBe(call);
+  });
+
+  it("never breaks inside a number", () => {
+    expect(traceSegments("Waited 15.1 s for PayPal webhooks.")).toEqual([["Waited 15.1 s for PayPal webhooks."]]);
+  });
+
+  it("puts each event on its own line, breakable after its dots", () => {
+    expect(traceSegments("Webhook delivered:\nPAYMENT.CAPTURE.COMPLETED")).toEqual([
+      ["Webhook delivered:"],
+      ["PAYMENT.", "CAPTURE.", "COMPLETED"],
+    ]);
   });
 });
 

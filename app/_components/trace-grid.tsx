@@ -11,6 +11,7 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { TraceText } from "./trace-text";
 import { repeatedRequestIds, shortRequestId, traceRow, type StepView, type TraceRow } from "./report";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -59,6 +60,14 @@ function RequestIdCell({ value, context }: ICellRendererParams<TraceRow, string 
 }
 
 /**
+ * The call or the detail: each webhook event on its own line, a path or an event name broken only
+ * between its parts, never inside an order id.
+ */
+function TextCell({ value }: ICellRendererParams<TraceRow, string | null>) {
+  return value ? <TraceText text={value} /> : null;
+}
+
+/**
  * The columns in reading order. From 1280 px every column fits the scenario's width (the minimums add
  * up to 994 px); Call and Detail wrap instead of widening. debug_id is the id PayPal finds a request
  * by: on a narrow screen, where the grid scrolls sideways, it is pinned to the right edge so it stays
@@ -68,7 +77,7 @@ function columns(narrow: boolean): ColDef<TraceRow>[] {
   return [
     { field: "seq", headerName: "Step", width: 68, valueFormatter: (p) => `#${p.value}`, cellStyle: numbers },
     { field: "actor", headerName: "Actor", width: 90 },
-    { field: "call", headerName: "Call", flex: 3, minWidth: 200, wrapText: true, autoHeight: true, cellStyle: { ...mono, lineHeight: "1.5" } },
+    { field: "call", headerName: "Call", flex: 3, minWidth: 200, wrapText: true, autoHeight: true, cellStyle: { ...mono, lineHeight: "1.5" }, cellRenderer: TextCell },
     { field: "httpStatus", headerName: "HTTP", width: 72, cellStyle: numbers, valueFormatter: (p) => (p.value === null ? "–" : String(p.value)) },
     {
       field: "durationMs",
@@ -87,7 +96,7 @@ function columns(narrow: boolean): ColDef<TraceRow>[] {
       valueFormatter: (p) => p.value ?? "–",
     },
     { field: "paypalRequestId", headerName: "PayPal-Request-Id", width: 156, cellStyle: mono, cellRenderer: RequestIdCell },
-    { field: "detail", headerName: "Detail", flex: 2, minWidth: 180, wrapText: true, autoHeight: true, cellStyle: { lineHeight: "1.5" } },
+    { field: "detail", headerName: "Detail", flex: 2, minWidth: 180, wrapText: true, autoHeight: true, cellStyle: { lineHeight: "1.5" }, cellRenderer: TextCell },
   ];
 }
 
@@ -123,6 +132,7 @@ export default function TraceGrid({
   const context = useMemo<GridContext>(() => ({ keyColors: repeatedRequestIds(steps) }), [steps]);
   const container = useRef<HTMLDivElement>(null);
   const [api, setApi] = useState<GridApi<TraceRow> | null>(null);
+  // A new set of rules is applied to the rows in place: no redraw, so a selected id stays selected.
   const rowClassRules = useMemo(
     () => ({
       "trace-highlight": (params: { data?: TraceRow }) => params.data?.seq === highlightSeq,
@@ -130,10 +140,6 @@ export default function TraceGrid({
     }),
     [highlightSeq, selectedSeq],
   );
-
-  useEffect(() => {
-    api?.redrawRows();
-  }, [api, rowClassRules]);
 
   // An evidence link scrolls its step into view and marks it; with motion the row flashes first, then
   // keeps the resting highlight.
@@ -179,7 +185,11 @@ export default function TraceGrid({
         // Once the rows are drawn, not when the grid is ready: the evidence link that opened this trace
         // scrolls to a row, which must exist by then.
         onFirstDataRendered={(event) => setApi(event.api)}
-        onRowClicked={(event) => event.data && onSelect(event.data.seq)}
+        // Ids can be selected and copied; a drag that selects text does not open the step.
+        enableCellTextSelection
+        onRowClicked={(event) => {
+          if (event.data && !window.getSelection()?.toString()) onSelect(event.data.seq);
+        }}
         onCellFocused={(event) => {
           // From the keyboard too: a focused Request-Id cell marks its twins.
           const column = typeof event.column === "object" && event.column ? event.column.getColId() : null;

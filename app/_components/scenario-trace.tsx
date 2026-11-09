@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useId, useState } from "react";
+import { TraceText } from "./trace-text";
 import { MODE_LABELS, retriedWithSameKey, SCENARIO_TITLES, traceRow, type Mode, type StepView } from "./report";
 import { buttonSmall, buttonText, panel } from "./ui";
 
@@ -47,10 +48,13 @@ function StepBodies({ step, onClose }: { step: StepView; onClose: () => void }) 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <h4 className="break-words text-sm font-semibold tabular-nums">
-            Step {step.seq} · <span className="font-mono">{row.call}</span>
+            Step {step.seq} ·{" "}
+            <span className="inline-block align-top font-mono">
+              <TraceText text={row.call} />
+            </span>
             {step.httpStatus !== null ? ` · ${step.httpStatus}` : ""}
           </h4>
-          <p className="break-all text-xs text-muted">
+          <p className="break-words text-xs text-muted">
             debug_id <span className="font-mono">{step.debugId ?? "–"}</span> · PayPal-Request-Id{" "}
             <span className="font-mono">{step.paypalRequestId ?? "—"}</span>
           </p>

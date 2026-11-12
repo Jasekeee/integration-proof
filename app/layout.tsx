@@ -53,9 +53,23 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
+/*
+ * The landing's intro (app/(marketing)/intro.tsx), decided before the first paint so nobody sees it
+ * flash or sees the page flash before it: only on "/", without reduced motion, once per browser
+ * session (once per load when storage is unavailable). It sets data-intro on <html>: "on" while it
+ * plays, "skip" for the 110 ms fade after a click, tap, key, wheel or scroll, then "done". The click
+ * that ends a skipping tap or press is swallowed, so it never lands on a link under the layer.
+ * Without JavaScript nothing is set and the layer never shows.
+ */
+const INTRO_SCRIPT = `(function(){try{var d=document.documentElement;if(location.pathname!=="/"||matchMedia("(prefers-reduced-motion: reduce)").matches)return;try{if(sessionStorage.getItem("ip-intro"))return;sessionStorage.setItem("ip-intro","1")}catch(e){}d.setAttribute("data-intro","on");var k=["pointerdown","keydown","wheel","touchstart","scroll"],o={capture:true,passive:true},t,s=0;function eat(e){if(performance.now()-s<800){e.preventDefault();e.stopPropagation()}removeEventListener("click",eat,true)}function done(){d.setAttribute("data-intro","done");k.forEach(function(e){removeEventListener(e,skip,o)})}function skip(e){if(d.getAttribute("data-intro")!=="on")return;clearTimeout(t);d.setAttribute("data-intro","skip");if(e.type==="pointerdown"||e.type==="touchstart"){s=performance.now();addEventListener("click",eat,true)}setTimeout(done,130)}k.forEach(function(e){addEventListener(e,skip,o)});t=setTimeout(done,1400)}catch(e){}})();`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // The intro script sets data-intro on this element before hydration.
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: INTRO_SCRIPT }} />
+      </head>
       <body className="flex min-h-full flex-col">
         <FocusModality />
         <a

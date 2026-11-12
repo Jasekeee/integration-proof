@@ -5,6 +5,7 @@ import { Icon } from "../_components/icon";
 import { GITHUB_URL } from "../_components/site";
 import { buttonPrimary, linkProse } from "../_components/ui";
 import { BadDay } from "./bad-day";
+import { Intro } from "./intro";
 import { Statements } from "./statements";
 import { fixesSummary } from "@/lib/ai/fix-check";
 import { PRODUCT } from "@/lib/store/shared";
@@ -101,6 +102,7 @@ export default function LandingPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col px-4 sm:px-6">
+      <Intro />
       <section className="glow-accent grid items-center gap-10 pb-14 pt-10 sm:pt-14 lg:min-h-[min(37.5rem,calc(100svh-8.25rem))] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-14 lg:py-10">
         <div className="flex flex-col items-start">
           <h1 className="text-[clamp(2.75rem,3.7vw,3.5rem)] font-semibold leading-[1.04] tracking-display text-balance">

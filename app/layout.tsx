@@ -64,8 +64,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <header className="border-b border-border">
-          <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        {/* Sticky and translucent: the page shows faintly through it, behind a hairline. */}
+        <header className="sticky top-0 z-40 border-b border-hairline bg-[color-mix(in_srgb,var(--bg)_78%,transparent)] backdrop-blur-md backdrop-saturate-150">
+          <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-2.5 sm:px-6">
             <Link href="/" className="flex min-h-10 items-center gap-2 rounded-control font-semibold tracking-tight">
               <LogoMark />
               Integration Proof
@@ -73,11 +74,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <SiteNav />
           </nav>
         </header>
-        <main id="main" className="flex flex-1 flex-col">
+        {/* Glows reach past the edges by design; clip, unlike hidden, makes no scroll container. */}
+        <main id="main" className="flex flex-1 flex-col overflow-x-clip">
           {children}
         </main>
-        <footer className="border-t border-border">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-muted sm:flex-row sm:justify-between sm:px-6">
+        <footer className="mt-8 border-t border-hairline">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-8 text-sm text-text-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p>PayPal sandbox only. No real payment is ever made.</p>
             <p>
               <a href={GITHUB_URL} className={linkProse}>

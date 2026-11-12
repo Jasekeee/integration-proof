@@ -1,40 +1,65 @@
 @import "tailwindcss";
 
 /*
- * Design tokens. Every color on the site comes from here, in both themes. Text tokens pass WCAG AA
- * on the backgrounds they are used on: --muted on --background and --surface, and each status color
- * on its own -bg token.
+ * Design tokens: "precision instrument" (.private notes aside, the rules live here). Graphite
+ * neutrals, one blue-violet accent (hue 243-245, apart from PayPal's blues and from pass and fail),
+ * red and green only for FAIL, PASS and money outcomes. Every text token passes WCAG AA on --bg,
+ * --raised and --sunken in both themes; --hairline-strong is 3:1 or more for borders that carry
+ * meaning. Dark is the reference theme; light is finished to the same standard.
+ *
+ * The older names below the new ones are aliases, so a component reads the system whichever name it
+ * uses: --surface is "a tone off the background" (sunken in light, raised in dark), as it always was.
  */
 :root {
-  --background: #ffffff;
-  --foreground: #111110;
-  --muted: #5c5b56;
-  --surface: #f6f6f4;
-  --surface-2: #eeede9;
-  --border: #e6e5e1;
-  --border-strong: #cfcdc7;
-  --accent: #111110;
-  --accent-foreground: #ffffff;
-  /* Focus follows the brand accent: 6.0:1 on the background. */
-  --ring: #2456e0;
-  --pass: #13703f;
-  --pass-bg: #e8f5ed;
-  --fail: #b42318;
-  --fail-bg: #fdefed;
+  --bg: #fbfbfc;
+  --raised: #ffffff;
+  --sunken: #f2f2f5;
+  --tone: #f2f2f5;
+  --tone-2: #e9e9ee;
+  --hairline: #e6e6ea;
+  --hairline-2: #d6d6dc;
+  --hairline-strong: #8b8b96;
+  --text: #0b0b0e;
+  --text-2: #4f4f59;
+  --text-3: #6a6a75;
+  --accent-fill: #5b4fe9;
+  --accent-text: #4f43dc;
+  --accent-soft: #eeecfe;
+  --on-accent: #ffffff;
+  --fail: #c2261b;
+  --fail-soft: #fdeeec;
+  --pass: #11753f;
+  --pass-soft: #e7f6ee;
   --warn: #8a4a0b;
   --warn-bg: #fdf3e1;
+  --ring: #5b4fe9;
+  /* The 1 px light along a surface's top edge, and the page's dot field and grain. */
+  --highlight-top: rgba(255, 255, 255, 0.9);
+  --dot: rgba(11, 11, 14, 0.09);
+  --grain-opacity: 0.035;
+  --glow: rgba(91, 79, 233, 0.13);
+  --glow-fail: rgba(194, 38, 27, 0.18);
+  --receipt-shadow: rgba(11, 11, 14, 0.1);
+
+  --background: var(--bg);
+  --foreground: var(--text);
+  --muted: var(--text-2);
+  --surface: var(--tone);
+  --surface-2: var(--tone-2);
+  --border: var(--hairline);
+  --border-strong: var(--hairline-2);
+  --accent: var(--accent-fill);
+  --accent-foreground: var(--on-accent);
+  --pass-bg: var(--pass-soft);
+  --fail-bg: var(--fail-soft);
   --diff-add: #14532d;
   --diff-add-bg: #e9f9ee;
   --diff-del: #7f1d1d;
   --diff-del-bg: #fdecec;
-  --highlight-bg: #eaf0fe;
-  /*
-   * The one brand accent: links, step numbers and focus. Green and red stay with outcomes.
-   * 5.3:1 or better on every background token, both themes.
-   */
-  --brand: #2456e0;
-  --brand-bg: #edf2fe;
-  --brand-foreground: #ffffff;
+  --highlight-bg: var(--accent-soft);
+  --brand: var(--accent-text);
+  --brand-bg: var(--accent-soft);
+  --brand-foreground: var(--on-accent);
   /* A PayPal-Request-Id that repeats in a trace: each repeated key gets one of these pairs. */
   --key-0: #3730a3;
   --key-0-bg: #e0e7ff;
@@ -46,39 +71,48 @@
   --key-3-bg: #e0f2fe;
   /* The edge of a code block with more code beyond it. */
   --scroll-shadow: rgba(23, 23, 23, 0.16);
-  /* The primary button under the pointer: the accent, a step toward the background. */
-  --accent-hover: color-mix(in srgb, var(--accent) 86%, var(--background));
-  /* Raised surfaces: the landing page's card statements and an open trace. */
-  --shadow-raised: 0 12px 40px -18px rgba(0, 0, 0, 0.18);
+  /* The primary button under the pointer: the accent, a step toward white. */
+  --accent-hover: color-mix(in srgb, var(--accent-fill) 88%, #ffffff);
+  /* Depth comes from hairlines and light; this is the one soft lift, for the landing's receipts. */
+  --shadow-raised: 0 1px 0 rgba(11, 11, 14, 0.04), 0 18px 40px -24px rgba(11, 11, 14, 0.22);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0f0f0e;
-    --foreground: #f3f2ee;
-    --muted: #a3a19a;
-    --surface: #191917;
-    --surface-2: #222220;
-    --border: #2b2a27;
-    --border-strong: #45433f;
-    --accent: #f3f2ee;
-    --accent-foreground: #0f0f0e;
-    --ring: #86a6ff;
-    --pass: #5bd394;
-    --pass-bg: #10241a;
-    --fail: #ff8077;
-    --fail-bg: #2a1513;
+    --bg: #0a0a0c;
+    --raised: #111114;
+    --sunken: #060608;
+    --tone: #111114;
+    --tone-2: #18181d;
+    --hairline: #1f1f24;
+    --hairline-2: #2c2c33;
+    --hairline-strong: #666672;
+    --text: #ededf0;
+    --text-2: #a6a6b0;
+    --text-3: #83838e;
+    --accent-fill: #635bf0;
+    --accent-text: #a39dff;
+    --accent-soft: #1a1838;
+    --on-accent: #ffffff;
+    --fail: #ff6b62;
+    --fail-soft: #2a1412;
+    --pass: #45d483;
+    --pass-soft: #0f2419;
     --warn: #fcd34d;
     --warn-bg: #2e2208;
+    --ring: #a39dff;
+    --highlight-top: rgba(255, 255, 255, 0.06);
+    --dot: rgba(237, 237, 240, 0.085);
+    --grain-opacity: 0.05;
+    --glow: rgba(99, 91, 240, 0.2);
+    --glow-fail: rgba(255, 107, 98, 0.22);
+    --receipt-shadow: rgba(0, 0, 0, 0.55);
+
     --diff-add: #a7f3c0;
     --diff-add-bg: #0d2416;
     --diff-del: #fecaca;
     --diff-del-bg: #2c0f0f;
-    --highlight-bg: #18213d;
-    --brand: #86a6ff;
-    --brand-bg: #18213d;
-    --brand-foreground: #0f0f0e;
     --key-0: #c7d2fe;
     --key-0-bg: #1e1b4b;
     --key-1: #99f6e4;
@@ -88,7 +122,7 @@
     --key-3: #bae6fd;
     --key-3-bg: #082f49;
     --scroll-shadow: rgba(0, 0, 0, 0.85);
-    --shadow-raised: 0 12px 40px -18px rgba(0, 0, 0, 0.7);
+    --shadow-raised: 0 1px 0 rgba(255, 255, 255, 0.03), 0 24px 48px -28px rgba(0, 0, 0, 0.9);
     color-scheme: dark;
   }
 }
@@ -119,6 +153,15 @@
   --color-brand-bg: var(--brand-bg);
   --color-brand-foreground: var(--brand-foreground);
   --color-accent-hover: var(--accent-hover);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-hairline: var(--hairline);
+  --color-hairline-2: var(--hairline-2);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
   --shadow-raised: var(--shadow-raised);
 
   /*
@@ -136,12 +179,13 @@
   --text-display-sm--line-height: 1.1;
   --text-display: 3.25rem;
   --text-display--line-height: 1.08;
-  --tracking-display: -0.035em;
+  --tracking-display: -0.03em;
 
-  /* Three radii: controls and chips, cards and panels, the large containers (scenes, statements). */
-  --radius-control: 6px;
-  --radius-card: 10px;
-  --radius-panel: 14px;
+  /* Radius scale: 8 controls and chips, 12 cards, 16 panels, 24 featured panels. */
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-panel: 16px;
+  --radius-feature: 24px;
 
   /* Motion: one curve for anything that appears or changes state, one for pulses. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -195,10 +239,127 @@
   line-gap-override: 0%;
 }
 
+html {
+  /* The header is sticky: anchors and scrollIntoView land below it. */
+  scroll-padding-top: 4.5rem;
+}
+
 body {
+  position: relative;
+  isolation: isolate;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/*
+ * The page's atmosphere, CSS only and out of the flow: a dot field that fades out from the top centre,
+ * and a fine grain over it. Neither takes space, catches the pointer, or moves.
+ */
+body::before,
+body::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 70rem;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::before {
+  background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(ellipse 70% 55% at 50% 0%, #000 0%, transparent 72%);
+}
+
+body::after {
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  -webkit-mask-image: linear-gradient(#000, transparent);
+  mask-image: linear-gradient(#000, transparent);
+}
+
+@layer components {
+  /* A card: raised, a hairline around it, and a line of light along its top edge. */
+  .surface-card {
+    background:
+      linear-gradient(var(--highlight-top), transparent) top / 100% 1px no-repeat,
+      var(--raised);
+    border: 1px solid var(--hairline);
+  }
+
+  /*
+   * A featured panel: the card, with a border that runs from the accent into the hairline (the mask
+   * keeps only the 1 px ring of the gradient) and a soft accent glow behind it.
+   */
+  .surface-featured {
+    position: relative;
+    isolation: isolate;
+    background:
+      linear-gradient(var(--highlight-top), transparent) top / 100% 1px no-repeat,
+      var(--raised);
+  }
+
+  .surface-featured::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(160deg, var(--accent-fill), var(--hairline) 42%, var(--hairline) 70%, color-mix(in srgb, var(--accent-fill) 55%, var(--hairline)));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+
+  .surface-featured::after {
+    content: "";
+    position: absolute;
+    inset: -20% -10%;
+    z-index: -1;
+    background: radial-gradient(closest-side, var(--glow), transparent);
+    pointer-events: none;
+  }
+
+  /* A soft accent glow behind a hero, out of the flow. */
+  .glow-accent {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .glow-accent::before {
+    content: "";
+    position: absolute;
+    inset: -8% -15% auto;
+    height: 120%;
+    z-index: -1;
+    background: radial-gradient(closest-side, var(--glow), transparent);
+    pointer-events: none;
+  }
+
+  /* A section's small label above its heading. */
+  .eyebrow {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+  }
+
+  /* The header link of the page the visitor is on: an accent line under it. */
+  .nav-link[aria-current="page"]::after {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: 0.125rem;
+    height: 1.5px;
+    border-radius: 1px;
+    background: var(--accent-text);
+  }
 }
 
 ::selection {
@@ -505,6 +666,95 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   to {
     color: var(--pass);
   }
+}
+
+/*
+ * The landing hero's one load-in: each piece rises 8 px into place, a little after the one before.
+ * The headline is drawn at once, so the largest paint is never held back.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .rise-in {
+    animation: rise-8 240ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 70ms + 60ms);
+  }
+}
+
+@keyframes rise-8 {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/*
+ * A receipt: paper with a torn, zig-zag bottom edge. The mask cuts the edge out of the box, so the
+ * surface, its hairline and its padding all end in the same teeth.
+ */
+.receipt {
+  --tooth: 16px;
+  -webkit-mask:
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / var(--tooth) 100%;
+  mask:
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / var(--tooth) 100%;
+}
+
+/* The receipt's lift: a drop shadow follows the torn edge, where a box shadow would be cut off. */
+.receipt-lift {
+  filter: drop-shadow(0 14px 22px var(--receipt-shadow));
+}
+
+/* The money that went wrong glows faintly in its own colour; the calm total does not. */
+.glow-fail-text {
+  text-shadow: 0 0 28px var(--glow-fail);
+}
+
+/* Numbered steps joined by a hairline: across on a wide screen, down on a narrow one. */
+.step-row {
+  position: relative;
+}
+
+@media (min-width: 768px) {
+  .steps-across > .step-row:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 1rem;
+    left: 2.75rem;
+    right: -2.25rem;
+    height: 1px;
+    background: linear-gradient(90deg, var(--hairline-2), var(--hairline));
+  }
+}
+
+.steps-down > .step-row:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 2.5rem;
+  bottom: -1.25rem;
+  left: 1rem;
+  width: 1px;
+  background: linear-gradient(var(--hairline-2), var(--hairline));
+}
+
+/* A step's number: the accent in a small outlined circle. */
+.step-number {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--accent-text) 45%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* A pull quote's rule: a hairline with a short accent run at its start. */
+.quote-rule {
+  background:
+    linear-gradient(var(--accent-text), var(--accent-text)) left top / 2rem 1px no-repeat,
+    linear-gradient(var(--hairline), var(--hairline)) left top / 100% 1px no-repeat;
 }
 
 /* A trace as it opens below its card. */

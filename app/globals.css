@@ -706,6 +706,250 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
   }
 }
 
+/* Under the landing's intro the hero rises as the layer lifts, not while it is covered. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-intro="on"] .rise-in {
+    animation-delay: calc(var(--i, 0) * 70ms + 1120ms);
+  }
+}
+
+/*
+ * The landing's intro (intro.tsx). Hidden unless the script in layout.tsx set data-intro: never
+ * without JavaScript, with reduced motion or in print. Without an animation every part sits in its
+ * final place, so a skip fades out the finished mark. Timeline, in ms: coin in 0, loop draws with
+ * the coin on its tip 80-620, the coin crosses into the gap 620-840 with an overshoot, the dot
+ * settles 800-1160, the lockup centres and the wordmark arrives 820-1180, the layer lifts 1050-1350.
+ */
+.intro {
+  display: none;
+}
+
+html:is([data-intro="on"], [data-intro="skip"]) .intro {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+
+html[data-intro="on"] .intro {
+  animation: intro-lift 300ms cubic-bezier(0.55, 0, 0.75, 0.3) 1050ms both;
+}
+
+html[data-intro="skip"] .intro {
+  pointer-events: none;
+  animation: intro-skip 110ms var(--ease-out) both;
+}
+
+@media print {
+  .intro {
+    display: none !important;
+  }
+}
+
+.intro-lockup {
+  --mark: 4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.intro-mark {
+  width: var(--mark);
+  height: var(--mark);
+  flex: none;
+  overflow: visible;
+}
+
+.intro-word {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+@media (min-width: 640px) {
+  .intro-lockup {
+    --mark: 5.5rem;
+    gap: 1.25rem;
+  }
+
+  .intro-word {
+    font-size: 2.25rem;
+  }
+}
+
+.intro-orbit,
+.intro-cross {
+  transform-box: view-box;
+  transform-origin: 16px 16px;
+}
+
+.intro-orbit-back,
+.intro-cross-back,
+.intro-coin,
+.intro-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.intro-coin {
+  opacity: 0;
+}
+
+/* The gap of 2 and the start just past 1 keep the undrawn dash, and its round cap, off the path. */
+html[data-intro="on"] .intro-arc {
+  stroke-dasharray: 1 2;
+  animation: intro-draw 540ms cubic-bezier(0.65, 0, 0.35, 1) 80ms both;
+}
+
+html[data-intro="on"] .intro-orbit {
+  animation: intro-orbit 540ms cubic-bezier(0.65, 0, 0.35, 1) 80ms both;
+}
+
+html[data-intro="on"] .intro-orbit-back {
+  animation: intro-orbit-back 540ms cubic-bezier(0.65, 0, 0.35, 1) 80ms both;
+}
+
+html[data-intro="on"] .intro-cross {
+  animation: intro-cross 220ms cubic-bezier(0.34, 1.56, 0.64, 1) 620ms both;
+}
+
+html[data-intro="on"] .intro-cross-back {
+  animation: intro-cross-back 220ms cubic-bezier(0.34, 1.56, 0.64, 1) 620ms both;
+}
+
+html[data-intro="on"] .intro-coin {
+  animation: intro-coin 920ms linear both;
+}
+
+html[data-intro="on"] .intro-dot {
+  animation: intro-dot 360ms cubic-bezier(0.34, 1.7, 0.64, 1) 800ms both;
+}
+
+html[data-intro="on"] .intro-lockup {
+  animation: intro-center 420ms cubic-bezier(0.22, 1, 0.36, 1) 820ms both;
+}
+
+html[data-intro="on"] .intro-word {
+  animation: intro-word 360ms var(--ease-out) 880ms both;
+}
+
+@keyframes intro-draw {
+  from {
+    stroke-dashoffset: 1.02;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The coin starts on the arc's first end, 60°, and rides its tip to the last, 300°. */
+@keyframes intro-orbit {
+  from {
+    transform: rotate(60deg);
+  }
+  to {
+    transform: rotate(300deg);
+  }
+}
+
+@keyframes intro-orbit-back {
+  from {
+    transform: rotate(-60deg);
+  }
+  to {
+    transform: rotate(-300deg);
+  }
+}
+
+/* Then once across the gap, to the dot's place at 340°. */
+@keyframes intro-cross {
+  from {
+    transform: none;
+  }
+  to {
+    transform: rotate(40deg);
+  }
+}
+
+@keyframes intro-cross-back {
+  from {
+    transform: none;
+  }
+  to {
+    transform: rotate(-40deg);
+  }
+}
+
+/* In with a small pop, along for the ride, then folded into the dot. */
+@keyframes intro-coin {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  9% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  14%,
+  86% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes intro-dot {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The mark alone sits in the centre until the wordmark joins it; 50% is the lockup's own width. */
+@keyframes intro-center {
+  from {
+    transform: translateX(calc(50% - var(--mark) / 2));
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes intro-word {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes intro-lift {
+  to {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+
+@keyframes intro-skip {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes rise-8 {
   from {
     opacity: 0;

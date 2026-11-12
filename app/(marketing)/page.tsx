@@ -4,6 +4,7 @@ import { SCENARIO_TITLES } from "../_components/report";
 import { Icon } from "../_components/icon";
 import { GITHUB_URL } from "../_components/site";
 import { buttonPrimary, linkProse } from "../_components/ui";
+import { BadDay } from "./bad-day";
 import { Statements } from "./statements";
 import { fixesSummary } from "@/lib/ai/fix-check";
 import { PRODUCT } from "@/lib/store/shared";
@@ -115,6 +116,16 @@ export default function LandingPage() {
         </div>
         <div className="rise-in" style={{ "--i": 2 } as React.CSSProperties}>
           <Statements price={Number(PRODUCT.amount.value)} currency={PRODUCT.amount.currency_code} />
+        </div>
+      </section>
+
+      <section className={`${section} border-t border-hairline`} aria-labelledby="bad-day">
+        <p className="eyebrow">What goes wrong</p>
+        <h2 id="bad-day" className={h2}>
+          One lost response.
+        </h2>
+        <div className="mt-8 sm:mt-10">
+          <BadDay />
         </div>
       </section>
 

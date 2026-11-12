@@ -248,9 +248,9 @@ export function ProofComparison({
               type="button"
               disabled
               aria-busy="true"
-              className="inline-flex min-h-12 cursor-progress items-center gap-2.5 rounded-full border border-border-strong bg-background px-6 font-medium"
+              className="inline-flex min-h-12 cursor-progress items-center gap-2.5 rounded-full border border-hairline-2 bg-raised px-6 font-medium shadow-[inset_0_1px_0_var(--highlight-top)]"
             >
-              <span className="spinner" aria-hidden="true" />
+              <span className="spinner text-accent-text" aria-hidden="true" />
               {runLabel}
             </button>
           ) : (

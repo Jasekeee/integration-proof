@@ -40,6 +40,8 @@
   --glow: rgba(91, 79, 233, 0.13);
   --glow-fail: rgba(194, 38, 27, 0.18);
   --receipt-shadow: rgba(11, 11, 14, 0.1);
+  --glow-pass: rgba(17, 117, 63, 0.15);
+  --raised-2: #ffffff;
 
   --background: var(--bg);
   --foreground: var(--text);
@@ -108,6 +110,8 @@
     --glow: rgba(99, 91, 240, 0.2);
     --glow-fail: rgba(255, 107, 98, 0.22);
     --receipt-shadow: rgba(0, 0, 0, 0.55);
+    --glow-pass: rgba(69, 212, 131, 0.16);
+    --raised-2: #17171c;
 
     --diff-add: #a7f3c0;
     --diff-add-bg: #0d2416;
@@ -696,6 +700,99 @@ html[data-input="pointer"] .ag-cell:focus-visible::after {
     conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / var(--tooth) 100%;
   mask:
     conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / var(--tooth) 100%;
+}
+
+/* A panel on a tone band (a scene, the store): one step above the band, so it separates in both themes. */
+.on-tone {
+  --raised: var(--raised-2);
+}
+
+/* A score's panel: a faint glow in its outcome's colour (--glow-tone), behind it and out of the flow. */
+.glow-tone {
+  position: relative;
+  isolation: isolate;
+}
+
+.glow-tone::after {
+  content: "";
+  position: absolute;
+  inset: -18% -12%;
+  z-index: -1;
+  background: radial-gradient(closest-side, var(--glow-tone, transparent), transparent);
+  pointer-events: none;
+}
+
+/*
+ * Frames that read as a flow: a small arrow in the gap between neighbours, where they sit in one row
+ * (from 1024 px for a scene's frames, from 768 px for the store's stages).
+ */
+@media (min-width: 1024px) {
+  .flow-arrows > li:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    top: 50%;
+    right: -0.95rem;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 9999px;
+    border: 1px solid var(--hairline-2);
+    background: var(--raised-2);
+    color: var(--text-3);
+    font-size: 0.6875rem;
+    line-height: 1;
+    transform: translateY(-50%);
+  }
+}
+
+@media (min-width: 768px) {
+  .flow-arrows-md > li:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    top: 50%;
+    right: -0.95rem;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 9999px;
+    border: 1px solid var(--hairline-2);
+    background: var(--raised-2);
+    color: var(--text-3);
+    font-size: 0.6875rem;
+    line-height: 1;
+    transform: translateY(-50%);
+  }
+}
+
+.flow-arrows > li,
+.flow-arrows-md > li {
+  position: relative;
+}
+
+/* A small accent pill: an evidence step that opens the trace at its row. */
+.chip-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--accent-text) 40%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 600;
+  transition: background-color 150ms var(--ease-out), border-color 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.chip-accent:hover {
+  border-color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent-text) 16%, var(--accent-soft));
+}
+
+.chip-accent:active {
+  transform: scale(0.98);
 }
 
 /* The receipt's lift: a drop shadow follows the torn edge, where a box shadow would be cut off. */

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import type { Mode } from "../../_components/report";
 import { TraceText } from "../../_components/trace-text";
+import { LogoMark } from "../../_components/logo";
 import { buttonSecondary, linkUtility, panel, panelLabel } from "../../_components/ui";
 import { captureWithFlag, checkoutView, followsCart, showsButtons, type CaptureAnswer, type CheckoutView } from "./capture";
 
@@ -201,9 +202,18 @@ export function Checkout({
           </div>
 
           <dl className="flex flex-col text-base">
-            <div className="flex items-baseline justify-between gap-4 border-b border-border pb-3">
-              <dt>
-                {product.description} <span className="text-muted">· qty 1</span>
+            <div className="flex items-center justify-between gap-4 border-b border-hairline pb-4">
+              <dt className="flex min-w-0 items-center gap-3">
+                {/* The item's tile, CSS only: the mark on an accent gradient with a line of light on top. */}
+                <span
+                  aria-hidden="true"
+                  className="grid size-12 shrink-0 place-items-center rounded-card border border-[color-mix(in_srgb,var(--accent-text)_30%,transparent)] bg-[radial-gradient(120%_120%_at_20%_0%,var(--accent-fill),color-mix(in_srgb,var(--accent-fill)_40%,var(--raised))_70%)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]"
+                >
+                  <LogoMark className="size-6" />
+                </span>
+                <span>
+                  {product.description} <span className="text-muted">· qty 1</span>
+                </span>
               </dt>
               <dd className="shrink-0 tabular-nums">{total}</dd>
             </div>
@@ -286,7 +296,7 @@ export function Checkout({
         <h2 id="result" className={panelLabel}>
           What the store and PayPal did
         </h2>
-        <ol className="grid gap-2 sm:gap-3 md:grid-cols-3">
+        <ol className="flow-arrows-md grid gap-2 sm:gap-3 md:grid-cols-3">
           <Stage
             label="The store takes the payment"
             done={view.kind === "paid"}
@@ -310,6 +320,7 @@ export function Checkout({
           <Stage
             label="PayPal's webhook arrives"
             done={Boolean(webhook)}
+            waiting={Boolean(polling) && !webhook}
             text={
               webhook
                 ? `Signature ${webhook.verification}`
@@ -359,7 +370,7 @@ function Receipt({ mode, total, view, sharedLink }: { mode: Mode; total: string;
   if (view.kind === "ready") return null;
   if (view.kind === "paid") {
     return (
-      <div role="status" className="flex flex-col gap-3 rounded-card bg-pass-bg p-4 sm:p-5">
+      <div role="status" className="flex flex-col gap-3 rounded-card border border-[color-mix(in_srgb,var(--pass)_28%,transparent)] bg-pass-bg p-4 shadow-[inset_0_1px_0_var(--highlight-top)] sm:p-5">
         <p className="flex items-center gap-2 text-lg font-semibold text-pass">
           {check}
           Paid {total}
@@ -414,6 +425,7 @@ function Stage({
   label,
   done,
   failed = false,
+  waiting = false,
   text,
   detail = null,
 }: {
@@ -421,12 +433,17 @@ function Stage({
   done: boolean;
   /** The stage ended without a payment: it reads in the failure color, never green. */
   failed?: boolean;
+  /** The page is waiting on this stage: a gentle pulse, still under reduced motion. */
+  waiting?: boolean;
   text: string;
   detail?: string | null;
 }) {
   return (
-    <li className={`flex min-w-0 flex-col gap-2 rounded-card px-4 py-3 ${done ? "bg-pass-bg" : failed ? "bg-fail-bg" : "bg-surface"}`}>
+    <li
+      className={`flex min-w-0 flex-col gap-2 rounded-card border px-4 py-3 ${done ? "border-[color-mix(in_srgb,var(--pass)_28%,transparent)] bg-pass-bg" : failed ? "border-[color-mix(in_srgb,var(--fail)_28%,transparent)] bg-fail-bg" : waiting ? "border-[color-mix(in_srgb,var(--accent-text)_40%,transparent)] bg-accent-soft" : "border-hairline bg-surface"}`}
+    >
       <p className="flex items-center gap-2 text-small text-muted">
+        {waiting && <span aria-hidden="true" className="live-dot size-1.5 shrink-0 rounded-full bg-accent-text" />}
         {done && check}
         {label}
         {done && <span className="sr-only">: done</span>}

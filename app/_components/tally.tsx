@@ -28,7 +28,11 @@ export function Tally({ mode, report, now, previous }: { mode: Mode; report: Run
   const total = report?.summary.total ?? 6;
   const progress = report && active ? runProgress(report, now) : null;
   return (
-    <div className={`flex min-w-0 flex-col items-center transition-opacity duration-200 ${previous ? "opacity-60" : ""}`}>
+    // A featured panel per store, with a faint glow in the colour of its outcome.
+    <div
+      className={`glow-tone surface-card flex min-w-0 flex-col items-center rounded-[var(--radius-feature)] px-3 pb-6 pt-7 transition-opacity duration-200 sm:px-6 sm:pb-7 sm:pt-9 ${previous ? "opacity-60" : ""}`}
+      style={{ "--glow-tone": tone === "fail" ? "var(--glow-fail)" : tone === "pass" ? "var(--glow-pass)" : "transparent" } as React.CSSProperties}
+    >
       {progress ? (
         <p className="flex h-[clamp(4rem,9vw,7.5rem)] flex-col items-center justify-center gap-2" aria-live="polite">
           <span className="grid w-40 grid-cols-6 gap-1 sm:w-56" aria-hidden="true">
@@ -54,7 +58,7 @@ export function Tally({ mode, report, now, previous }: { mode: Mode; report: Run
         </p>
       )}
       <p className="mt-3 text-lg font-medium">{MODE_LABELS[mode].name}</p>
-      <p className="text-small text-muted">{previous ? "previous run" : MODE_LABELS[mode].description}</p>
+      <p className="text-small text-balance text-muted">{previous ? "previous run" : MODE_LABELS[mode].description}</p>
     </div>
   );
 }

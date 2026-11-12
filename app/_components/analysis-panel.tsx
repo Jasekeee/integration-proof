@@ -5,7 +5,7 @@ import { FixMark } from "./fix-mark";
 import { usePlayOnce } from "./motion";
 import { Icon } from "./icon";
 import { proposedEdits, seconds, selfCheckLabel, type AnalysisView, type ScenarioView } from "./report";
-import { buttonSmall, linkUtility, panel, panelLabel } from "./ui";
+import { linkUtility, panel, panelLabel } from "./ui";
 
 const PATCH_LABELS = { applies: "Patch applies to the store file", needs_review: "Patch needs review", none: null };
 
@@ -124,7 +124,7 @@ export function ClaudeAnalysis({
                   <button
                     type="button"
                     onClick={() => onStep(item.stepId)}
-                    className={`${buttonSmall} min-w-12 shrink-0 self-start px-2 text-xs tabular-nums`}
+                    className="chip-accent min-h-9 min-w-12 shrink-0 self-start px-2.5 text-xs tabular-nums"
                     aria-label={`Show step ${item.stepId} in the trace`}
                   >
                     #{item.stepId}

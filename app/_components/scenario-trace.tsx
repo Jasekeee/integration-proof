@@ -26,7 +26,7 @@ function Body({ label, value }: { label: string; value: unknown }) {
         <pre
           tabIndex={0}
           aria-label={label}
-          className="max-h-80 overflow-auto rounded-control border border-border bg-surface p-3 font-mono text-xs leading-5"
+          className="max-h-80 overflow-auto rounded-card border border-hairline bg-sunken p-3 font-mono text-xs leading-5"
         >
           {text}
         </pre>

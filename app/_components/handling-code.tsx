@@ -25,7 +25,7 @@ export function HandlingCode({ id, mode, code }: { id: string; mode: Mode; code:
         </a>
       </div>
       <p className="measure text-sm leading-6 text-pretty">{snippet.caption}</p>
-      <CodeScroller label={`${snippet.file}, lines ${first} to ${last}`} gutter className="rounded-control border border-border bg-surface">
+      <CodeScroller label={`${snippet.file}, lines ${first} to ${last}`} gutter className="rounded-card border border-hairline bg-sunken">
         <pre className="py-2 font-mono text-xs leading-5">
           <code className="block min-w-max lg:min-w-0">
             {lines.map((line, index) => (
@@ -33,7 +33,7 @@ export function HandlingCode({ id, mode, code }: { id: string; mode: Mode; code:
                 {/* The numbers stay in place while the code scrolls under them. */}
                 <span
                   data-gutter=""
-                  className="sticky left-0 z-10 w-10 shrink-0 select-none bg-surface pr-3 text-right text-muted"
+                  className="sticky left-0 z-10 w-10 shrink-0 select-none bg-sunken pr-3 text-right text-text-3"
                   aria-hidden="true"
                 >
                   {first + index}

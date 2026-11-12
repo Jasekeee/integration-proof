@@ -42,8 +42,10 @@ function Statement({
         <span>{who}</span>
         <span className="text-muted">{what}</span>
       </figcaption>
-      <div className="flex flex-1 flex-col rounded-[1.25rem] border border-border bg-background px-4 pb-4 pt-3.5 shadow-raised sm:px-5 sm:pb-5 sm:pt-4">
-        <p className="flex justify-between border-b border-border pb-2.5 text-small text-muted">
+      {/* Paper: a lift that follows the torn edge, the card surface, and teeth cut by the mask (globals.css). */}
+      <div className="receipt-lift flex flex-1 flex-col">
+      <div className="receipt surface-card flex flex-1 flex-col rounded-t-[1.25rem] px-4 pb-6 pt-3.5 sm:px-5 sm:pb-7 sm:pt-4">
+        <p className="flex justify-between border-b border-hairline pb-2.5 text-small text-text-3">
           <span>Buyer’s card</span>
           <span>PayPal</span>
         </p>
@@ -55,7 +57,7 @@ function Statement({
               <li
                 key={index}
                 aria-hidden={amount ? undefined : true}
-                className={`flex min-h-11 items-center justify-between gap-2 text-sm tabular-nums sm:text-base ${again ? "border-t border-dashed border-border" : ""} ${again && amount ? "stmt-line text-fail" : ""}`}
+                className={`flex min-h-11 items-center justify-between gap-2 text-sm tabular-nums sm:text-base ${again ? "border-t border-dashed border-hairline-2" : ""} ${again && amount ? "stmt-line text-fail" : ""}`}
               >
                 {amount && (
                   <>
@@ -70,8 +72,8 @@ function Statement({
             );
           })}
         </ul>
-        <p className="mt-auto flex items-baseline justify-between border-t border-border pt-3">
-          <span className="text-small text-muted">Charged</span>
+        <p className="mt-auto flex items-baseline justify-between border-t border-hairline pt-3">
+          <span className="text-small text-text-3">Charged</span>
           {/* Proportional figures at this size: Geist's tabular "1" has a foot serif. */}
           <b className="grid text-[2rem] font-semibold leading-none tracking-tight proportional-nums sm:text-[2.75rem]">
             {first && (
@@ -79,9 +81,10 @@ function Statement({
                 {first}
               </span>
             )}
-            <span className={`col-start-1 row-start-1 justify-self-end ${first ? "stmt-after text-fail" : "stmt-settle text-pass"}`}>{total}</span>
+            <span className={`col-start-1 row-start-1 justify-self-end ${first ? "stmt-after glow-fail-text text-fail" : "stmt-settle text-pass"}`}>{total}</span>
           </b>
         </p>
+      </div>
       </div>
     </figure>
   );

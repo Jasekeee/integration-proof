@@ -6,7 +6,7 @@ import { Icon } from "./icon";
 import { GITHUB_URL } from "./site";
 
 const navLink =
-  "inline-flex min-h-10 items-center gap-1 rounded-control px-2 text-sm text-muted transition-colors duration-150 hover:text-foreground aria-[current=page]:font-medium aria-[current=page]:text-foreground";
+  "nav-link relative inline-flex min-h-10 items-center gap-1 rounded-control px-2 text-sm text-muted transition-colors duration-150 hover:bg-surface-2 hover:text-foreground aria-[current=page]:font-medium aria-[current=page]:text-foreground";
 
 /** The header's links; the page the visitor is on is marked for sight and for screen readers. */
 export function SiteNav() {

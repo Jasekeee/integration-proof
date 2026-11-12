@@ -62,14 +62,17 @@ const OWN_STORE_COMMAND_NARROW = `npm run cli -- run \\
 
 const AUDIENCE = ["Teams with a custom PayPal Checkout", "Plugin and platform authors", "Anyone before a launch or a sale day"];
 
-const h2 = "text-[clamp(2rem,4vw,3.25rem)] font-semibold leading-[1.05] tracking-display text-balance";
+const h2 = "mt-3 text-[clamp(2rem,3.4vw,2.5rem)] font-semibold leading-[1.08] tracking-display text-balance";
 
 /**
  * A big stat. Proportional figures: Geist's tabular "1" is a different glyph, with a foot serif,
  * that reads as a monospaced face at display sizes.
  */
-const stat = "text-[clamp(3.5rem,7vw,6rem)] font-semibold leading-[1.05] tracking-[-0.05em] proportional-nums";
-const section = "flex flex-col py-14 sm:py-20";
+const stat = "text-[clamp(3rem,5.5vw,4.5rem)] font-semibold leading-none tracking-[-0.045em] proportional-nums";
+const section = "flex flex-col py-16 sm:py-24";
+
+/** A stat's tile: a card, its number and label centred, every tile as tall as the tallest. */
+const tile = "surface-card flex flex-col items-center justify-start rounded-panel px-6 pb-7 pt-8";
 
 /** The arrow of a button that moves on: it steps forward under the pointer. */
 const nudge = "transition-transform duration-150 ease-(--ease-out) group-hover:translate-x-0.5";
@@ -97,74 +100,79 @@ export default function LandingPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col px-4 sm:px-6">
-      <section className="grid items-center gap-10 pb-12 pt-10 sm:pt-14 lg:min-h-[min(37.5rem,calc(100svh-8.25rem))] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-14 lg:py-8">
+      <section className="glow-accent grid items-center gap-10 pb-14 pt-10 sm:pt-14 lg:min-h-[min(37.5rem,calc(100svh-8.25rem))] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-14 lg:py-10">
         <div className="flex flex-col items-start">
           <h1 className="text-[clamp(2.75rem,3.7vw,3.5rem)] font-semibold leading-[1.04] tracking-display text-balance">
             One lost response. <span className="text-fail lg:block">The buyer pays twice.</span>
           </h1>
-          <p className="mt-6 max-w-[30em] text-lg leading-relaxed text-pretty text-muted sm:text-xl">
+          <p className="rise-in mt-6 max-w-[30em] text-lg leading-relaxed text-pretty text-muted sm:text-xl" style={{ "--i": 0 } as React.CSSProperties}>
             Integration Proof breaks a PayPal checkout on purpose, so you see the bad day before your customers do.
           </p>
-          <div className="mt-9 flex flex-col items-start gap-4">
+          <div className="rise-in mt-9 flex flex-col items-start gap-4" style={{ "--i": 1 } as React.CSSProperties}>
             <ProofButton />
             <CheckoutLink />
           </div>
         </div>
-        <Statements price={Number(PRODUCT.amount.value)} currency={PRODUCT.amount.currency_code} />
+        <div className="rise-in" style={{ "--i": 2 } as React.CSSProperties}>
+          <Statements price={Number(PRODUCT.amount.value)} currency={PRODUCT.amount.currency_code} />
+        </div>
       </section>
 
-      <section className={`${section} border-t border-border`} aria-labelledby="decides">
+      <section className={`${section} border-t border-hairline`} aria-labelledby="decides">
+        <p className="eyebrow">Verdicts</p>
         <h2 id="decides" className={h2}>
           Code decides. Not the AI.
         </h2>
-        <ul className="mt-8 grid gap-8 text-center sm:mt-10 sm:grid-cols-3">
-          <li className="flex flex-col items-center">
+        <ul className="mt-8 grid gap-3 text-center sm:mt-10 sm:grid-cols-3 sm:gap-4">
+          <li className={tile}>
             <b className={stat}>{scenarioCount}</b>
-            <span className="mt-3 text-balance text-muted">failure scenarios, run in PayPal’s sandbox</span>
+            <span className="mt-4 text-balance text-muted">failure scenarios, run in PayPal’s sandbox</span>
           </li>
           {fixes && (
-            <li className="flex flex-col items-center">
+            <li className={tile}>
               <b className={stat}>
                 {fixes.verified}/{fixes.total}
               </b>
-              <a href={fixes.report} className={`mt-3 rounded-sm text-muted ${linkProse.replace("text-brand", "")}`}>
+              <a href={fixes.report} className={`mt-4 rounded-sm text-balance text-muted ${linkProse.replace("text-brand", "")}`}>
                 Claude’s fixes verified offline, on a model of PayPal
               </a>
             </li>
           )}
-          <li className="flex flex-col items-center">
+          <li className={tile}>
             <b className={stat}>Code</b>
-            <span className="mt-3 text-balance text-muted">decides every verdict. Claude explains it and proposes the fix.</span>
+            <span className="mt-4 text-balance text-muted">decides every verdict. Claude explains it and proposes the fix.</span>
           </li>
         </ul>
       </section>
 
-      <section id="how-it-works" className={`${section} scroll-mt-4 border-t border-border`} aria-labelledby="how">
+      <section id="how-it-works" className={`${section} border-t border-hairline`} aria-labelledby="how">
+        <p className="eyebrow">The method</p>
         <h2 id="how" className={h2}>
           How it works
         </h2>
-        <ol className="mt-8 grid gap-8 sm:mt-10 md:grid-cols-3 md:gap-12">
+        <ol className="steps-across mt-8 grid gap-8 sm:mt-10 md:grid-cols-3 md:gap-12">
           {STEPS.map((step, index) => (
-            <li key={step.title} className="flex flex-col">
-              <span className="font-semibold text-brand">{index + 1}</span>
-              <h3 className="mt-3 text-xl font-semibold tracking-tight">{step.title}</h3>
+            <li key={step.title} className="step-row flex flex-col">
+              <span className="step-number">{index + 1}</span>
+              <h3 className="mt-4 text-xl font-semibold tracking-tight">{step.title}</h3>
               <p className="mt-2 leading-relaxed text-pretty text-muted">{step.body}</p>
             </li>
           ))}
         </ol>
       </section>
 
-      <section className={`${section} border-t border-border`} aria-labelledby="own-store">
-        <h2 id="own-store" className={`${h2} scroll-mt-6`}>
+      <section className={`${section} border-t border-hairline`} aria-labelledby="own-store">
+        <p className="eyebrow">Store contract</p>
+        <h2 id="own-store" className={h2}>
           Prove your own store.
         </h2>
         <p className="mt-4 text-lg text-pretty text-muted sm:text-xl">Three endpoints. One command. Real PayPal sandbox.</p>
         <div className="mt-8 grid gap-10 sm:mt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-14">
-          <ol className="flex flex-col gap-6">
+          <ol className="steps-down flex flex-col gap-10">
             {OWN_STORE_STEPS.map((step, index) => (
-              <li key={step} className="flex gap-4">
-                <span className="w-4 shrink-0 font-semibold text-brand">{index + 1}</span>
-                <p className="text-xl font-semibold leading-snug tracking-tight text-pretty">{step}</p>
+              <li key={step} className="step-row flex gap-4">
+                <span className="step-number">{index + 1}</span>
+                <p className="pt-0.5 text-xl font-semibold leading-snug tracking-tight text-pretty">{step}</p>
               </li>
             ))}
           </ol>
@@ -173,7 +181,7 @@ export default function LandingPage() {
             <pre
               tabIndex={0}
               aria-label="The command that proves your store"
-              className="overflow-x-auto rounded-panel border border-border bg-surface p-4 font-mono text-xs leading-6 sm:px-5 sm:text-sm"
+              className="overflow-x-auto rounded-panel border border-hairline bg-sunken p-4 font-mono text-xs leading-6 shadow-[inset_0_1px_0_var(--highlight-top)] sm:px-5 sm:py-4.5 sm:text-sm"
             >
               <code className="sm:hidden">{OWN_STORE_COMMAND_NARROW}</code>
               <code className="max-sm:hidden">{OWN_STORE_COMMAND}</code>
@@ -194,25 +202,26 @@ export default function LandingPage() {
                 CI example
               </a>
             </p>
-            <p className="text-sm text-muted">Runs from a clone today. Webhook scenarios need a public URL.</p>
+            <p className="text-sm text-text-3">Runs from a clone today. Webhook scenarios need a public URL.</p>
           </div>
         </div>
       </section>
 
-      <section className={`${section} border-t border-border`} aria-labelledby="guidance">
+      <section className={`${section} border-t border-hairline`} aria-labelledby="guidance">
+        <p className="eyebrow">PayPal’s documentation</p>
         <h2 id="guidance" className={h2}>
           PayPal documents the right behavior. Integration Proof checks it.
         </h2>
         <ul className="mt-8 grid gap-8 sm:mt-10 md:grid-cols-3 md:gap-12">
           {GUIDANCE.map((item) => (
             <li key={item.quote}>
-              <figure className="m-0 flex flex-col gap-4">
+              <figure className="quote-rule m-0 flex flex-col gap-4 pt-6">
                 {/* The opening quote hangs outside the text edge, so the words line up with the caption. */}
-                <blockquote cite={item.url} className="m-0 -indent-[0.42em] text-lg leading-relaxed text-pretty">
+                <blockquote cite={item.url} className="m-0 -indent-[0.42em] text-[1.1875rem] leading-[1.6] text-pretty">
                   “{item.quote}”
                 </blockquote>
-                <figcaption className="text-small text-muted">
-                  <a href={item.url} className={linkProse}>
+                <figcaption className="text-small text-text-3">
+                  <a href={item.url} className={`${linkProse} text-text-3 decoration-text-3/40 hover:text-foreground hover:decoration-current`}>
                     {item.source}
                   </a>
                 </figcaption>
@@ -222,7 +231,7 @@ export default function LandingPage() {
         </ul>
       </section>
 
-      <section className="border-t border-border py-7" aria-labelledby="who">
+      <section className="border-t border-hairline py-8" aria-labelledby="who">
         <p className="flex flex-wrap items-baseline gap-x-3 gap-y-2 text-lg">
           <span id="who" className="font-semibold">
             Who it is for:
@@ -236,13 +245,16 @@ export default function LandingPage() {
         </p>
       </section>
 
-      <section className="flex flex-col items-center border-t border-border py-16 text-center sm:py-22" aria-labelledby="try">
-        <h2 id="try" className={h2}>
-          Is your checkout ready for a bad day?
-        </h2>
-        <div className="mt-9 flex flex-col items-center gap-4">
-          <ProofButton />
-          <CheckoutLink />
+      <section className="border-t border-hairline py-16 sm:py-24" aria-labelledby="try">
+        <div className="surface-featured flex flex-col items-center rounded-[var(--radius-feature)] px-6 py-14 text-center sm:px-10 sm:py-20">
+          <p className="eyebrow">Live proof</p>
+          <h2 id="try" className={h2}>
+            Is your checkout ready for a bad day?
+          </h2>
+          <div className="mt-9 flex flex-col items-center gap-4">
+            <ProofButton />
+            <CheckoutLink />
+          </div>
         </div>
       </section>
     </div>

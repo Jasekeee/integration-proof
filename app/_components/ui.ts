@@ -29,7 +29,7 @@ export const linkUtility =
  * A panel on a scene's surface: the frames and lines of the first layer, and each block of the
  * technical layer. Inside one, only code, a patch or the trace grid gets a box of its own.
  */
-export const panel = "rounded-panel bg-background p-5 sm:p-6";
+export const panel = "on-tone surface-card rounded-panel p-5 sm:p-6";
 
 /** A small label above a panel's text: a store's name, "Why it happened", "Evidence in the trace". */
 export const panelLabel = "text-small text-muted";

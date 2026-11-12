@@ -18,21 +18,22 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 /** The grid takes its colors from the site's tokens, so it follows the light and dark themes. */
 const theme = themeQuartz.withParams({
-  backgroundColor: "var(--surface)",
+  backgroundColor: "var(--sunken)",
   foregroundColor: "var(--foreground)",
-  borderColor: "var(--border)",
-  headerBackgroundColor: "var(--surface-2)",
-  headerTextColor: "var(--muted)",
-  oddRowBackgroundColor: "var(--surface)",
-  rowHoverColor: "var(--surface-2)",
-  accentColor: "var(--ring)",
+  borderColor: "var(--hairline)",
+  headerBackgroundColor: "var(--tone-2)",
+  headerTextColor: "var(--text-3)",
+  headerFontWeight: 500,
+  oddRowBackgroundColor: "var(--sunken)",
+  rowHoverColor: "color-mix(in srgb, var(--accent-soft) 55%, var(--sunken))",
+  accentColor: "var(--accent-text)",
   // An evidence link's row flashes in this color, then fades to the resting highlight.
   valueChangeValueHighlightBackgroundColor: "color-mix(in srgb, var(--ring) 24%, var(--highlight-bg))",
   fontFamily: "var(--font-geist-sans)",
   fontSize: 13,
   headerFontSize: 12,
   spacing: 6,
-  wrapperBorderRadius: 10,
+  wrapperBorderRadius: 12,
 });
 
 /** Mono only for what is code or an id: the call, debug_id and PayPal-Request-Id. Numbers stay in the text face. */

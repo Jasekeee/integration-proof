@@ -98,9 +98,14 @@ const check = (
 /** The story's frames: plain sentences, the outcome last, in red or green. */
 function Frames({ told, play }: { told: Story; play: boolean }) {
   return (
-    <ol className="grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+    <ol className="flow-arrows grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
       {told.frames.map((frame, index) => {
-        const tone = frame.tone === "fail" ? "bg-fail-bg text-fail" : frame.tone === "pass" ? "bg-pass-bg text-pass" : "bg-background";
+        const tone =
+          frame.tone === "fail"
+            ? "border border-[color-mix(in_srgb,var(--fail)_28%,transparent)] bg-fail-bg text-fail"
+            : frame.tone === "pass"
+              ? "border border-[color-mix(in_srgb,var(--pass)_28%,transparent)] bg-pass-bg text-pass"
+              : "on-tone surface-card";
         return (
           <li
             key={index}
@@ -219,7 +224,7 @@ function Scene({
       <div className={`flex flex-wrap items-center justify-between gap-3 pt-2 ${play ? "after-enter" : ""}`} style={play && told ? ({ "--i": told.frames.length } as React.CSSProperties) : undefined}>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {verified && (
-            <span className="inline-flex min-h-10 items-center gap-2 rounded-full bg-background px-4 text-[15px]">
+            <span className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--accent-text)_35%,transparent)] bg-accent-soft px-4 text-[15px]">
               {check}
               <span>
                 Claude’s fix verified offline · <s className="text-fail decoration-[1.5px]">FAIL</s> <span aria-hidden="true">→</span>
@@ -326,11 +331,13 @@ export function ScenarioRows({
                 aria-expanded={expanded}
                 aria-controls={sceneId(id)}
                 onClick={() => toggle(id)}
-                className={`grid w-full scroll-mt-4 grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 gap-y-1.5 px-1 py-5 text-left transition-colors duration-150 hover:bg-surface focus-visible:-outline-offset-2 sm:px-5 sm:py-6 md:gap-6 ${columns} ${expanded ? "bg-surface" : ""}`}
+                className={`grid w-full scroll-mt-4 grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 gap-y-1.5 px-1 py-5 text-left transition-colors duration-150 hover:bg-surface focus-visible:-outline-offset-2 sm:px-5 sm:py-6 md:gap-6 ${columns} ${expanded ? "bg-surface shadow-[inset_2px_0_0_var(--accent-text)]" : ""}`}
               >
                 <span className="text-lg font-medium tracking-tight sm:text-xl">{SCENARIO_TITLES[id] ?? id}</span>
                 <span className={`col-start-2 row-start-1 ${both ? "md:col-start-4" : "md:col-start-3"}`}>
-                  <Chevron open={expanded} />
+                  <span className="-m-1.5 grid size-7 place-items-center rounded-full border border-hairline bg-raised">
+                    <Chevron open={expanded} />
+                  </span>
                 </span>
                 {modes.map((mode, index) => (
                   <span key={mode} className={`col-span-2 md:col-span-1 md:row-start-1 ${index === 0 ? "md:col-start-2" : "md:col-start-3"}`}>
@@ -338,7 +345,7 @@ export function ScenarioRows({
                   </span>
                 ))}
               </button>
-              <div id={sceneId(id)} role="region" aria-labelledby={rowId(id)} hidden={!expanded} className="bg-surface">
+              <div id={sceneId(id)} role="region" aria-labelledby={rowId(id)} hidden={!expanded} className="bg-surface shadow-[inset_2px_0_0_var(--accent-text)]">
                 {expanded && (
                   <Scene id={id} modes={modes} scenarios={scenarios} now={now} deadlineMs={deadlineMs} code={code} dimmed={dimmed} play={open.play} />
                 )}
